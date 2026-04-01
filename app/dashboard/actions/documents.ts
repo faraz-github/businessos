@@ -1,5 +1,7 @@
 'use server';
 
+import { getSession } from '@/lib/auth';
+
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import { generateShareToken } from '@/lib/utils';
@@ -7,7 +9,7 @@ import type { Mode, DocumentType, DocumentStatus } from '@/types';
 
 export async function getDocuments(mode: Mode, type?: DocumentType) {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const session = await getSession(); const user = session ? { id: session.sub } : null;
   if (!user) return [];
 
   let query = supabase
@@ -56,7 +58,7 @@ export async function createDocument(
   clientId?: string,
 ) {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const session = await getSession(); const user = session ? { id: session.sub } : null;
   if (!user) throw new Error('Not authenticated');
 
   const { data, error } = await supabase

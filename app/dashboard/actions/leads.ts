@@ -1,5 +1,7 @@
 'use server';
 
+import { getSession } from '@/lib/auth';
+
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import type { Mode, LeadStage } from '@/types';
@@ -7,7 +9,7 @@ import type { LeadFormData } from '@/types/schemas';
 
 export async function getLeads(mode: Mode) {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const session = await getSession(); const user = session ? { id: session.sub } : null;
   if (!user) return [];
 
   const { data, error } = await supabase
@@ -23,7 +25,7 @@ export async function getLeads(mode: Mode) {
 
 export async function createLead(formData: LeadFormData) {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const session = await getSession(); const user = session ? { id: session.sub } : null;
   if (!user) throw new Error('Not authenticated');
 
   const { data, error } = await supabase

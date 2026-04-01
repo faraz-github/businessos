@@ -1,5 +1,7 @@
 'use server';
 
+import { getSession } from '@/lib/auth';
+
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import type { Mode } from '@/types';
@@ -7,7 +9,7 @@ import type { BrandProfileFormData } from '@/types/schemas';
 
 export async function getBrandProfiles() {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const session = await getSession(); const user = session ? { id: session.sub } : null;
   if (!user) return [];
 
   const { data, error } = await supabase
@@ -21,7 +23,7 @@ export async function getBrandProfiles() {
 
 export async function upsertBrandProfile(formData: BrandProfileFormData) {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const session = await getSession(); const user = session ? { id: session.sub } : null;
   if (!user) throw new Error('Not authenticated');
 
   // Check if profile exists
@@ -50,7 +52,7 @@ export async function upsertBrandProfile(formData: BrandProfileFormData) {
 
 export async function uploadBrandLogo(mode: Mode, file: FormData) {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const session = await getSession(); const user = session ? { id: session.sub } : null;
   if (!user) throw new Error('Not authenticated');
 
   const imageFile = file.get('file') as File;

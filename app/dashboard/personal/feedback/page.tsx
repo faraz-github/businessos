@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useBrand } from '@/lib/brand';
+import { useCurrentUser } from '@/lib/auth/use-auth';
 import { createClient } from '@/lib/supabase/client';
 import { PageTransition } from '@/components/dashboard/PageTransition';
 import { Card, Badge, Button, Tabs, Modal, Input, Textarea, Select, EmptyState } from '@/components/ui';
@@ -13,6 +14,7 @@ type FeedbackAction = 'form' | 'whatsapp' | 'email' | 'recommendation' | 'endors
 
 export default function PersonalFeedbackPage() {
   const { mode, brand } = useBrand();
+  const { user: currentUser } = useCurrentUser();
   const [testimonials, setTestimonials] = useState<any[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [showAdd, setShowAdd] = useState(false);
@@ -21,7 +23,7 @@ export default function PersonalFeedbackPage() {
 
   useEffect(() => {
     async function fetch() {
-      const { data: { user } } = await supabase.auth.getUser();
+      const user = currentUser;
       if (!user) return;
       const { data: t } = await supabase
         .from('testimonials')
@@ -140,7 +142,7 @@ function AddTestimonialModal({ open, onClose, mode, clients, onCreated }: any) {
     if (!clientId || !content) return;
     setSaving(true);
     const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = currentUser;
     if (!user) return;
 
     const { data, error } = await supabase

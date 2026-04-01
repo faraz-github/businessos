@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useBrand } from '@/lib/brand';
+import { useCurrentUser } from '@/lib/auth/use-auth';
 import { createClient } from '@/lib/supabase/client';
 import { PageTransition } from '@/components/dashboard/PageTransition';
 import { Card, Badge, Button, Modal, Input, Textarea, Select, EmptyState } from '@/components/ui';
@@ -22,6 +23,7 @@ const stages: { value: LeadStage; label: string; color: string }[] = [
 
 export default function AgencyBDPipelinePage() {
   const { mode } = useBrand();
+  const { user: currentUser } = useCurrentUser();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [showCreate, setShowCreate] = useState(false);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
@@ -29,7 +31,7 @@ export default function AgencyBDPipelinePage() {
 
   useEffect(() => {
     async function fetch() {
-      const { data: { user } } = await supabase.auth.getUser();
+      const user = currentUser;
       if (!user) return;
       const { data } = await supabase.from('leads').select('*').eq('user_id', user.id).eq('mode', mode).order('last_activity_at', { ascending: false });
       setLeads((data as Lead[]) || []);
@@ -210,7 +212,7 @@ function CreateLeadModal({ open, onClose, mode, onCreated }: any) {
     if (!company) return;
     setSaving(true);
     const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = currentUser;
     if (!user) return;
     const { data, error } = await supabase.from('leads')
       .insert({

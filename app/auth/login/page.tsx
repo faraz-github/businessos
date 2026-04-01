@@ -1,11 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
-import { Button } from '@/components/ui/Button';
 import { motion } from 'framer-motion';
-import { Mail, Lock, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Mail, Lock, AlertCircle } from 'lucide-react';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -13,146 +11,163 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
-  const [isSignUp, setIsSignUp] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
-    setSuccess('');
     setLoading(true);
 
-    const supabase = createClient();
-
     try {
-      if (isSignUp) {
-        const { error: signUpError } = await supabase.auth.signUp({
-          email,
-          password,
-          options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
-        });
-        if (signUpError) throw signUpError;
-        setSuccess('Check your email for a confirmation link.');
-      } else {
-        const { error: signInError } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
-        if (signInError) throw signInError;
-        router.push('/dashboard/personal/home');
-        router.refresh();
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error || 'Something went wrong');
+        return;
       }
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Something went wrong');
+
+      // Redirect based on role
+      if (data.user.role === 'superadmin') {
+        router.push('/dashboard/personal/home');
+      } else {
+        router.push('/dashboard/agency/home');
+      }
+      router.refresh();
+    } catch {
+      setError('Could not connect to server. Please try again.');
     } finally {
       setLoading(false);
     }
   }
 
+  const inputStyle: React.CSSProperties = {
+    width: '100%',
+    background: 'var(--bg-surface)',
+    border: '1px solid var(--border-default)',
+    borderRadius: 'var(--radius-md)',
+    padding: '9px 12px 9px 36px',
+    fontSize: 13,
+    color: 'var(--text-primary)',
+    fontFamily: 'var(--font-body)',
+    outline: 'none',
+    boxSizing: 'border-box',
+    transition: 'border-color 150ms, box-shadow 150ms',
+  };
+
   return (
-    <div
-      className="min-h-screen flex items-center justify-center px-4"
-      style={{ background: 'var(--bg-base)' }}
-    >
-      {/* Subtle background glow */}
-      <div
-        className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[400px] rounded-full pointer-events-none"
-        style={{
-          background:
-            'radial-gradient(ellipse at center, rgba(79,142,247,0.06) 0%, transparent 70%)',
-        }}
-      />
+    <div style={{
+      minHeight: '100vh',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      background: 'var(--bg-base)',
+      padding: '16px',
+      position: 'relative',
+      overflow: 'hidden',
+    }}>
+      {/* Background glow */}
+      <div style={{
+        position: 'absolute',
+        top: '35%',
+        left: '50%',
+        transform: 'translate(-50%, -50%)',
+        width: 600,
+        height: 400,
+        borderRadius: '50%',
+        background: 'radial-gradient(ellipse, rgba(79,142,247,0.07) 0%, transparent 70%)',
+        pointerEvents: 'none',
+      }} />
 
       <motion.div
-        initial={{ opacity: 0, y: 16 }}
+        initial={{ opacity: 0, y: 14 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: [0, 0, 0.2, 1] }}
-        className="w-full max-w-sm relative"
+        style={{ width: '100%', maxWidth: 360, position: 'relative' }}
       >
-        {/* Logo / Title */}
-        <div className="text-center mb-8">
-          <div
-            className="inline-flex items-center justify-center w-11 h-11 rounded-xl mb-4"
-            style={{ background: 'var(--accent-blue-dim)', border: '1px solid var(--accent-blue-dim)' }}
-          >
-            <span style={{ color: 'var(--accent-blue)', fontSize: 20, fontWeight: 800, fontFamily: 'var(--font-display)' }}>
-              B
-            </span>
-          </div>
-          <h1
-            style={{
+        {/* Logo mark */}
+        <div style={{ textAlign: 'center', marginBottom: 28 }}>
+          <div style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: 44,
+            height: 44,
+            borderRadius: 12,
+            background: 'var(--accent-blue-dim)',
+            border: '1px solid rgba(79,142,247,0.2)',
+            marginBottom: 14,
+          }}>
+            <span style={{
               fontFamily: 'var(--font-display)',
-              fontSize: 26,
+              fontSize: 22,
               fontWeight: 800,
-              letterSpacing: '-0.5px',
-              color: 'var(--text-primary)',
+              color: 'var(--accent-blue)',
               lineHeight: 1,
-            }}
-          >
+            }}>B</span>
+          </div>
+          <h1 style={{
+            fontFamily: 'var(--font-display)',
+            fontSize: 26,
+            fontWeight: 800,
+            letterSpacing: '-0.5px',
+            color: 'var(--text-primary)',
+            lineHeight: 1,
+            margin: 0,
+          }}>
             Business OS
           </h1>
-          <p style={{ marginTop: 8, fontSize: 13, color: 'var(--text-secondary)' }}>
-            {isSignUp ? 'Create your workspace' : 'Sign in to your workspace'}
+          <p style={{
+            marginTop: 8,
+            fontSize: 13,
+            color: 'var(--text-secondary)',
+            fontFamily: 'var(--font-body)',
+          }}>
+            Sign in to your workspace
           </p>
         </div>
 
         {/* Card */}
-        <div
-          style={{
-            background: 'var(--bg-elevated)',
-            border: '1px solid var(--border-default)',
-            borderRadius: 'var(--radius-xl)',
-            padding: 24,
-            boxShadow: 'var(--shadow-elevated)',
-          }}
-        >
+        <div style={{
+          background: 'var(--bg-elevated)',
+          border: '1px solid var(--border-default)',
+          borderRadius: 'var(--radius-xl)',
+          padding: '24px',
+          boxShadow: 'var(--shadow-elevated)',
+        }}>
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
             {/* Email */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <label
-                htmlFor="email"
-                style={{
-                  fontSize: 11,
-                  fontWeight: 500,
-                  letterSpacing: '0.06em',
-                  textTransform: 'uppercase',
-                  color: 'var(--text-tertiary)',
-                  fontFamily: 'var(--font-body)',
-                }}
-              >
+              <label style={{
+                fontSize: 10,
+                fontWeight: 700,
+                textTransform: 'uppercase',
+                letterSpacing: '0.08em',
+                color: 'var(--text-tertiary)',
+                fontFamily: 'var(--font-body)',
+              }}>
                 Email
               </label>
               <div style={{ position: 'relative' }}>
-                <Mail
-                  size={14}
-                  style={{
-                    position: 'absolute',
-                    left: 12,
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    color: 'var(--text-tertiary)',
-                  }}
-                />
+                <Mail size={14} style={{
+                  position: 'absolute', left: 11, top: '50%',
+                  transform: 'translateY(-50%)', color: 'var(--text-tertiary)',
+                  pointerEvents: 'none',
+                }} />
                 <input
                   id="email"
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="you@example.com"
+                  placeholder="admin@businessos.local"
                   required
-                  style={{
-                    width: '100%',
-                    background: 'var(--bg-surface)',
-                    border: '1px solid var(--border-default)',
-                    borderRadius: 'var(--radius-md)',
-                    padding: '8px 12px 8px 36px',
-                    fontSize: 13,
-                    color: 'var(--text-primary)',
-                    fontFamily: 'var(--font-body)',
-                    outline: 'none',
-                    boxSizing: 'border-box',
-                    transition: 'border-color 150ms, box-shadow 150ms',
-                  }}
+                  autoComplete="email"
+                  style={inputStyle}
                   onFocus={(e) => {
                     e.target.style.borderColor = 'var(--accent-blue)';
                     e.target.style.boxShadow = '0 0 0 3px var(--accent-blue-glow)';
@@ -167,30 +182,22 @@ export default function LoginPage() {
 
             {/* Password */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <label
-                htmlFor="password"
-                style={{
-                  fontSize: 11,
-                  fontWeight: 500,
-                  letterSpacing: '0.06em',
-                  textTransform: 'uppercase',
-                  color: 'var(--text-tertiary)',
-                  fontFamily: 'var(--font-body)',
-                }}
-              >
+              <label style={{
+                fontSize: 10,
+                fontWeight: 700,
+                textTransform: 'uppercase',
+                letterSpacing: '0.08em',
+                color: 'var(--text-tertiary)',
+                fontFamily: 'var(--font-body)',
+              }}>
                 Password
               </label>
               <div style={{ position: 'relative' }}>
-                <Lock
-                  size={14}
-                  style={{
-                    position: 'absolute',
-                    left: 12,
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    color: 'var(--text-tertiary)',
-                  }}
-                />
+                <Lock size={14} style={{
+                  position: 'absolute', left: 11, top: '50%',
+                  transform: 'translateY(-50%)', color: 'var(--text-tertiary)',
+                  pointerEvents: 'none',
+                }} />
                 <input
                   id="password"
                   type="password"
@@ -198,20 +205,8 @@ export default function LoginPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
                   required
-                  minLength={6}
-                  style={{
-                    width: '100%',
-                    background: 'var(--bg-surface)',
-                    border: '1px solid var(--border-default)',
-                    borderRadius: 'var(--radius-md)',
-                    padding: '8px 12px 8px 36px',
-                    fontSize: 13,
-                    color: 'var(--text-primary)',
-                    fontFamily: 'var(--font-body)',
-                    outline: 'none',
-                    boxSizing: 'border-box',
-                    transition: 'border-color 150ms, box-shadow 150ms',
-                  }}
+                  autoComplete="current-password"
+                  style={inputStyle}
                   onFocus={(e) => {
                     e.target.style.borderColor = 'var(--accent-blue)';
                     e.target.style.boxShadow = '0 0 0 3px var(--accent-blue-glow)';
@@ -224,82 +219,75 @@ export default function LoginPage() {
               </div>
             </div>
 
-            {/* Error / Success */}
+            {/* Error */}
             {error && (
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  padding: '8px 12px',
-                  background: 'var(--accent-red-dim)',
-                  borderRadius: 'var(--radius-md)',
-                  fontSize: 12,
-                  color: 'var(--accent-red)',
-                }}
-              >
-                <AlertCircle size={13} style={{ flexShrink: 0 }} />
-                {error}
-              </div>
-            )}
-            {success && (
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  padding: '8px 12px',
-                  background: 'var(--accent-green-dim)',
-                  borderRadius: 'var(--radius-md)',
-                  fontSize: 12,
-                  color: 'var(--accent-green)',
-                }}
-              >
-                <CheckCircle2 size={13} style={{ flexShrink: 0 }} />
-                {success}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '9px 12px',
+                background: 'var(--accent-red-dim)',
+                borderRadius: 'var(--radius-md)',
+                border: '1px solid rgba(240,82,82,0.2)',
+              }}>
+                <AlertCircle size={13} style={{ color: 'var(--accent-red)', flexShrink: 0 }} />
+                <span style={{ fontSize: 12, color: 'var(--accent-red)', fontFamily: 'var(--font-body)' }}>
+                  {error}
+                </span>
               </div>
             )}
 
-            <Button type="submit" loading={loading} size="lg" className="w-full mt-1">
-              {isSignUp ? 'Create account' : 'Sign in'}
-            </Button>
-          </form>
-
-          <div style={{ marginTop: 16, textAlign: 'center' }}>
+            {/* Submit */}
             <button
-              onClick={() => {
-                setIsSignUp(!isSignUp);
-                setError('');
-                setSuccess('');
-              }}
+              type="submit"
+              disabled={loading}
               style={{
-                fontSize: 12,
-                color: 'var(--accent-blue)',
-                background: 'none',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+                width: '100%',
+                padding: '10px 20px',
+                background: loading ? 'rgba(79,142,247,0.6)' : 'var(--accent-blue)',
+                color: '#fff',
                 border: 'none',
-                cursor: 'pointer',
+                borderRadius: 'var(--radius-md)',
+                fontSize: 13,
+                fontWeight: 600,
                 fontFamily: 'var(--font-body)',
+                cursor: loading ? 'not-allowed' : 'pointer',
+                transition: 'opacity 150ms, transform 150ms',
+                marginTop: 4,
               }}
+              onMouseEnter={(e) => { if (!loading) (e.currentTarget as HTMLElement).style.opacity = '0.88'; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.opacity = '1'; }}
             >
-              {isSignUp
-                ? 'Already have an account? Sign in'
-                : "Don't have an account? Create one"}
+              {loading ? (
+                <>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style={{ animation: 'spin 0.8s linear infinite' }}>
+                    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="32" strokeLinecap="round" />
+                  </svg>
+                  Signing in...
+                </>
+              ) : 'Sign in'}
             </button>
-          </div>
+          </form>
         </div>
 
-        {/* Footer note */}
-        <p
-          style={{
-            marginTop: 20,
-            textAlign: 'center',
-            fontSize: 11,
-            color: 'var(--text-tertiary)',
-          }}
-        >
-          Your data is private and only accessible to you.
+        <p style={{
+          marginTop: 20,
+          textAlign: 'center',
+          fontSize: 11,
+          color: 'var(--text-tertiary)',
+          fontFamily: 'var(--font-body)',
+        }}>
+          Forgot your password? Contact the administrator.
         </p>
       </motion.div>
+
+      <style>{`
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+      `}</style>
     </div>
   );
 }

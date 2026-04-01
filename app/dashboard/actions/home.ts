@@ -1,11 +1,13 @@
 'use server';
 
+import { getSession } from '@/lib/auth';
+
 import { createClient } from '@/lib/supabase/server';
 import type { Mode, AttentionItem, AttentionSeverity } from '@/types';
 
 export async function getAttentionFeed(mode: Mode): Promise<AttentionItem[]> {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const session = await getSession(); const user = session ? { id: session.sub } : null;
   if (!user) return [];
 
   const now = new Date();
@@ -190,7 +192,7 @@ export async function getAttentionFeed(mode: Mode): Promise<AttentionItem[]> {
 
 export async function getHomeStats(mode: Mode) {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const session = await getSession(); const user = session ? { id: session.sub } : null;
   if (!user) return null;
 
   const now = new Date();
@@ -322,7 +324,7 @@ export async function getHomeStats(mode: Mode) {
 
 export async function getTodaysPriorities(mode: Mode) {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const session = await getSession(); const user = session ? { id: session.sub } : null;
   if (!user) return [];
 
   const today = new Date().toISOString().split('T')[0];
@@ -339,7 +341,7 @@ export async function getTodaysPriorities(mode: Mode) {
 
 export async function getTodaysTimeBlocks(mode: Mode) {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const session = await getSession(); const user = session ? { id: session.sub } : null;
   if (!user) return [];
 
   const today = new Date().toISOString().split('T')[0];

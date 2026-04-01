@@ -1,5 +1,7 @@
 'use server';
 
+import { getSession } from '@/lib/auth';
+
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import type { Mode, InvoiceStatus } from '@/types';
@@ -9,7 +11,7 @@ import type { InvoiceFormData, TransactionFormData, SubscriptionFormData } from 
 
 export async function getInvoices(mode: Mode) {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const session = await getSession(); const user = session ? { id: session.sub } : null;
   if (!user) return [];
 
   const { data, error } = await supabase
@@ -25,7 +27,7 @@ export async function getInvoices(mode: Mode) {
 
 export async function createInvoice(formData: InvoiceFormData) {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const session = await getSession(); const user = session ? { id: session.sub } : null;
   if (!user) throw new Error('Not authenticated');
 
   const { data, error } = await supabase
@@ -58,7 +60,7 @@ export async function updateInvoiceStatus(id: string, status: InvoiceStatus) {
 
 export async function getTransactions(mode: Mode) {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const session = await getSession(); const user = session ? { id: session.sub } : null;
   if (!user) return [];
 
   const { data, error } = await supabase
@@ -74,7 +76,7 @@ export async function getTransactions(mode: Mode) {
 
 export async function createTransaction(formData: TransactionFormData) {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const session = await getSession(); const user = session ? { id: session.sub } : null;
   if (!user) throw new Error('Not authenticated');
 
   const { data, error } = await supabase
@@ -92,7 +94,7 @@ export async function createTransaction(formData: TransactionFormData) {
 
 export async function getSubscriptions(mode: Mode) {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const session = await getSession(); const user = session ? { id: session.sub } : null;
   if (!user) return [];
 
   const { data, error } = await supabase
@@ -108,7 +110,7 @@ export async function getSubscriptions(mode: Mode) {
 
 export async function createSubscription(formData: SubscriptionFormData) {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const session = await getSession(); const user = session ? { id: session.sub } : null;
   if (!user) throw new Error('Not authenticated');
 
   const { data, error } = await supabase
@@ -138,7 +140,7 @@ export async function updateSubscription(id: string, data: Partial<SubscriptionF
 
 export async function getFinanceSummary(mode: Mode) {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const session = await getSession(); const user = session ? { id: session.sub } : null;
   if (!user) return null;
 
   const now = new Date();

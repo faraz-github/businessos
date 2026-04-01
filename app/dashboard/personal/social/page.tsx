@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useBrand } from '@/lib/brand';
+import { useCurrentUser } from '@/lib/auth/use-auth';
 import { createClient } from '@/lib/supabase/client';
 import { PageTransition } from '@/components/dashboard/PageTransition';
 import { Card, Badge, Button, Tabs, Input, Textarea, Modal, EmptyState } from '@/components/ui';
@@ -11,6 +12,7 @@ import type { SocialPost, ProfileReview } from '@/types';
 
 export default function PersonalSocialPage() {
   const { mode } = useBrand();
+  const { user: currentUser } = useCurrentUser();
   const [activeTab, setActiveTab] = useState('linkedin');
   const [posts, setPosts] = useState<SocialPost[]>([]);
   const [reviews, setReviews] = useState<ProfileReview[]>([]);
@@ -22,7 +24,7 @@ export default function PersonalSocialPage() {
   useEffect(() => {
     async function fetchData() {
       setLoading(true);
-      const { data: { user } } = await supabase.auth.getUser();
+      const user = currentUser;
       if (!user) return;
 
       const { data: postsData } = await supabase
@@ -184,7 +186,7 @@ function NewPostForm({ mode, platform, onClose, onCreated }: { mode: string; pla
   async function handleSave() {
     setSaving(true);
     const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = currentUser;
     if (!user) return;
 
     const { data, error } = await supabase

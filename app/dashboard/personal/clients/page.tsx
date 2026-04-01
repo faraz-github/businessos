@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useBrand } from '@/lib/brand';
+import { useCurrentUser } from '@/lib/auth/use-auth';
 import { createClient } from '@/lib/supabase/client';
 import { PageTransition } from '@/components/dashboard/PageTransition';
 import { Card, Badge, Button, Input, Modal, Textarea, Select, EmptyState } from '@/components/ui';
@@ -29,6 +30,7 @@ function stageBadgeVariant(stage: ClientStage): any {
 
 export default function PersonalClientsPage() {
   const { mode } = useBrand();
+  const { user: currentUser } = useCurrentUser();
   const [clients, setClients] = useState<Client[]>([]);
   const [search, setSearch] = useState('');
   const [showCreate, setShowCreate] = useState(false);
@@ -39,7 +41,7 @@ export default function PersonalClientsPage() {
 
   const fetchClients = useCallback(async () => {
     setLoading(true);
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = currentUser;
     if (!user) return;
     const { data } = await supabase
       .from('clients').select('*').eq('user_id', user.id).eq('mode', mode)
@@ -308,7 +310,7 @@ function CreateClientModal({ open, onClose, mode, onCreated }: {
     if (!name) return;
     setSaving(true);
     const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = currentUser;
     if (!user) return;
 
     const { data, error } = await supabase

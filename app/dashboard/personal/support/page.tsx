@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useBrand } from '@/lib/brand';
+import { useCurrentUser } from '@/lib/auth/use-auth';
 import { createClient } from '@/lib/supabase/client';
 import { PageTransition } from '@/components/dashboard/PageTransition';
 import { Card, Badge, Button, Modal, Input, Select, Textarea, EmptyState } from '@/components/ui';
@@ -11,6 +12,7 @@ import type { Client, SupportPeriod } from '@/types';
 
 export default function PersonalSupportPage() {
   const { mode, brand } = useBrand();
+  const { user: currentUser } = useCurrentUser();
   const [periods, setPeriods] = useState<any[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [showAdd, setShowAdd] = useState(false);
@@ -19,7 +21,7 @@ export default function PersonalSupportPage() {
 
   useEffect(() => {
     async function fetch() {
-      const { data: { user } } = await supabase.auth.getUser();
+      const user = currentUser;
       if (!user) return;
       const { data: sp } = await supabase
         .from('support_periods')
@@ -188,7 +190,7 @@ function AddSupportModal({ open, onClose, mode, clients, onCreated }: any) {
     if (!clientId || !startDate || !endDate) return;
     setSaving(true);
     const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = currentUser;
     if (!user) return;
     const { data, error } = await supabase
       .from('support_periods')

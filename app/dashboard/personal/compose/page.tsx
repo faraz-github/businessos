@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useBrand } from '@/lib/brand';
+import { useCurrentUser } from '@/lib/auth/use-auth';
 import { createClient } from '@/lib/supabase/client';
 import { PageTransition } from '@/components/dashboard/PageTransition';
 import { Card, Button, Tabs, Textarea, Input, Select, Badge } from '@/components/ui';
@@ -74,6 +75,7 @@ function generateTemplate(template: string, client: Client | null, brand: BrandP
 
 export default function PersonalComposePage() {
   const { mode, brand } = useBrand();
+  const { user: currentUser } = useCurrentUser();
   const [channel, setChannel] = useState<'email' | 'whatsapp'>('email');
   const [template, setTemplate] = useState('initial_outreach');
   const [clients, setClients] = useState<Client[]>([]);
@@ -87,7 +89,7 @@ export default function PersonalComposePage() {
 
   useEffect(() => {
     async function fetchClients() {
-      const { data: { user } } = await supabase.auth.getUser();
+      const user = currentUser;
       if (!user) return;
       const { data } = await supabase.from('clients').select('*').eq('user_id', user.id).eq('mode', mode);
       setClients((data as Client[]) || []);

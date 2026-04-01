@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useBrand } from '@/lib/brand';
+import { useCurrentUser } from '@/lib/auth/use-auth';
 import { createClient } from '@/lib/supabase/client';
 import { PageTransition } from '@/components/dashboard/PageTransition';
 import { Card, Badge, Button, Tabs, Modal, Input, Textarea, Select, EmptyState } from '@/components/ui';
@@ -28,6 +29,7 @@ const statusConfig: Record<string, { variant: any; label: string }> = {
 
 export default function PersonalPaperworkPage() {
   const { mode } = useBrand();
+  const { user: currentUser } = useCurrentUser();
   const [activeType, setActiveType] = useState<DocumentType | 'all'>('all');
   const [documents, setDocuments] = useState<any[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
@@ -38,7 +40,7 @@ export default function PersonalPaperworkPage() {
   useEffect(() => {
     async function fetch() {
       setLoading(true);
-      const { data: { user } } = await supabase.auth.getUser();
+      const user = currentUser;
       if (!user) return;
 
       let query = supabase
@@ -167,7 +169,7 @@ function CreateDocumentModal({ open, onClose, mode, clients, onCreated }: {
   async function handleCreate() {
     setSaving(true);
     const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = currentUser;
     if (!user) return;
 
     const { data, error } = await supabase

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useBrand } from '@/lib/brand';
+import { useCurrentUser } from '@/lib/auth/use-auth';
 import { createClient } from '@/lib/supabase/client';
 import { PageTransition } from '@/components/dashboard/PageTransition';
 import { Card, Badge, Button, Tabs, Modal, Input, Select, EmptyState } from '@/components/ui';
@@ -37,6 +38,7 @@ const expenseCategories = [
 
 export default function PersonalFinancePage() {
   const { mode } = useBrand();
+  const { user: currentUser } = useCurrentUser();
   const [activeTab, setActiveTab] = useState('overview');
   const [invoices, setInvoices] = useState<any[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -47,7 +49,7 @@ export default function PersonalFinancePage() {
 
   useEffect(() => {
     async function fetch() {
-      const { data: { user } } = await supabase.auth.getUser();
+      const user = currentUser;
       if (!user) return;
 
       const [inv, tx, subs] = await Promise.all([
@@ -262,7 +264,7 @@ function AddTransactionModal({ open, onClose, mode, onCreated }: any) {
     if (!amount) return;
     setSaving(true);
     const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = currentUser;
     if (!user) return;
     const { data, error } = await supabase.from('transactions')
       .insert({ user_id: user.id, mode, type, category, amount: parseFloat(amount), description: description || null, date })
@@ -301,7 +303,7 @@ function AddSubscriptionModal({ open, onClose, mode, onCreated }: any) {
     if (!name || !cost || !renewalDate) return;
     setSaving(true);
     const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = currentUser;
     if (!user) return;
     const { data, error } = await supabase.from('subscriptions')
       .insert({ user_id: user.id, mode, name, cost: parseFloat(cost), billing_cycle: cycle, next_renewal_at: renewalDate, category: 'tools', status: 'active', auto_pay: false })

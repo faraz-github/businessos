@@ -27,7 +27,9 @@
     "date-fns-tz": "^3.2.0",
     "lucide-react": "^0.468.0",
     "clsx": "^2.1.0",
-    "nanoid": "^5.0.0"
+    "nanoid": "^5.0.0",
+    "bcryptjs": "^2.4.3",
+    "jose": "^5.9.3"
   },
   "devDependencies": {
     "typescript": "^5.7.0",
@@ -39,7 +41,8 @@
     "postcss": "^8.5.0",
     "eslint": "^9.0.0",
     "eslint-config-next": "^16.0.0",
-    "supabase": "^2.0.0"
+    "supabase": "^2.0.0",
+    "@types/bcryptjs": "^2.4.6"
   },
   "packageManager": "pnpm@9.15.0"
 }

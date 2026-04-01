@@ -11,6 +11,7 @@ import { Sparkline } from '@/components/charts/Sparkline';
 import { PageTransition } from '@/components/dashboard/PageTransition';
 import { createClient } from '@/lib/supabase/client';
 import { useBrand } from '@/lib/brand';
+import { useCurrentUser } from '@/lib/auth/use-auth';
 import { formatINR, formatCompactINR, formatTime, cn } from '@/lib/utils';
 import {
   AlertCircle, CheckCircle2, Info, Plus, X,
@@ -198,6 +199,7 @@ export function PersonalHomeClient({
   timeBlocks: initialTimeBlocks,
 }: PersonalHomeClientProps) {
   const { mode } = useBrand();
+  const { user: currentUser } = useCurrentUser();
   const supabase = createClient();
   const [priorities, setPriorities] = useState(initialPriorities);
   const [timeBlocks, setTimeBlocks] = useState(initialTimeBlocks);
@@ -208,11 +210,10 @@ export function PersonalHomeClient({
   async function handleAddPriority() {
     if (!newPriority.trim() || priorities.length >= 3) return;
     setAddingPriority(true);
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    if (!currentUser) return;
     const today = new Date().toISOString().split('T')[0];
     const { data } = await supabase.from('priorities')
-      .insert({ user_id: user.id, mode, date: today, text: newPriority, sort_order: priorities.length })
+      .insert({ user_id: currentUser.id, mode, date: today, text: newPriority, sort_order: priorities.length })
       .select().single();
     if (data) setPriorities((prev) => [...prev, data as Priority]);
     setNewPriority('');
@@ -225,11 +226,10 @@ export function PersonalHomeClient({
   }
 
   async function handleAddTimeBlock(type: string, startTime: string, endTime: string, label: string) {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    if (!currentUser) return;
     const today = new Date().toISOString().split('T')[0];
     const { data } = await supabase.from('time_blocks')
-      .insert({ user_id: user.id, mode, date: today, type, start_time: startTime, end_time: endTime, label: label || null })
+      .insert({ user_id: currentUser.id, mode, date: today, type, start_time: startTime, end_time: endTime, label: label || null })
       .select().single();
     if (data) setTimeBlocks((prev) => [...prev, data as TimeBlock].sort((a, b) => a.start_time.localeCompare(b.start_time)));
     setShowAddBlock(false);

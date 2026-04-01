@@ -1,5 +1,7 @@
 'use server';
 
+import { getSession } from '@/lib/auth';
+
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import type { Mode } from '@/types';
@@ -8,7 +10,7 @@ import type { Mode } from '@/types';
 
 export async function addPriority(mode: Mode, text: string) {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const session = await getSession(); const user = session ? { id: session.sub } : null;
   if (!user) throw new Error('Not authenticated');
 
   const today = new Date().toISOString().split('T')[0];
@@ -66,7 +68,7 @@ export async function addTimeBlock(
   label?: string,
 ) {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const session = await getSession(); const user = session ? { id: session.sub } : null;
   if (!user) throw new Error('Not authenticated');
 
   const today = new Date().toISOString().split('T')[0];
@@ -101,7 +103,7 @@ export async function deleteTimeBlock(id: string) {
 
 export async function addBlocker(mode: Mode, text: string) {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const session = await getSession(); const user = session ? { id: session.sub } : null;
   if (!user) throw new Error('Not authenticated');
 
   const today = new Date().toISOString().split('T')[0];

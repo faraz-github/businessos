@@ -1,5 +1,7 @@
 'use server';
 
+import { getSession } from '@/lib/auth';
+
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import type { Mode, ClientStage } from '@/types';
@@ -7,7 +9,7 @@ import type { ClientFormData } from '@/types/schemas';
 
 export async function getClients(mode: Mode) {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const session = await getSession(); const user = session ? { id: session.sub } : null;
   if (!user) return [];
 
   const { data, error } = await supabase
@@ -35,7 +37,7 @@ export async function getClient(id: string) {
 
 export async function createClientAction(formData: ClientFormData) {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const session = await getSession(); const user = session ? { id: session.sub } : null;
   if (!user) throw new Error('Not authenticated');
 
   const stageEntry = {
