@@ -15,7 +15,7 @@ export function Progress({ value, color = 'var(--accent-blue)', className, label
       {label && (
         <div className="flex items-center justify-between mb-1.5">
           <span className="text-[11px] text-[var(--text-tertiary)]">{label}</span>
-          <span className="text-[11px] font-medium text-[var(--text-secondary)] font-[family-name:var(--font-mono)]">
+          <span className="text-[11px] font-medium text-[var(--text-secondary)] font-mono">
             {Math.round(clampedValue)}%
           </span>
         </div>

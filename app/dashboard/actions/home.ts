@@ -263,6 +263,23 @@ export async function getHomeStats(mode: Mode) {
   const workStages = ['work_in_progress', 'phase_1_complete', 'phase_2_complete', 'review_and_feedback', 'revisions_complete'];
   const activeProjectsCount = activeClients?.filter((c) => workStages.includes(c.current_stage)).length || 0;
 
+  // Delivered this month — clients whose stage_history contains 'delivered' or 'completed' entered this month
+  const { data: recentlyDelivered } = await supabase
+    .from('clients')
+    .select('stage_history')
+    .eq('user_id', user.id)
+    .eq('mode', mode)
+    .in('current_stage', ['delivered', 'deployed', 'support_period_active', 'completed']);
+
+  const deliveredThisMonth = recentlyDelivered?.filter((c) => {
+    const history = (c.stage_history as { stage: string; entered_at: string }[]) || [];
+    return history.some(
+      (h) =>
+        (h.stage === 'delivered' || h.stage === 'completed') &&
+        h.entered_at >= startOfMonth,
+    );
+  }).length || 0;
+
   // 5-month revenue sparkline
   const sparklineData = [];
   for (let i = 4; i >= 0; i--) {
@@ -298,7 +315,7 @@ export async function getHomeStats(mode: Mode) {
     },
     work: {
       activeProjects: activeProjectsCount,
-      deliveredThisMonth: 0, // TODO: calculate from stage_history
+      deliveredThisMonth,
     },
   };
 }

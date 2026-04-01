@@ -3,44 +3,110 @@
 import { useState } from 'react';
 import { useBrand } from '@/lib/brand';
 import { QuickLogModal } from './QuickLogModal';
-import { Button } from '@/components/ui/Button';
 import { formatDate } from '@/lib/utils';
 import { Zap, Search } from 'lucide-react';
 
 export function TopBar() {
-  const { brand, mode } = useBrand();
+  const { brand } = useBrand();
   const [quickLogOpen, setQuickLogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-
   const today = formatDate(new Date(), 'EEEE, dd MMMM');
 
   return (
     <>
-      <header className="h-[var(--topbar-height)] bg-[var(--bg-surface)] border-b border-[var(--border-subtle)] flex items-center px-6 gap-4 sticky top-0 z-50">
+      <header
+        style={{
+          height: 'var(--topbar-height)',
+          background: 'var(--bg-surface)',
+          borderBottom: '1px solid var(--border-subtle)',
+          display: 'flex',
+          alignItems: 'center',
+          padding: '0 24px',
+          gap: 16,
+          position: 'sticky',
+          top: 0,
+          zIndex: 50,
+          flexShrink: 0,
+        }}
+      >
         {/* Date */}
-        <span className="text-[13px] text-[var(--text-secondary)] font-medium">{today}</span>
+        <span
+          style={{
+            fontSize: 13,
+            fontWeight: 500,
+            color: 'var(--text-secondary)',
+            fontFamily: 'var(--font-body)',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {today}
+        </span>
 
         {/* Search */}
-        <div className="flex-1 max-w-md mx-auto relative">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-tertiary)]" />
+        <div style={{ flex: 1, maxWidth: 400, position: 'relative' }}>
+          <Search
+            size={14}
+            style={{
+              position: 'absolute',
+              left: 10,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              color: 'var(--text-tertiary)',
+              pointerEvents: 'none',
+            }}
+          />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search clients, documents, leads..."
-            className="w-full bg-[var(--bg-hover)] border border-transparent rounded-[var(--radius-md)] pl-9 pr-3 py-[7px] text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-[var(--border-default)] transition-colors"
+            style={{
+              width: '100%',
+              background: 'var(--bg-hover)',
+              border: '1px solid transparent',
+              borderRadius: 'var(--radius-md)',
+              paddingLeft: 32,
+              paddingRight: 12,
+              paddingTop: 7,
+              paddingBottom: 7,
+              fontSize: 12,
+              fontFamily: 'var(--font-body)',
+              color: 'var(--text-primary)',
+              outline: 'none',
+              transition: 'border-color 150ms',
+            }}
+            onFocus={(e) => { e.target.style.borderColor = 'var(--border-default)'; }}
+            onBlur={(e) => { e.target.style.borderColor = 'transparent'; }}
           />
         </div>
 
-        {/* Quick Log */}
-        <Button
-          variant="primary"
-          size="sm"
-          icon={<Zap size={12} />}
+        <div style={{ marginLeft: 'auto' }} />
+
+        {/* Quick Log Button */}
+        <button
           onClick={() => setQuickLogOpen(true)}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '6px 12px',
+            background: 'var(--accent-blue)',
+            color: '#fff',
+            border: 'none',
+            borderRadius: 'var(--radius-md)',
+            fontSize: 12,
+            fontWeight: 500,
+            fontFamily: 'var(--font-body)',
+            cursor: 'pointer',
+            transition: 'opacity 150ms',
+            whiteSpace: 'nowrap',
+          }}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.opacity = '0.88'; }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.opacity = '1'; }}
         >
+          <Zap size={13} />
           Quick Log
-        </Button>
+        </button>
       </header>
 
       <QuickLogModal open={quickLogOpen} onClose={() => setQuickLogOpen(false)} />

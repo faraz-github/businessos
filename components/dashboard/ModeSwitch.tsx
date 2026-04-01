@@ -4,14 +4,21 @@ import { useBrand } from '@/lib/brand';
 import { cn } from '@/lib/utils';
 import { User, Building2 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { useRouter } from 'next/navigation';
 
 export function ModeSwitch() {
   const { mode, setMode } = useBrand();
+  const router = useRouter();
+
+  function handleModeChange(newMode: 'personal' | 'agency') {
+    setMode(newMode);
+    router.push(newMode === 'personal' ? '/dashboard/personal/home' : '/dashboard/agency/home');
+  }
 
   return (
     <div className="flex items-center bg-[var(--bg-hover)] rounded-[var(--radius-md)] p-[3px] w-full">
       <button
-        onClick={() => setMode('personal')}
+        onClick={() => handleModeChange('personal')}
         className={cn(
           'flex-1 flex items-center justify-center gap-1.5 py-[6px] rounded-[7px] text-[11px] font-medium transition-all duration-[var(--duration-fast)] relative',
           mode === 'personal'
@@ -32,7 +39,7 @@ export function ModeSwitch() {
         </span>
       </button>
       <button
-        onClick={() => setMode('agency')}
+        onClick={() => handleModeChange('agency')}
         className={cn(
           'flex-1 flex items-center justify-center gap-1.5 py-[6px] rounded-[7px] text-[11px] font-medium transition-all duration-[var(--duration-fast)] relative',
           mode === 'agency'

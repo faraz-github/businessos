@@ -42,7 +42,7 @@ export default function PersonalSupportPage() {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="font-[family-name:var(--font-display)] text-2xl font-extrabold tracking-tight">Support Periods</h1>
+            <h1 className="font-display text-2xl font-extrabold tracking-tight">Support Periods</h1>
             <p className="text-[13px] text-[var(--text-secondary)] mt-1">Track active support and retention touchpoints.</p>
           </div>
           <Button icon={<Plus size={14} />} onClick={() => setShowAdd(true)}>Add Period</Button>

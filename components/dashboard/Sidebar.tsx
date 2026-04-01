@@ -16,7 +16,6 @@ interface SidebarNavItem {
   href: string;
   icon: React.ReactNode;
 }
-
 interface SidebarSection {
   title: string;
   items: SidebarNavItem[];
@@ -25,34 +24,24 @@ interface SidebarSection {
 function getPersonalNav(): SidebarSection[] {
   const base = '/dashboard/personal';
   return [
-    {
-      title: 'Overview',
-      items: [
-        { label: 'Home', href: `${base}/home`, icon: <Home size={14} /> },
-      ],
-    },
+    { title: 'Overview', items: [{ label: 'Home', href: `${base}/home`, icon: <Home size={15} /> }] },
     {
       title: 'Work',
       items: [
-        { label: 'Social & Brand', href: `${base}/social`, icon: <Share2 size={14} /> },
-        { label: 'Composers', href: `${base}/compose`, icon: <PenTool size={14} /> },
-        { label: 'Paperwork', href: `${base}/paperwork`, icon: <FileText size={14} /> },
+        { label: 'Social & Brand', href: `${base}/social`, icon: <Share2 size={15} /> },
+        { label: 'Composers', href: `${base}/compose`, icon: <PenTool size={15} /> },
+        { label: 'Paperwork', href: `${base}/paperwork`, icon: <FileText size={15} /> },
       ],
     },
     {
       title: 'Clients',
       items: [
-        { label: 'All Clients', href: `${base}/clients`, icon: <Users size={14} /> },
-        { label: 'Feedback', href: `${base}/feedback`, icon: <MessageSquare size={14} /> },
-        { label: 'Support', href: `${base}/support`, icon: <Shield size={14} /> },
+        { label: 'All Clients', href: `${base}/clients`, icon: <Users size={15} /> },
+        { label: 'Feedback', href: `${base}/feedback`, icon: <MessageSquare size={15} /> },
+        { label: 'Support', href: `${base}/support`, icon: <Shield size={15} /> },
       ],
     },
-    {
-      title: 'Money',
-      items: [
-        { label: 'Finance', href: `${base}/finance`, icon: <IndianRupee size={14} /> },
-      ],
-    },
+    { title: 'Money', items: [{ label: 'Finance', href: `${base}/finance`, icon: <IndianRupee size={15} /> }] },
   ];
 }
 
@@ -62,32 +51,27 @@ function getAgencyNav(): SidebarSection[] {
     {
       title: 'Overview',
       items: [
-        { label: 'Home', href: `${base}/home`, icon: <Home size={14} /> },
-        { label: 'BD Pipeline', href: `${base}/bd-pipeline`, icon: <Kanban size={14} /> },
+        { label: 'Home', href: `${base}/home`, icon: <Home size={15} /> },
+        { label: 'BD Pipeline', href: `${base}/bd-pipeline`, icon: <Kanban size={15} /> },
       ],
     },
     {
       title: 'Work',
       items: [
-        { label: 'Social & Brand', href: `${base}/social`, icon: <Share2 size={14} /> },
-        { label: 'Composers', href: `${base}/compose`, icon: <PenTool size={14} /> },
-        { label: 'Paperwork', href: `${base}/paperwork`, icon: <FileText size={14} /> },
+        { label: 'Social & Brand', href: `${base}/social`, icon: <Share2 size={15} /> },
+        { label: 'Composers', href: `${base}/compose`, icon: <PenTool size={15} /> },
+        { label: 'Paperwork', href: `${base}/paperwork`, icon: <FileText size={15} /> },
       ],
     },
     {
       title: 'Clients',
       items: [
-        { label: 'All Clients', href: `${base}/clients`, icon: <Users size={14} /> },
-        { label: 'Feedback', href: `${base}/feedback`, icon: <MessageSquare size={14} /> },
-        { label: 'Support', href: `${base}/support`, icon: <Shield size={14} /> },
+        { label: 'All Clients', href: `${base}/clients`, icon: <Users size={15} /> },
+        { label: 'Feedback', href: `${base}/feedback`, icon: <MessageSquare size={15} /> },
+        { label: 'Support', href: `${base}/support`, icon: <Shield size={15} /> },
       ],
     },
-    {
-      title: 'Money',
-      items: [
-        { label: 'Finance', href: `${base}/finance`, icon: <IndianRupee size={14} /> },
-      ],
-    },
+    { title: 'Money', items: [{ label: 'Finance', href: `${base}/finance`, icon: <IndianRupee size={15} /> }] },
   ];
 }
 
@@ -104,29 +88,64 @@ export function Sidebar() {
     router.refresh();
   }
 
+  const initial = (brand?.business_name || (mode === 'personal' ? 'P' : 'A'))[0].toUpperCase();
+
   return (
     <aside
-      className="w-[var(--sidebar-width)] min-h-screen bg-[var(--bg-surface)] border-r border-[var(--border-subtle)] flex-shrink-0 sticky top-0 flex flex-col"
-      style={{ maxHeight: '100vh', overflowY: 'auto' }}
+      style={{
+        width: 'var(--sidebar-width)',
+        minHeight: '100vh',
+        maxHeight: '100vh',
+        background: 'var(--bg-surface)',
+        borderRight: '1px solid var(--border-subtle)',
+        flexShrink: 0,
+        position: 'sticky',
+        top: 0,
+        overflowY: 'auto',
+        display: 'flex',
+        flexDirection: 'column',
+      }}
     >
       {/* Brand */}
-      <div className="px-3 pt-4 pb-2">
-        <div className="flex items-center gap-2.5 px-2 mb-4">
+      <div style={{ padding: '16px 12px 12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '0 6px', marginBottom: 12 }}>
           {brand?.logo_url ? (
             <img
               src={brand.logo_url}
               alt={brand.business_name}
-              className="w-7 h-7 rounded-[var(--radius-sm)] object-cover"
+              style={{ width: 28, height: 28, borderRadius: 'var(--radius-sm)', objectFit: 'cover' }}
             />
           ) : (
             <div
-              className="w-7 h-7 rounded-[var(--radius-sm)] flex items-center justify-center text-white text-[11px] font-bold"
-              style={{ background: brand?.primary_colour || 'var(--accent-blue)' }}
+              style={{
+                width: 28,
+                height: 28,
+                borderRadius: 'var(--radius-sm)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: brand?.primary_colour || 'var(--accent-blue)',
+                color: '#fff',
+                fontSize: 12,
+                fontWeight: 700,
+                fontFamily: 'var(--font-display)',
+                flexShrink: 0,
+              }}
             >
-              {(brand?.business_name || 'B')[0].toUpperCase()}
+              {initial}
             </div>
           )}
-          <span className="text-[13px] font-semibold text-[var(--text-primary)] truncate">
+          <span
+            style={{
+              fontSize: 13,
+              fontWeight: 600,
+              color: 'var(--text-primary)',
+              fontFamily: 'var(--font-body)',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
             {brand?.business_name || (mode === 'personal' ? 'Personal' : 'Agency')}
           </span>
         </div>
@@ -134,10 +153,20 @@ export function Sidebar() {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 px-3 py-2">
+      <nav style={{ flex: 1, padding: '4px 12px' }}>
         {sections.map((section) => (
-          <div key={section.title}>
-            <p className="text-[9px] font-semibold uppercase tracking-[0.08em] text-[var(--text-tertiary)] px-2 mt-3 mb-1">
+          <div key={section.title} style={{ marginBottom: 4 }}>
+            <p
+              style={{
+                fontSize: 9,
+                fontWeight: 700,
+                textTransform: 'uppercase',
+                letterSpacing: '0.08em',
+                color: 'var(--text-tertiary)',
+                padding: '12px 8px 4px',
+                fontFamily: 'var(--font-body)',
+              }}
+            >
               {section.title}
             </p>
             {section.items.map((item) => {
@@ -146,14 +175,37 @@ export function Sidebar() {
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={cn(
-                    'flex items-center gap-2 px-2 py-[7px] rounded-[var(--radius-sm)] text-xs transition-all duration-[var(--duration-fast)] mb-0.5 no-underline',
-                    isActive
-                      ? 'bg-[var(--accent-blue-dim)] text-[var(--accent-blue)] font-medium'
-                      : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]',
-                  )}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    padding: '7px 8px',
+                    borderRadius: 'var(--radius-sm)',
+                    fontSize: 13,
+                    fontWeight: isActive ? 500 : 400,
+                    fontFamily: 'var(--font-body)',
+                    color: isActive ? 'var(--accent-blue)' : 'var(--text-secondary)',
+                    background: isActive ? 'var(--accent-blue-dim)' : 'transparent',
+                    textDecoration: 'none',
+                    transition: 'all 150ms',
+                    marginBottom: 2,
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!isActive) {
+                      (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)';
+                      (e.currentTarget as HTMLElement).style.color = 'var(--text-primary)';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!isActive) {
+                      (e.currentTarget as HTMLElement).style.background = 'transparent';
+                      (e.currentTarget as HTMLElement).style.color = 'var(--text-secondary)';
+                    }
+                  }}
                 >
-                  <span className="shrink-0">{item.icon}</span>
+                  <span style={{ flexShrink: 0, display: 'flex', alignItems: 'center' }}>
+                    {item.icon}
+                  </span>
                   {item.label}
                 </Link>
               );
@@ -163,16 +215,67 @@ export function Sidebar() {
       </nav>
 
       {/* Footer */}
-      <div className="px-3 pb-4 mt-auto border-t border-[var(--border-subtle)] pt-3">
+      <div
+        style={{
+          padding: '12px',
+          borderTop: '1px solid var(--border-subtle)',
+          marginTop: 'auto',
+        }}
+      >
         <Link
           href="/dashboard/personal/settings"
-          className="flex items-center gap-2 px-2 py-[7px] rounded-[var(--radius-sm)] text-xs text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] transition-all no-underline"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            padding: '7px 8px',
+            borderRadius: 'var(--radius-sm)',
+            fontSize: 13,
+            fontFamily: 'var(--font-body)',
+            color: 'var(--text-secondary)',
+            textDecoration: 'none',
+            transition: 'all 150ms',
+            marginBottom: 2,
+          }}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)';
+            (e.currentTarget as HTMLElement).style.color = 'var(--text-primary)';
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLElement).style.background = 'transparent';
+            (e.currentTarget as HTMLElement).style.color = 'var(--text-secondary)';
+          }}
         >
-          <Settings size={14} />
+          <Settings size={15} />
           Brand Settings
         </Link>
-        <button onClick={handleSignOut} className="flex items-center gap-2 px-2 py-[7px] rounded-[var(--radius-sm)] text-xs text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] transition-all w-full">
-          <LogOut size={14} />
+        <button
+          onClick={handleSignOut}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            padding: '7px 8px',
+            borderRadius: 'var(--radius-sm)',
+            fontSize: 13,
+            fontFamily: 'var(--font-body)',
+            color: 'var(--text-secondary)',
+            background: 'transparent',
+            border: 'none',
+            cursor: 'pointer',
+            width: '100%',
+            transition: 'all 150ms',
+          }}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)';
+            (e.currentTarget as HTMLElement).style.color = 'var(--accent-red)';
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLElement).style.background = 'transparent';
+            (e.currentTarget as HTMLElement).style.color = 'var(--text-secondary)';
+          }}
+        >
+          <LogOut size={15} />
           Sign out
         </button>
       </div>

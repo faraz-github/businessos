@@ -11,7 +11,12 @@ import { Button } from '@/components/ui/Button';
 import { Textarea } from '@/components/ui/Textarea';
 import { cn } from '@/lib/utils';
 import {
-  UserPlus, Phone, StickyNote, IndianRupee, CheckSquare, MoreHorizontal,
+  UserPlus,
+  Phone,
+  StickyNote,
+  IndianRupee,
+  CheckSquare,
+  MoreHorizontal,
 } from 'lucide-react';
 import type { QuickLogType } from '@/types';
 
@@ -20,30 +25,69 @@ interface QuickLogModalProps {
   onClose: () => void;
 }
 
-const logTypes: { value: QuickLogType; label: string; icon: React.ReactNode; color: string }[] = [
+const logTypes: {
+  value: QuickLogType;
+  label: string;
+  icon: React.ReactNode;
+  color: string;
+}[] = [
   { value: 'lead', label: 'Lead', icon: <UserPlus size={16} />, color: 'var(--accent-blue)' },
   { value: 'call', label: 'Call', icon: <Phone size={16} />, color: 'var(--accent-green)' },
-  { value: 'client_note', label: 'Client Note', icon: <StickyNote size={16} />, color: 'var(--accent-amber)' },
-  { value: 'payment', label: 'Payment', icon: <IndianRupee size={16} />, color: 'var(--accent-violet)' },
-  { value: 'task', label: 'Task', icon: <CheckSquare size={16} />, color: 'var(--accent-blue)' },
-  { value: 'other', label: 'Other', icon: <MoreHorizontal size={16} />, color: 'var(--text-secondary)' },
+  {
+    value: 'client_note',
+    label: 'Client Note',
+    icon: <StickyNote size={16} />,
+    color: 'var(--accent-amber)',
+  },
+  {
+    value: 'payment',
+    label: 'Payment',
+    icon: <IndianRupee size={16} />,
+    color: 'var(--accent-violet)',
+  },
+  {
+    value: 'task',
+    label: 'Task',
+    icon: <CheckSquare size={16} />,
+    color: 'var(--accent-blue)',
+  },
+  {
+    value: 'other',
+    label: 'Other',
+    icon: <MoreHorizontal size={16} />,
+    color: 'var(--text-secondary)',
+  },
 ];
 
 export function QuickLogModal({ open, onClose }: QuickLogModalProps) {
   const { mode } = useBrand();
   const [saving, setSaving] = useState(false);
-  const [selectedType, setSelectedType] = useState<QuickLogType>('lead');
 
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<QuickLogFormData>({
+  const {
+    register,
+    handleSubmit,
+    reset,
+    setValue,
+    watch,
+    formState: { errors },
+  } = useForm<QuickLogFormData>({
     resolver: zodResolver(quickLogSchema),
     defaultValues: { mode, type: 'lead', content: '' },
   });
+
+  const selectedType = watch('type');
+
+  function handleTypeSelect(type: QuickLogType) {
+    setValue('type', type, { shouldValidate: true });
+  }
 
   async function onSubmit(data: QuickLogFormData) {
     setSaving(true);
     try {
       const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) return;
 
       await supabase.from('quick_logs').insert({
@@ -53,7 +97,7 @@ export function QuickLogModal({ open, onClose }: QuickLogModalProps) {
         content: data.content,
       });
 
-      reset();
+      reset({ mode, type: 'lead', content: '' });
       onClose();
     } catch (error) {
       console.error('Quick log failed:', error);
@@ -63,10 +107,16 @@ export function QuickLogModal({ open, onClose }: QuickLogModalProps) {
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="Quick Log" description="Log something in under 10 seconds." size="sm">
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="Quick Log"
+      description="Log something in under 10 seconds."
+      size="sm"
+    >
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         <input type="hidden" {...register('mode')} value={mode} />
-        <input type="hidden" {...register('type')} value={selectedType} />
+        <input type="hidden" {...register('type')} />
 
         {/* Type selector */}
         <div className="grid grid-cols-3 gap-2">
@@ -74,7 +124,7 @@ export function QuickLogModal({ open, onClose }: QuickLogModalProps) {
             <button
               key={lt.value}
               type="button"
-              onClick={() => setSelectedType(lt.value)}
+              onClick={() => handleTypeSelect(lt.value)}
               className={cn(
                 'flex flex-col items-center gap-1.5 py-3 rounded-[var(--radius-md)] border transition-all text-xs',
                 selectedType === lt.value

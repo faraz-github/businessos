@@ -8,9 +8,9 @@ interface UseRealtimeOptions {
   table: string;
   event?: 'INSERT' | 'UPDATE' | 'DELETE' | '*';
   filter?: string;
-  onInsert?: (record: any) => void;
-  onUpdate?: (record: any) => void;
-  onDelete?: (oldRecord: any) => void;
+  onInsert?: (record: Record<string, unknown>) => void;
+  onUpdate?: (record: Record<string, unknown>) => void;
+  onDelete?: (oldRecord: Record<string, unknown>) => void;
   enabled?: boolean;
 }
 
@@ -24,14 +24,21 @@ export function useSupabaseRealtime({
   enabled = true,
 }: UseRealtimeOptions) {
   const channelRef = useRef<RealtimeChannel | null>(null);
-  const supabase = createClient();
+  // Stable client ref — created once, never recreated on render
+  const supabaseRef = useRef(createClient());
 
   useEffect(() => {
     if (!enabled) return;
 
+    const supabase = supabaseRef.current;
     const channelName = `realtime-${table}-${Date.now()}`;
 
-    const channelConfig: any = {
+    const channelConfig: {
+      event: string;
+      schema: string;
+      table: string;
+      filter?: string;
+    } = {
       event,
       schema: 'public',
       table,
@@ -41,17 +48,27 @@ export function useSupabaseRealtime({
 
     channelRef.current = supabase
       .channel(channelName)
-      .on('postgres_changes', channelConfig, (payload) => {
-        if (payload.eventType === 'INSERT' && onInsert) onInsert(payload.new);
-        if (payload.eventType === 'UPDATE' && onUpdate) onUpdate(payload.new);
-        if (payload.eventType === 'DELETE' && onDelete) onDelete(payload.old);
-      })
+      .on(
+        'postgres_changes',
+        channelConfig,
+        (payload) => {
+          if (payload.eventType === 'INSERT' && onInsert)
+            onInsert(payload.new as Record<string, unknown>);
+          if (payload.eventType === 'UPDATE' && onUpdate)
+            onUpdate(payload.new as Record<string, unknown>);
+          if (payload.eventType === 'DELETE' && onDelete)
+            onDelete(payload.old as Record<string, unknown>);
+        },
+      )
       .subscribe();
 
     return () => {
       if (channelRef.current) {
         supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
       }
     };
-  }, [table, event, filter, enabled, supabase, onInsert, onUpdate, onDelete]);
+    // onInsert/onUpdate/onDelete intentionally excluded — callers should memoize callbacks
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [table, event, filter, enabled]);
 }

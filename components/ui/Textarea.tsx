@@ -17,7 +17,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
         {label && (
           <label
             htmlFor={textareaId}
-            className="text-[11px] font-medium uppercase tracking-[0.06em] text-[var(--text-tertiary)] font-[family-name:var(--font-body)]"
+            className="text-[11px] font-medium uppercase tracking-[0.06em] text-[var(--text-tertiary)] font-body"
           >
             {label}
           </label>
@@ -27,7 +27,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
           id={textareaId}
           className={cn(
             'bg-[var(--bg-surface)] border border-[var(--border-default)] rounded-[var(--radius-md)]',
-            'px-3 py-2 text-[13px] text-[var(--text-primary)] font-[family-name:var(--font-body)]',
+            'px-3 py-2 text-[13px] text-[var(--text-primary)] font-body',
             'outline-none transition-all duration-[var(--duration-fast)]',
             'placeholder:text-[var(--text-tertiary)]',
             'focus:border-[var(--accent-blue)] focus:shadow-[0_0_0_3px_var(--accent-blue-glow)]',

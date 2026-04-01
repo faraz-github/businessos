@@ -41,7 +41,7 @@ export function ColorPicker({ label, value, onChange, presets = defaultPresets, 
           type="text"
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="bg-[var(--bg-surface)] border border-[var(--border-default)] rounded-[var(--radius-md)] px-3 py-1.5 text-[13px] text-[var(--text-primary)] font-[family-name:var(--font-mono)] w-24 outline-none focus:border-[var(--accent-blue)]"
+          className="bg-[var(--bg-surface)] border border-[var(--border-default)] rounded-[var(--radius-md)] px-3 py-1.5 text-[13px] text-[var(--text-primary)] font-mono w-24 outline-none focus:border-[var(--accent-blue)]"
           maxLength={7}
         />
       </div>

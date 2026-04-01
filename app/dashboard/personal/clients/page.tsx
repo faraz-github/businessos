@@ -72,7 +72,7 @@ export default function PersonalClientsPage() {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="font-[family-name:var(--font-display)] text-2xl font-extrabold tracking-tight">Clients</h1>
+            <h1 className="font-display text-2xl font-extrabold tracking-tight">Clients</h1>
             <p className="text-[13px] text-[var(--text-secondary)] mt-1">Single source of truth for every client.</p>
           </div>
           <Button icon={<Plus size={14} />} onClick={() => setShowCreate(true)}>Add Client</Button>
@@ -281,7 +281,7 @@ function ClientDetailModal({ client, onClose, onStageChange, onUpdate }: {
             <div className="space-y-1">
               {[...client.stage_history].reverse().map((entry: any, i: number) => (
                 <div key={i} className="flex items-center gap-2 text-[11px]">
-                  <span className="text-[var(--text-tertiary)] font-[family-name:var(--font-mono)]">{formatDate(entry.entered_at, 'dd MMM')}</span>
+                  <span className="text-[var(--text-tertiary)] font-mono">{formatDate(entry.entered_at, 'dd MMM')}</span>
                   <span className="text-[var(--text-secondary)]">{stageLabel(entry.stage)}</span>
                 </div>
               ))}

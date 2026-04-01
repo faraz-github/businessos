@@ -140,7 +140,7 @@ export default function BrandSettingsPage() {
       <div className="space-y-6 max-w-3xl">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="font-[family-name:var(--font-display)] text-2xl font-extrabold tracking-tight">Brand Settings</h1>
+            <h1 className="font-display text-2xl font-extrabold tracking-tight">Brand Settings</h1>
             <p className="text-[13px] text-[var(--text-secondary)] mt-1">Configure your personal and agency brand profiles.</p>
           </div>
           <Button

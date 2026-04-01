@@ -5,3 +5,5 @@ export * from './documents';
 export * from './leads';
 export * from './finance';
 export * from './social';
+export * from './focus';
+export * from './auth';

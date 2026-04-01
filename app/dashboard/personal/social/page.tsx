@@ -63,7 +63,7 @@ export default function PersonalSocialPage() {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="font-[family-name:var(--font-display)] text-2xl font-extrabold tracking-tight">Social & Brand</h1>
+            <h1 className="font-display text-2xl font-extrabold tracking-tight">Social & Brand</h1>
             <p className="text-[13px] text-[var(--text-secondary)] mt-1">Manage your personal brand across platforms.</p>
           </div>
           <Button icon={<Plus size={14} />} onClick={() => setShowNewPost(true)}>New Post</Button>
@@ -133,7 +133,7 @@ export default function PersonalSocialPage() {
               <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--text-tertiary)] mb-2">
                 {activeTab === 'linkedin' ? 'Post Streak' : 'Review Status'}
               </p>
-              <p className="font-[family-name:var(--font-display)] text-3xl font-extrabold">{publishedCount}</p>
+              <p className="font-display text-3xl font-extrabold">{publishedCount}</p>
               <p className="text-[11px] text-[var(--text-secondary)]">published this month</p>
             </Card>
 

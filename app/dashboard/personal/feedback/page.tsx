@@ -43,7 +43,7 @@ export default function PersonalFeedbackPage() {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="font-[family-name:var(--font-display)] text-2xl font-extrabold tracking-tight">Feedback</h1>
+            <h1 className="font-display text-2xl font-extrabold tracking-tight">Feedback</h1>
             <p className="text-[13px] text-[var(--text-secondary)] mt-1">Collect and manage client testimonials.</p>
           </div>
           <Button icon={<Plus size={14} />} onClick={() => setShowAdd(true)}>Add Testimonial</Button>
@@ -53,15 +53,15 @@ export default function PersonalFeedbackPage() {
         <div className="grid grid-cols-3 gap-3">
           <Card variant="metric">
             <p className="text-[11px] text-[var(--text-tertiary)] uppercase tracking-wide font-semibold">Total</p>
-            <p className="font-[family-name:var(--font-display)] text-2xl font-extrabold mt-1">{testimonials.length}</p>
+            <p className="font-display text-2xl font-extrabold mt-1">{testimonials.length}</p>
           </Card>
           <Card variant="metric">
             <p className="text-[11px] text-[var(--text-tertiary)] uppercase tracking-wide font-semibold">Portfolio</p>
-            <p className="font-[family-name:var(--font-display)] text-2xl font-extrabold mt-1">{portfolioUsable.length}</p>
+            <p className="font-display text-2xl font-extrabold mt-1">{portfolioUsable.length}</p>
           </Card>
           <Card variant="metric">
             <p className="text-[11px] text-[var(--text-tertiary)] uppercase tracking-wide font-semibold">Clients</p>
-            <p className="font-[family-name:var(--font-display)] text-2xl font-extrabold mt-1">
+            <p className="font-display text-2xl font-extrabold mt-1">
               {new Set(testimonials.map((t) => t.client_id)).size}
             </p>
           </Card>

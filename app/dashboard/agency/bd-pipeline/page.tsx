@@ -58,7 +58,7 @@ export default function AgencyBDPipelinePage() {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="font-[family-name:var(--font-display)] text-2xl font-extrabold tracking-tight">BD Pipeline</h1>
+            <h1 className="font-display text-2xl font-extrabold tracking-tight">BD Pipeline</h1>
             <p className="text-[13px] text-[var(--text-secondary)] mt-1">Manage leads from prospect to close.</p>
           </div>
           <Button icon={<Plus size={14} />} onClick={() => setShowCreate(true)}>Add Lead</Button>
@@ -75,7 +75,7 @@ export default function AgencyBDPipelinePage() {
                   <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--text-tertiary)]">
                     {stage.label}
                   </span>
-                  <span className="text-[11px] text-[var(--text-tertiary)] font-[family-name:var(--font-mono)]">
+                  <span className="text-[11px] text-[var(--text-tertiary)] font-mono">
                     {stageLeads.length}
                   </span>
                 </div>

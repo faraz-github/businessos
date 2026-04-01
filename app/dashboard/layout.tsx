@@ -1,23 +1,16 @@
-'use client';
-
 import { BrandProvider } from '@/lib/brand';
 import { Sidebar } from '@/components/dashboard/Sidebar';
 import { TopBar } from '@/components/dashboard/TopBar';
-import { usePathname } from 'next/navigation';
 import type { ReactNode } from 'react';
-import type { Mode } from '@/types';
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
-  const pathname = usePathname();
-  const initialMode: Mode = pathname.includes('/agency') ? 'agency' : 'personal';
-
   return (
-    <BrandProvider initialMode={initialMode}>
-      <div className="flex min-h-screen">
+    <BrandProvider>
+      <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg-base)' }}>
         <Sidebar />
-        <div className="flex-1 min-w-0 flex flex-col">
+        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
           <TopBar />
-          <main className="flex-1 p-6 max-w-[var(--content-max-w)] w-full mx-auto">
+          <main style={{ flex: 1, padding: 24, maxWidth: 'var(--content-max-w)', width: '100%', margin: '0 auto' }}>
             {children}
           </main>
         </div>

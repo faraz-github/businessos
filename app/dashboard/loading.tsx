@@ -1,5 +1,4 @@
-import { SkeletonMetricRow } from '@/components/ui/Skeleton';
-import { Skeleton } from '@/components/ui/Skeleton';
+import { Skeleton, SkeletonMetricRow } from '@/components/ui/Skeleton';
 
 export default function DashboardLoading() {
   return (

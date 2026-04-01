@@ -121,7 +121,7 @@ export default function PersonalComposePage() {
     <PageTransition>
       <div className="space-y-6">
         <div>
-          <h1 className="font-[family-name:var(--font-display)] text-2xl font-extrabold tracking-tight">Composers</h1>
+          <h1 className="font-display text-2xl font-extrabold tracking-tight">Composers</h1>
           <p className="text-[13px] text-[var(--text-secondary)] mt-1">Generate professional messages from templates.</p>
         </div>
 
@@ -173,7 +173,7 @@ export default function PersonalComposePage() {
               label="Message"
               value={body}
               onChange={(e) => setBody(e.target.value)}
-              className="min-h-[320px] font-[family-name:var(--font-body)] text-[13px] leading-relaxed"
+              className="min-h-[320px] font-body text-[13px] leading-relaxed"
             />
             <div className="flex items-center gap-2">
               <Button

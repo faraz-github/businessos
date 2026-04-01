@@ -94,7 +94,7 @@ export default function PersonalFinancePage() {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="font-[family-name:var(--font-display)] text-2xl font-extrabold tracking-tight">Finance</h1>
+            <h1 className="font-display text-2xl font-extrabold tracking-tight">Finance</h1>
             <p className="text-[13px] text-[var(--text-secondary)] mt-1">Track money in, money out, and subscriptions.</p>
           </div>
           <div className="flex gap-2">
@@ -110,21 +110,21 @@ export default function PersonalFinancePage() {
               <TrendingUp size={12} className="text-[var(--accent-green)]" />
               <span className="text-[11px] text-[var(--text-tertiary)] uppercase tracking-wide font-semibold">Income</span>
             </div>
-            <p className="font-[family-name:var(--font-display)] text-xl font-extrabold text-[var(--accent-green)]">{formatINR(monthIncome)}</p>
+            <p className="font-display text-xl font-extrabold text-[var(--accent-green)]">{formatINR(monthIncome)}</p>
           </Card>
           <Card variant="metric">
             <div className="flex items-center gap-1.5 mb-1">
               <TrendingDown size={12} className="text-[var(--accent-red)]" />
               <span className="text-[11px] text-[var(--text-tertiary)] uppercase tracking-wide font-semibold">Expenses</span>
             </div>
-            <p className="font-[family-name:var(--font-display)] text-xl font-extrabold text-[var(--accent-red)]">{formatINR(monthExpense)}</p>
+            <p className="font-display text-xl font-extrabold text-[var(--accent-red)]">{formatINR(monthExpense)}</p>
           </Card>
           <Card variant="metric">
             <div className="flex items-center gap-1.5 mb-1">
               <IndianRupee size={12} className="text-[var(--accent-blue)]" />
               <span className="text-[11px] text-[var(--text-tertiary)] uppercase tracking-wide font-semibold">Net</span>
             </div>
-            <p className={cn('font-[family-name:var(--font-display)] text-xl font-extrabold', monthIncome - monthExpense >= 0 ? 'text-[var(--accent-green)]' : 'text-[var(--accent-red)]')}>
+            <p className={cn('font-display text-xl font-extrabold', monthIncome - monthExpense >= 0 ? 'text-[var(--accent-green)]' : 'text-[var(--accent-red)]')}>
               {formatINR(monthIncome - monthExpense)}
             </p>
           </Card>
@@ -133,7 +133,7 @@ export default function PersonalFinancePage() {
               <RotateCw size={12} className="text-[var(--accent-amber)]" />
               <span className="text-[11px] text-[var(--text-tertiary)] uppercase tracking-wide font-semibold">Monthly Burn</span>
             </div>
-            <p className="font-[family-name:var(--font-display)] text-xl font-extrabold text-[var(--accent-amber)]">{formatINR(Math.round(monthlyBurn))}</p>
+            <p className="font-display text-xl font-extrabold text-[var(--accent-amber)]">{formatINR(Math.round(monthlyBurn))}</p>
           </Card>
         </div>
 
@@ -166,12 +166,12 @@ export default function PersonalFinancePage() {
                   <Card key={inv.id} variant="base" className="flex items-center gap-4">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="text-[13px] font-medium font-[family-name:var(--font-mono)] text-[var(--accent-blue)]">{inv.number}</span>
+                        <span className="text-[13px] font-medium font-mono text-[var(--accent-blue)]">{inv.number}</span>
                         {inv.clients?.name && <span className="text-[12px] text-[var(--text-secondary)]">{inv.clients.name}</span>}
                       </div>
                       <p className="text-[11px] text-[var(--text-tertiary)]">Due {formatDate(inv.due_date)}</p>
                     </div>
-                    <span className="font-[family-name:var(--font-display)] text-base font-extrabold">{formatINR(inv.total)}</span>
+                    <span className="font-display text-base font-extrabold">{formatINR(inv.total)}</span>
                     <Badge variant={config.variant}>{inv.status}</Badge>
                     {inv.status !== 'paid' && (
                       <Button variant="ghost" size="sm" onClick={() => markInvoicePaid(inv.id)}>
@@ -200,7 +200,7 @@ export default function PersonalFinancePage() {
                     <p className="text-[13px] font-medium text-[var(--text-primary)] truncate">{tx.description || tx.category}</p>
                     <p className="text-[11px] text-[var(--text-tertiary)]">{formatDate(tx.date)} · {tx.category.replace(/_/g, ' ')}</p>
                   </div>
-                  <span className={cn('font-[family-name:var(--font-display)] text-base font-extrabold',
+                  <span className={cn('font-display text-base font-extrabold',
                     tx.type === 'income' ? 'text-[var(--accent-green)]' : 'text-[var(--accent-red)]')}>
                     {tx.type === 'income' ? '+' : '-'}{formatINR(tx.amount)}
                   </span>
@@ -233,7 +233,7 @@ export default function PersonalFinancePage() {
                         Next: {formatDate(sub.next_renewal_at)} · {sub.category}
                       </p>
                     </div>
-                    <span className="font-[family-name:var(--font-display)] text-base font-extrabold">{formatINR(sub.cost)}</span>
+                    <span className="font-display text-base font-extrabold">{formatINR(sub.cost)}</span>
                     <Badge variant={sub.status === 'active' ? 'green' : sub.status === 'paused' ? 'amber' : 'outline'}>{sub.status}</Badge>
                   </Card>
                 );

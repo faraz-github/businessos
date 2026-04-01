@@ -5,7 +5,7 @@ import { useBrand } from '@/lib/brand';
 import { createClient } from '@/lib/supabase/client';
 import { PageTransition } from '@/components/dashboard/PageTransition';
 import { Card, Badge, Button, Tabs, Modal, Input, Textarea, Select, EmptyState } from '@/components/ui';
-import { formatDate, formatINR, cn } from '@/lib/utils';
+import { formatDate, formatINR, generateShareToken, cn } from '@/lib/utils';
 import { Plus, FileText, Eye, Send, Download, Link2, Signature } from 'lucide-react';
 import type { Document as DocType, DocumentType, Client } from '@/types';
 
@@ -61,12 +61,9 @@ export default function PersonalPaperworkPage() {
   }, [mode, activeType, supabase]);
 
   async function handleStatusChange(docId: string, newStatus: string) {
-    const updates: any = { status: newStatus };
+    const updates: Record<string, string> = { status: newStatus };
     if (newStatus === 'sent') {
-      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-      let token = '';
-      for (let i = 0; i < 24; i++) token += chars.charAt(Math.floor(Math.random() * chars.length));
-      updates.share_token = token;
+      updates.share_token = generateShareToken();
     }
     await supabase.from('documents').update(updates).eq('id', docId);
     setDocuments((prev) => prev.map((d) => (d.id === docId ? { ...d, ...updates } : d)));
@@ -77,7 +74,7 @@ export default function PersonalPaperworkPage() {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="font-[family-name:var(--font-display)] text-2xl font-extrabold tracking-tight">Paperwork</h1>
+            <h1 className="font-display text-2xl font-extrabold tracking-tight">Paperwork</h1>
             <p className="text-[13px] text-[var(--text-secondary)] mt-1">Create and manage branded documents.</p>
           </div>
           <Button icon={<Plus size={14} />} onClick={() => setShowCreate(true)}>New Document</Button>

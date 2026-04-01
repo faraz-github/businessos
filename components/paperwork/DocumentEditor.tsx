@@ -264,7 +264,7 @@ function InvoiceForm({ fields, onChange, brand }: { fields: any; onChange: (k: s
               <Input label={i === 0 ? 'Qty' : undefined} type="number" value={item.quantity || 1} onChange={(e) => updateLineItem(i, 'quantity', parseFloat(e.target.value) || 1)} />
               <Input label={i === 0 ? 'Rate' : undefined} type="number" value={item.rate || ''} onChange={(e) => updateLineItem(i, 'rate', parseFloat(e.target.value) || 0)} />
               <div className={cn(i === 0 && 'pt-[22px]')}>
-                <p className="text-[12px] text-[var(--text-secondary)] py-2 text-right font-[family-name:var(--font-mono)]">₹{(item.amount || 0).toLocaleString('en-IN')}</p>
+                <p className="text-[12px] text-[var(--text-secondary)] py-2 text-right font-mono">₹{(item.amount || 0).toLocaleString('en-IN')}</p>
               </div>
               <button onClick={() => { const next = lineItems.filter((_: any, idx: number) => idx !== i); onChange('line_items', next); recalculate(next, gstEnabled, gstRate); }} className={cn('text-[var(--text-tertiary)] hover:text-[var(--accent-red)]', i === 0 && 'mt-5')}><Trash2 size={12} /></button>
             </div>
@@ -288,17 +288,17 @@ function InvoiceForm({ fields, onChange, brand }: { fields: any; onChange: (k: s
       <Card variant="base" className="text-right space-y-1">
         <div className="flex justify-between text-[12px]">
           <span className="text-[var(--text-tertiary)]">Subtotal</span>
-          <span className="font-[family-name:var(--font-mono)]">₹{(fields.subtotal || 0).toLocaleString('en-IN')}</span>
+          <span className="font-mono">₹{(fields.subtotal || 0).toLocaleString('en-IN')}</span>
         </div>
         {gstEnabled && (
           <div className="flex justify-between text-[12px]">
             <span className="text-[var(--text-tertiary)]">GST ({gstRate}%)</span>
-            <span className="font-[family-name:var(--font-mono)]">₹{(fields.gst_amount || 0).toLocaleString('en-IN')}</span>
+            <span className="font-mono">₹{(fields.gst_amount || 0).toLocaleString('en-IN')}</span>
           </div>
         )}
         <div className="flex justify-between text-sm font-bold border-t border-[var(--border-subtle)] pt-2 mt-2">
           <span>Total</span>
-          <span className="font-[family-name:var(--font-display)] text-[var(--accent-blue)]">₹{(fields.total || 0).toLocaleString('en-IN')}</span>
+          <span className="font-display text-[var(--accent-blue)]">₹{(fields.total || 0).toLocaleString('en-IN')}</span>
         </div>
       </Card>
 
