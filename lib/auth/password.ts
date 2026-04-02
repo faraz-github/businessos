@@ -1,3 +1,4 @@
+import 'server-only';
 // ============================================================
 // Business OS — Password hashing (bcryptjs, runs in Node.js runtime)
 // ============================================================

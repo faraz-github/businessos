@@ -1,5 +1,5 @@
-// PATCH /api/users/[id] — update name, role, access, active status
-// PUT   /api/users/[id]/password — reset password (superadmin only)
+// PATCH /api/users/[id] — update name, email, password, role, access, active status
+// DELETE /api/users/[id] — deactivate (soft delete)
 import { NextResponse, type NextRequest } from 'next/server';
 import { getSession, getSupabaseAdmin, hashPassword } from '@/lib/auth';
 
@@ -20,8 +20,9 @@ export async function PATCH(
 
   const { id } = await params;
   const body = await request.json();
-  const { name, role, allowedPersonal, allowedAgency, isActive, password } = body as {
+  const { name, email, role, allowedPersonal, allowedAgency, isActive, password } = body as {
     name?: string;
+    email?: string;
     role?: string;
     allowedPersonal?: string[] | null;
     allowedAgency?: string[] | null;
@@ -29,20 +30,32 @@ export async function PATCH(
     password?: string;
   };
 
-  // Prevent modifying superadmin
   const admin = getSupabaseAdmin();
+
+  // Fetch target user to check their role
   const { data: target } = await admin
     .from('bos_users')
     .select('role')
     .eq('id', id)
     .single();
 
-  if (target?.role === 'superadmin' && id !== session!.sub) {
+  if (!target) {
+    return NextResponse.json({ error: 'User not found' }, { status: 404 });
+  }
+
+  // Superadmin editing another superadmin is blocked
+  if (target.role === 'superadmin' && id !== session!.sub) {
     return NextResponse.json({ error: 'Cannot modify another superadmin' }, { status: 403 });
   }
 
+  // Superadmin cannot downgrade their own role
+  if (id === session!.sub && role && role !== 'superadmin') {
+    return NextResponse.json({ error: 'Cannot change superadmin role' }, { status: 400 });
+  }
+
   const updates: Record<string, unknown> = {};
-  if (name !== undefined) updates.name = name;
+  if (name !== undefined) updates.name = name.trim();
+  if (email !== undefined) updates.email = email.toLowerCase().trim();
   if (role !== undefined && role !== 'superadmin') updates.role = role;
   if (allowedPersonal !== undefined) updates.allowed_personal = allowedPersonal;
   if (allowedAgency !== undefined) updates.allowed_agency = allowedAgency;

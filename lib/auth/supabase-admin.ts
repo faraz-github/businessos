@@ -1,3 +1,4 @@
+import 'server-only';
 // ============================================================
 // Business OS — Supabase Admin Client (service role)
 // Used ONLY in server-side API routes and Server Components.

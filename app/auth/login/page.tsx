@@ -164,7 +164,7 @@ export default function LoginPage() {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="admin@businessos.local"
+                  placeholder="your@email.com"
                   required
                   autoComplete="email"
                   style={inputStyle}

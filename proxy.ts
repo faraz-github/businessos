@@ -4,10 +4,10 @@
 // ============================================================
 import { NextResponse, type NextRequest } from 'next/server';
 import { verifyToken, COOKIE_NAME } from '@/lib/auth/jwt';
-import { ALL_SECTIONS } from '@/lib/auth/session';
+import { ALL_SECTIONS } from '@/lib/auth/sections';
 
 // Routes that don't require auth
-const PUBLIC_PREFIXES = ['/auth', '/doc/', '/api/auth/login'];
+const PUBLIC_PREFIXES = ['/auth', '/doc/', '/api/auth/login', '/api/auth/seed', '/setup'];
 
 // Map URL path segments to section keys
 function sectionFromPath(pathname: string): { mode: 'personal' | 'agency'; section: string } | null {

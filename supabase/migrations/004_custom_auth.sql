@@ -281,21 +281,22 @@ create trigger bos_users_updated_at
   before update on public.bos_users
   for each row execute function public.set_updated_at();
 
--- ─── 10. SEED SUPERADMIN ───
--- Password: 'changeme123' (bcrypt hash — CHANGE THIS IN PRODUCTION)
--- Generate a new hash with: node -e "const b=require('bcryptjs');b.hash('yourpassword',12).then(console.log)"
--- Then update this row.
-insert into public.bos_users (name, email, password_hash, role)
-values (
-  'Super Admin',
-  'admin@businessos.local',
-  '$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj6o8kWDHOKK',
-  'superadmin'
-)
-on conflict (email) do nothing;
-
--- NOTE: The hash above is for password 'changeme123'
--- IMPORTANT: Change your password immediately after first login via User Management.
+-- ─── 10. SUPERADMIN SEED ───
+-- Do NOT hardcode credentials here.
+-- After running this migration, seed the superadmin via the API:
+--
+--   1. Set these in your .env.local:
+--      SUPERADMIN_EMAIL=admin@yourdomain.com
+--      SUPERADMIN_PASSWORD=yourpassword
+--      SUPERADMIN_NAME=Your Name
+--
+--   2. Start the app (pnpm dev) and run:
+--      curl -X POST http://localhost:3000/api/auth/seed
+--
+--   Or open: http://localhost:3000/api/auth/seed in a REST client (POST)
+--
+-- You can re-run the seed at any time to reset superadmin credentials.
+-- The seed endpoint reads SUPERADMIN_* env vars — safe, no hardcoded passwords.
 
 
 -- ─── 11. RPC: set_bos_claims ───

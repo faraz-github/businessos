@@ -1,3 +1,4 @@
+import 'server-only';
 // ============================================================
 // Business OS — Session helpers (server-side only)
 // ============================================================
@@ -47,10 +48,3 @@ export function canAccess(
  * List of all sections per mode — used for access control UI and checks.
  * Add new sections here as the app grows.
  */
-export const ALL_SECTIONS = {
-  personal: ['home', 'social', 'compose', 'paperwork', 'clients', 'feedback', 'support', 'finance'],
-  agency: ['home', 'bd-pipeline', 'social', 'compose', 'paperwork', 'clients', 'feedback', 'support', 'finance'],
-} as const;
-
-export type PersonalSection = typeof ALL_SECTIONS.personal[number];
-export type AgencySection = typeof ALL_SECTIONS.agency[number];

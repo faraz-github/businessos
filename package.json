@@ -9,7 +9,9 @@
     "lint": "next lint",
     "db:migrate": "supabase db push",
     "db:reset": "supabase db reset",
-    "db:types": "supabase gen types typescript --local > types/database.ts"
+    "db:types": "supabase gen types typescript --local > types/database.ts",
+    "seed": "tsx scripts/seed.ts",
+    "seed:check": "tsx -e \"import('./scripts/seed.ts')\""
   },
   "dependencies": {
     "next": "^16.0.0",
@@ -29,7 +31,8 @@
     "clsx": "^2.1.0",
     "nanoid": "^5.0.0",
     "bcryptjs": "^2.4.3",
-    "jose": "^5.9.3"
+    "jose": "^5.9.3",
+    "server-only": "^0.0.1"
   },
   "devDependencies": {
     "typescript": "^5.7.0",
@@ -42,7 +45,9 @@
     "eslint": "^9.0.0",
     "eslint-config-next": "^16.0.0",
     "supabase": "^2.0.0",
-    "@types/bcryptjs": "^2.4.6"
+    "@types/bcryptjs": "^2.4.6",
+    "tsx": "^4.19.0",
+    "dotenv": "^16.4.0"
   },
   "packageManager": "pnpm@9.15.0"
 }
