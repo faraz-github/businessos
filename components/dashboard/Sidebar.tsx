@@ -10,68 +10,45 @@ import {
   Shield, IndianRupee, Settings, Kanban, LogOut, UserCog,
 } from 'lucide-react';
 
-interface NavItem {
-  label: string;
-  href: string;
-  icon: React.ReactNode;
-  section: string;
-}
-interface NavSection {
-  title: string;
-  items: NavItem[];
-}
+interface NavItem { label: string; href: string; icon: React.ReactNode; section: string; }
+interface NavSection { title: string; items: NavItem[]; }
 
 function getPersonalNav(): NavSection[] {
-  const base = '/dashboard/personal';
+  const b = '/dashboard/personal';
   return [
-    { title: 'Overview', items: [{ label: 'Home', href: `${base}/home`, icon: <Home size={15} />, section: 'home' }] },
-    {
-      title: 'Work',
-      items: [
-        { label: 'Social & Brand', href: `${base}/social`, icon: <Share2 size={15} />, section: 'social' },
-        { label: 'Composers', href: `${base}/compose`, icon: <PenTool size={15} />, section: 'compose' },
-        { label: 'Paperwork', href: `${base}/paperwork`, icon: <FileText size={15} />, section: 'paperwork' },
-      ],
-    },
-    {
-      title: 'Clients',
-      items: [
-        { label: 'All Clients', href: `${base}/clients`, icon: <Users size={15} />, section: 'clients' },
-        { label: 'Feedback', href: `${base}/feedback`, icon: <MessageSquare size={15} />, section: 'feedback' },
-        { label: 'Support', href: `${base}/support`, icon: <Shield size={15} />, section: 'support' },
-      ],
-    },
-    { title: 'Money', items: [{ label: 'Finance', href: `${base}/finance`, icon: <IndianRupee size={15} />, section: 'finance' }] },
+    { title: 'Overview', items: [{ label: 'Home', href: `${b}/home`, icon: <Home size={15} />, section: 'home' }] },
+    { title: 'Work', items: [
+      { label: 'Social & Brand', href: `${b}/social`, icon: <Share2 size={15} />, section: 'social' },
+      { label: 'Composers',     href: `${b}/compose`, icon: <PenTool size={15} />, section: 'compose' },
+      { label: 'Paperwork',     href: `${b}/paperwork`, icon: <FileText size={15} />, section: 'paperwork' },
+    ]},
+    { title: 'Clients', items: [
+      { label: 'All Clients', href: `${b}/clients`, icon: <Users size={15} />, section: 'clients' },
+      { label: 'Feedback',    href: `${b}/feedback`, icon: <MessageSquare size={15} />, section: 'feedback' },
+      { label: 'Support',     href: `${b}/support`, icon: <Shield size={15} />, section: 'support' },
+    ]},
+    { title: 'Money', items: [{ label: 'Finance', href: `${b}/finance`, icon: <IndianRupee size={15} />, section: 'finance' }] },
   ];
 }
 
 function getAgencyNav(): NavSection[] {
-  const base = '/dashboard/agency';
+  const b = '/dashboard/agency';
   return [
-    {
-      title: 'Overview',
-      items: [
-        { label: 'Home', href: `${base}/home`, icon: <Home size={15} />, section: 'home' },
-        { label: 'BD Pipeline', href: `${base}/bd-pipeline`, icon: <Kanban size={15} />, section: 'bd-pipeline' },
-      ],
-    },
-    {
-      title: 'Work',
-      items: [
-        { label: 'Social & Brand', href: `${base}/social`, icon: <Share2 size={15} />, section: 'social' },
-        { label: 'Composers', href: `${base}/compose`, icon: <PenTool size={15} />, section: 'compose' },
-        { label: 'Paperwork', href: `${base}/paperwork`, icon: <FileText size={15} />, section: 'paperwork' },
-      ],
-    },
-    {
-      title: 'Clients',
-      items: [
-        { label: 'All Clients', href: `${base}/clients`, icon: <Users size={15} />, section: 'clients' },
-        { label: 'Feedback', href: `${base}/feedback`, icon: <MessageSquare size={15} />, section: 'feedback' },
-        { label: 'Support', href: `${base}/support`, icon: <Shield size={15} />, section: 'support' },
-      ],
-    },
-    { title: 'Money', items: [{ label: 'Finance', href: `${base}/finance`, icon: <IndianRupee size={15} />, section: 'finance' }] },
+    { title: 'Overview', items: [
+      { label: 'Home',        href: `${b}/home`, icon: <Home size={15} />, section: 'home' },
+      { label: 'BD Pipeline', href: `${b}/bd-pipeline`, icon: <Kanban size={15} />, section: 'bd-pipeline' },
+    ]},
+    { title: 'Work', items: [
+      { label: 'Social & Brand', href: `${b}/social`, icon: <Share2 size={15} />, section: 'social' },
+      { label: 'Composers',     href: `${b}/compose`, icon: <PenTool size={15} />, section: 'compose' },
+      { label: 'Paperwork',     href: `${b}/paperwork`, icon: <FileText size={15} />, section: 'paperwork' },
+    ]},
+    { title: 'Clients', items: [
+      { label: 'All Clients', href: `${b}/clients`, icon: <Users size={15} />, section: 'clients' },
+      { label: 'Feedback',    href: `${b}/feedback`, icon: <MessageSquare size={15} />, section: 'feedback' },
+      { label: 'Support',     href: `${b}/support`, icon: <Shield size={15} />, section: 'support' },
+    ]},
+    { title: 'Money', items: [{ label: 'Finance', href: `${b}/finance`, icon: <IndianRupee size={15} />, section: 'finance' }] },
   ];
 }
 
@@ -80,17 +57,13 @@ export function Sidebar() {
   const router = useRouter();
   const { mode, brand } = useBrand();
   const { user } = useCurrentUser();
-
   const isSuperAdmin = user?.role === 'superadmin';
-  const allSections = mode === 'personal' ? getPersonalNav() : getAgencyNav();
 
-  // Filter sections based on access
-  const sections = allSections.map((sec) => ({
+  const allSections = mode === 'personal' ? getPersonalNav() : getAgencyNav();
+  const sections = allSections.map(sec => ({
     ...sec,
-    items: sec.items.filter((item) =>
-      isSuperAdmin || userCanAccess(user, mode, item.section)
-    ),
-  })).filter((sec) => sec.items.length > 0);
+    items: sec.items.filter(item => isSuperAdmin || userCanAccess(user, mode, item.section)),
+  })).filter(sec => sec.items.length > 0);
 
   async function handleSignOut() {
     await fetch('/api/auth/logout', { method: 'POST' });
@@ -101,102 +74,49 @@ export function Sidebar() {
   const initial = (brand?.business_name || (mode === 'personal' ? 'P' : 'A'))[0].toUpperCase();
 
   return (
-    <aside style={{
-      width: 'var(--sidebar-width)',
-      minHeight: '100vh',
-      maxHeight: '100vh',
-      background: 'var(--bg-surface)',
-      borderRight: '1px solid var(--border-subtle)',
-      flexShrink: 0,
-      position: 'sticky',
-      top: 0,
-      overflowY: 'auto',
-      display: 'flex',
-      flexDirection: 'column',
-    }}>
-      {/* Brand */}
-      <div style={{ padding: '16px 12px 12px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '0 6px', marginBottom: 12 }}>
+    <aside className="flex flex-col bg-surface border-r border-subtle shrink-0 sticky top-0 overflow-y-auto"
+      style={{ width: 'var(--sidebar-width)', minHeight: '100vh', maxHeight: '100vh' }}>
+
+      {/* Brand header */}
+      <div className="p-3 pb-2">
+        <div className="flex items-center gap-2.5 px-1.5 mb-3">
           {brand?.logo_url ? (
             <img src={brand.logo_url} alt={brand.business_name}
-              style={{ width: 28, height: 28, borderRadius: 'var(--radius-sm)', objectFit: 'cover' }} />
+              className="w-7 h-7 radius-sm object-cover shrink-0" />
           ) : (
-            <div style={{
-              width: 28, height: 28, borderRadius: 'var(--radius-sm)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              background: brand?.primary_colour || 'var(--accent-blue)',
-              color: '#fff', fontSize: 12, fontWeight: 700,
-              fontFamily: 'var(--font-display)', flexShrink: 0,
-            }}>
+            <div className="w-7 h-7 radius-sm flex items-center justify-center text-white shrink-0"
+              style={{ background: brand?.primary_colour || 'var(--accent-blue)', fontSize: 12, fontFamily: 'var(--font-display)', fontWeight: 700 }}>
               {initial}
             </div>
           )}
-          <span style={{
-            fontSize: 13, fontWeight: 600, color: 'var(--text-primary)',
-            fontFamily: 'var(--font-body)', overflow: 'hidden',
-            textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-          }}>
+          <span className="t-sm-semibold truncate">
             {brand?.business_name || (mode === 'personal' ? 'Personal' : 'Agency')}
           </span>
         </div>
-        {/* Only show mode switch to superadmin */}
+
         {isSuperAdmin && <ModeSwitch />}
-        {/* Non-superadmin: show their mode label */}
         {!isSuperAdmin && (
-          <div style={{
-            padding: '6px 8px',
-            background: 'var(--accent-blue-dim)',
-            borderRadius: 'var(--radius-sm)',
-            fontSize: 11, fontWeight: 500,
-            color: 'var(--accent-blue)',
-            fontFamily: 'var(--font-body)',
-            textAlign: 'center',
-          }}>
+          <div className="px-2 py-1.5 bg-accent-blue-dim radius-sm text-center t-label text-accent-blue">
             {mode === 'agency' ? 'Agency Access' : 'Personal Access'}
           </div>
         )}
       </div>
 
-      {/* Navigation */}
-      <nav style={{ flex: 1, padding: '4px 12px' }}>
-        {sections.map((section) => (
-          <div key={section.title} style={{ marginBottom: 4 }}>
-            <p style={{
-              fontSize: 9, fontWeight: 700, textTransform: 'uppercase',
-              letterSpacing: '0.08em', color: 'var(--text-tertiary)',
-              padding: '12px 8px 4px', fontFamily: 'var(--font-body)',
-            }}>
-              {section.title}
-            </p>
-            {section.items.map((item) => {
-              const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
+      {/* Nav */}
+      <nav className="flex-1 px-3 pt-1 pb-2">
+        {sections.map(section => (
+          <div key={section.title} className="mb-1">
+            <p className="t-label-xs px-2 pt-3 pb-1">{section.title}</p>
+            {section.items.map(item => {
+              const active = pathname === item.href || pathname.startsWith(item.href + '/');
               return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 8,
-                    padding: '7px 8px', borderRadius: 'var(--radius-sm)',
-                    fontSize: 13, fontWeight: isActive ? 500 : 400,
-                    fontFamily: 'var(--font-body)',
-                    color: isActive ? 'var(--accent-blue)' : 'var(--text-secondary)',
-                    background: isActive ? 'var(--accent-blue-dim)' : 'transparent',
-                    textDecoration: 'none', transition: 'all 150ms', marginBottom: 2,
-                  }}
-                  onMouseEnter={(e) => {
-                    if (!isActive) {
-                      (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)';
-                      (e.currentTarget as HTMLElement).style.color = 'var(--text-primary)';
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!isActive) {
-                      (e.currentTarget as HTMLElement).style.background = 'transparent';
-                      (e.currentTarget as HTMLElement).style.color = 'var(--text-secondary)';
-                    }
-                  }}
-                >
-                  <span style={{ flexShrink: 0, display: 'flex', alignItems: 'center' }}>{item.icon}</span>
+                <Link key={item.href} href={item.href}
+                  className={`flex items-center gap-2 px-2 py-[7px] radius-sm t-xs mb-0.5 no-underline transition-colors ${
+                    active
+                      ? 'bg-accent-blue-dim text-accent-blue font-medium'
+                      : 'text-secondary hover-bg-hover hover-text-primary'
+                  }`}>
+                  <span className="shrink-0">{item.icon}</span>
                   {item.label}
                 </Link>
               );
@@ -206,80 +126,39 @@ export function Sidebar() {
       </nav>
 
       {/* Footer */}
-      <div style={{ padding: '12px', borderTop: '1px solid var(--border-subtle)', marginTop: 'auto' }}>
-        {/* Brand Settings — superadmin only */}
+      <div className="px-3 pb-4 border-t-subtle pt-3">
         {isSuperAdmin && (
           <Link href="/dashboard/personal/settings"
-            style={{
-              display: 'flex', alignItems: 'center', gap: 8,
-              padding: '7px 8px', borderRadius: 'var(--radius-sm)',
-              fontSize: 13, fontFamily: 'var(--font-body)',
-              color: 'var(--text-secondary)', textDecoration: 'none',
-              transition: 'all 150ms', marginBottom: 2,
-            }}
-            onMouseEnter={(e) => {
-              (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)';
-              (e.currentTarget as HTMLElement).style.color = 'var(--text-primary)';
-            }}
-            onMouseLeave={(e) => {
-              (e.currentTarget as HTMLElement).style.background = 'transparent';
-              (e.currentTarget as HTMLElement).style.color = 'var(--text-secondary)';
-            }}
-          >
+            className="flex items-center gap-2 px-2 py-[7px] radius-sm t-xs text-secondary no-underline transition-colors hover-bg-hover hover-text-primary mb-0.5">
             <Settings size={15} /> Brand Settings
           </Link>
         )}
-        {/* User Management — superadmin only */}
         {isSuperAdmin && (
           <Link href="/dashboard/personal/settings?tab=team"
-            style={{
-              display: 'flex', alignItems: 'center', gap: 8,
-              padding: '7px 8px', borderRadius: 'var(--radius-sm)',
-              fontSize: 13, fontFamily: 'var(--font-body)',
-              color: 'var(--text-secondary)', textDecoration: 'none',
-              transition: 'all 150ms', marginBottom: 2,
-            }}
-            onMouseEnter={(e) => {
-              (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)';
-              (e.currentTarget as HTMLElement).style.color = 'var(--text-primary)';
-            }}
-            onMouseLeave={(e) => {
-              (e.currentTarget as HTMLElement).style.background = 'transparent';
-              (e.currentTarget as HTMLElement).style.color = 'var(--text-secondary)';
-            }}
-          >
+            className="flex items-center gap-2 px-2 py-[7px] radius-sm t-xs text-secondary no-underline transition-colors hover-bg-hover hover-text-primary mb-0.5">
             <UserCog size={15} /> Team & Access
           </Link>
         )}
-        {/* Signed in as */}
+
+        {/* User identity */}
         {user && (
-          <div style={{
-            padding: '7px 8px', marginBottom: 2,
-            fontSize: 11, color: 'var(--text-tertiary)',
-            fontFamily: 'var(--font-body)',
-            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-          }}>
-            {user.name}
+          <div className="flex items-center gap-2 px-2 py-2 mb-0.5">
+            <div className="w-[22px] h-[22px] rounded-full bg-accent-blue-dim border-accent-blue flex items-center justify-center shrink-0"
+              className="t-label text-accent-blue">
+              {user.name[0].toUpperCase()}
+            </div>
+            <div className="min-w-0">
+              <p className="t-xs-medium text-primary truncate">{user.name}</p>
+              <p className="t-role">
+                {user.role === 'superadmin' ? 'Super Admin' : user.role}
+              </p>
+            </div>
           </div>
         )}
-        <button
-          onClick={handleSignOut}
-          style={{
-            display: 'flex', alignItems: 'center', gap: 8,
-            padding: '7px 8px', borderRadius: 'var(--radius-sm)',
-            fontSize: 13, fontFamily: 'var(--font-body)',
-            color: 'var(--text-secondary)', background: 'transparent',
-            border: 'none', cursor: 'pointer', width: '100%', transition: 'all 150ms',
-          }}
-          onMouseEnter={(e) => {
-            (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)';
-            (e.currentTarget as HTMLElement).style.color = 'var(--accent-red)';
-          }}
-          onMouseLeave={(e) => {
-            (e.currentTarget as HTMLElement).style.background = 'transparent';
-            (e.currentTarget as HTMLElement).style.color = 'var(--text-secondary)';
-          }}
-        >
+
+        <button onClick={handleSignOut}
+          className="flex items-center gap-2 w-full px-2 py-[7px] radius-sm t-xs text-secondary transition-colors hover-bg-hover hover-text-red"
+          style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
           <LogOut size={15} /> Sign out
         </button>
       </div>

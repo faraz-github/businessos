@@ -6,11 +6,11 @@ import type { ReactNode } from 'react';
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   return (
     <BrandProvider>
-      <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg-base)' }}>
+      <div className="flex min-h-screen bg-base">
         <Sidebar />
-        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+        <div className="flex-1 min-w-0 flex flex-col">
           <TopBar />
-          <main style={{ flex: 1, padding: 24, maxWidth: 'var(--content-max-w)', width: '100%', margin: '0 auto' }}>
+          <main className="flex-1 p-6 w-full mx-auto" style={{ maxWidth: 'var(--content-max-w)' }}>
             {children}
           </main>
         </div>

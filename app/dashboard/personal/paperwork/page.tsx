@@ -73,10 +73,10 @@ export default function PersonalPaperworkPage() {
 
   return (
     <PageTransition>
-      <div className="space-y-6">
+      <div className="flex flex-col gap-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="font-display text-2xl font-extrabold tracking-tight">Paperwork</h1>
+            <h1 className="t-h1">Paperwork</h1>
             <p className="text-[13px] text-[var(--text-secondary)] mt-1">Create and manage branded documents.</p>
           </div>
           <Button icon={<Plus size={14} />} onClick={() => setShowCreate(true)}>New Document</Button>
@@ -101,7 +101,7 @@ export default function PersonalPaperworkPage() {
             />
           </Card>
         ) : (
-          <div className="space-y-2">
+          <div className="flex flex-col gap-2">
             {documents.map((doc) => {
               const config = statusConfig[doc.status] || statusConfig.draft;
               const shareUrl = doc.share_token ? `${typeof window !== 'undefined' ? window.location.origin : ''}/doc/${doc.share_token}` : null;
@@ -192,7 +192,7 @@ function CreateDocumentModal({ open, onClose, mode, clients, onCreated }: {
 
   return (
     <Modal open={open} onClose={onClose} title="New Document" size="sm">
-      <div className="space-y-4">
+      <div className="flex flex-col gap-4">
         <Select
           label="Document Type"
           options={docTypes}
@@ -208,8 +208,8 @@ function CreateDocumentModal({ open, onClose, mode, clients, onCreated }: {
           onChange={(e) => setClientId(e.target.value)}
         />
         <div className="flex gap-2 pt-2">
-          <Button variant="secondary" onClick={onClose} className="flex-1">Cancel</Button>
-          <Button onClick={handleCreate} loading={saving} className="flex-1">Create</Button>
+          <Button variant="secondary" onClick={onClose} style={{ flex: 1 }}>Cancel</Button>
+          <Button onClick={handleCreate} loading={saving} style={{ flex: 1 }}>Create</Button>
         </div>
       </div>
     </Modal>

@@ -37,7 +37,7 @@ export function AgencyHomeClient({
 }: AgencyHomeClientProps) {
   return (
     // No PageTransition here — PersonalHomeClient already wraps in PageTransition
-    <div className="space-y-6">
+    <div className="flex flex-col gap-6">
       {/* BD Activity Zone */}
       <div>
         <h2 className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--text-tertiary)] mb-3">
@@ -51,7 +51,7 @@ export function AgencyHomeClient({
                 New Leads
               </span>
             </div>
-            <p className="font-display text-2xl font-extrabold">
+            <p className="t-h1">
               {bdStats.leadsThisWeek}
             </p>
           </Card>
@@ -62,7 +62,7 @@ export function AgencyHomeClient({
                 Moved Forward
               </span>
             </div>
-            <p className="font-display text-2xl font-extrabold">
+            <p className="t-h1">
               {bdStats.movedForward}
             </p>
           </Card>

@@ -47,7 +47,7 @@ export default function LoginPage() {
 
   const inputStyle: React.CSSProperties = {
     width: '100%',
-    background: 'var(--bg-surface)',
+    background: 'var(--bg-input)',
     border: '1px solid var(--border-default)',
     borderRadius: 'var(--radius-md)',
     padding: '9px 12px 9px 36px',
@@ -139,10 +139,10 @@ export default function LoginPage() {
           padding: '24px',
           boxShadow: 'var(--shadow-elevated)',
         }}>
-          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
 
             {/* Email */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div className="flex flex-col gap-1.5">
               <label style={{
                 fontSize: 10,
                 fontWeight: 700,
@@ -181,7 +181,7 @@ export default function LoginPage() {
             </div>
 
             {/* Password */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div className="flex flex-col gap-1.5">
               <label style={{
                 fontSize: 10,
                 fontWeight: 700,

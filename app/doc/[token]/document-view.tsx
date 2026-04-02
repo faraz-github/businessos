@@ -177,12 +177,12 @@ function ProposalView({ fields, color }: { fields: any; color: string }) {
       {fields.overview && <><SectionTitle color={color}>Overview</SectionTitle><p className="text-sm text-gray-700 leading-relaxed">{fields.overview}</p></>}
       {fields.inclusions?.length > 0 && (
         <><SectionTitle color={color}>What&apos;s Included</SectionTitle>
-          <ul className="space-y-1">{fields.inclusions.map((item: string, i: number) => <li key={i} className="text-sm text-gray-700 flex items-start gap-2"><span style={{ color }}>✓</span>{item}</li>)}</ul>
+          <ul className="flex flex-col gap-1">{fields.inclusions.map((item: string, i: number) => <li key={i} className="text-sm text-gray-700 flex items-start gap-2"><span style={{ color }}>✓</span>{item}</li>)}</ul>
         </>
       )}
       {fields.exclusions?.length > 0 && (
         <><SectionTitle color={color}>Exclusions</SectionTitle>
-          <ul className="space-y-1">{fields.exclusions.map((item: string, i: number) => <li key={i} className="text-sm text-gray-500 flex items-start gap-2"><span>✗</span>{item}</li>)}</ul>
+          <ul className="flex flex-col gap-1">{fields.exclusions.map((item: string, i: number) => <li key={i} className="text-sm text-gray-500 flex items-start gap-2"><span>✗</span>{item}</li>)}</ul>
         </>
       )}
       {fields.timeline && <><SectionTitle color={color}>Timeline</SectionTitle><p className="text-sm text-gray-700">{fields.timeline}</p></>}
@@ -203,7 +203,7 @@ function ContractView({ fields, color }: { fields: any; color: string }) {
       {fields.project_description && <><SectionTitle color={color}>Project Description</SectionTitle><p className="text-sm text-gray-700 leading-relaxed">{fields.project_description}</p></>}
       {fields.payment_schedule?.length > 0 && (
         <><SectionTitle color={color}>Payment Schedule</SectionTitle>
-          <div className="space-y-2">{fields.payment_schedule.map((p: any, i: number) => (
+          <div className="flex flex-col gap-2">{fields.payment_schedule.map((p: any, i: number) => (
             <div key={i} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg text-sm">
               <span className="text-gray-700">{p.trigger}</span>
               <span className="font-semibold" style={{ color }}>{formatINR(p.amount)}</span>
@@ -225,14 +225,14 @@ function SOWView({ fields, color }: { fields: any; color: string }) {
       {fields.objectives && <><SectionTitle color={color}>Objectives</SectionTitle><p className="text-sm text-gray-700">{fields.objectives}</p></>}
       {fields.deliverables?.length > 0 && (
         <><SectionTitle color={color}>Deliverables</SectionTitle>
-          <div className="space-y-2">{fields.deliverables.map((d: any, i: number) => (
+          <div className="flex flex-col gap-2">{fields.deliverables.map((d: any, i: number) => (
             <div key={i} className="p-3 bg-gray-50 rounded-lg"><p className="text-sm font-medium text-gray-900">{d.title}</p><p className="text-sm text-gray-600 mt-1">{d.description}</p></div>
           ))}</div>
         </>
       )}
       {fields.milestone_schedule?.length > 0 && (
         <><SectionTitle color={color}>Milestones</SectionTitle>
-          <div className="space-y-2">{fields.milestone_schedule.map((m: any, i: number) => (
+          <div className="flex flex-col gap-2">{fields.milestone_schedule.map((m: any, i: number) => (
             <div key={i} className="flex justify-between text-sm p-2"><span className="text-gray-700">{m.milestone}</span><span className="text-gray-500">{m.target_date}</span></div>
           ))}</div>
         </>
@@ -247,7 +247,7 @@ function RequirementsView({ fields, color }: { fields: any; color: string }) {
       {fields.project_background && <><SectionTitle color={color}>Background</SectionTitle><p className="text-sm text-gray-700">{fields.project_background}</p></>}
       {fields.functional_requirements?.length > 0 && (
         <><SectionTitle color={color}>Requirements</SectionTitle>
-          <div className="space-y-1">{fields.functional_requirements.map((r: any, i: number) => (
+          <div className="flex flex-col gap-1">{fields.functional_requirements.map((r: any, i: number) => (
             <div key={i} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={r.completed} readOnly className="accent-current" style={{ accentColor: color }} /><span className="text-gray-700">{r.requirement}</span></div>
           ))}</div>
         </>
@@ -293,7 +293,7 @@ function DeliveryView({ fields, color }: { fields: any; color: string }) {
       {fields.project_summary && <><SectionTitle color={color}>Project Summary</SectionTitle><p className="text-sm text-gray-700">{fields.project_summary}</p></>}
       {fields.deliverables?.length > 0 && (
         <><SectionTitle color={color}>Deliverables</SectionTitle>
-          <div className="space-y-2">{fields.deliverables.map((d: any, i: number) => (
+          <div className="flex flex-col gap-2">{fields.deliverables.map((d: any, i: number) => (
             <div key={i} className="p-3 bg-gray-50 rounded-lg"><p className="text-sm font-medium text-gray-900">{d.title}</p>{d.link && <a href={d.link} className="text-sm" style={{ color }}>{d.link}</a>}{d.description && <p className="text-sm text-gray-600 mt-1">{d.description}</p>}</div>
           ))}</div>
         </>

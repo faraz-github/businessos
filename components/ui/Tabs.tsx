@@ -1,12 +1,6 @@
 'use client';
 
-import { cn } from '@/lib/utils';
-
-interface Tab {
-  value: string;
-  label: string;
-}
-
+interface Tab { value: string; label: string; }
 interface TabsProps {
   tabs: Tab[];
   value: string;
@@ -14,28 +8,26 @@ interface TabsProps {
   className?: string;
 }
 
-export function Tabs({ tabs, value, onChange, className }: TabsProps) {
+export function Tabs({ tabs, value, onChange, className = '' }: TabsProps) {
   return (
-    <div
-      className={cn(
-        'flex gap-0.5 bg-[var(--bg-hover)] p-[3px] rounded-[var(--radius-md)] w-fit',
-        className,
-      )}
-    >
-      {tabs.map((tab) => (
-        <button
-          key={tab.value}
-          onClick={() => onChange(tab.value)}
-          className={cn(
-            'px-3 py-[5px] rounded-[7px] text-xs font-medium cursor-pointer transition-all duration-[var(--duration-fast)]',
-            tab.value === value
-              ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-[0_1px_3px_rgba(0,0,0,0.2)]'
-              : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]',
-          )}
-        >
-          {tab.label}
-        </button>
-      ))}
+    <div className={`inline-flex items-center bg-hover radius-md p-[3px] gap-0.5 ${className}`}>
+      {tabs.map(tab => {
+        const isActive = tab.value === value;
+        return (
+          <button
+            key={tab.value}
+            onClick={() => onChange(tab.value)}
+            className={`px-3.5 py-[7px] radius-sm t-xs font-medium interactive ${
+              isActive
+                ? 'bg-surface text-primary shadow-[0_1px_3px_rgba(0,0,0,0.18)]'
+                : 'text-tertiary hover-text-primary'
+            }`}
+            style={{ border: 'none', cursor: 'pointer' }}
+          >
+            {tab.label}
+          </button>
+        );
+      })}
     </div>
   );
 }

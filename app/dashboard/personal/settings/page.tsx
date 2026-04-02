@@ -91,7 +91,7 @@ function AccessSelector({
   );
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+    <div className="flex flex-col gap-2">
       {modeBlock('personal', allowedPersonal !== null, allowedPersonal, ALL_SECTIONS.personal)}
       {modeBlock('agency', allowedAgency !== null, allowedAgency, ALL_SECTIONS.agency)}
     </div>
@@ -151,18 +151,18 @@ function MemberModal({
 
         {/* Body */}
         <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 14, maxHeight: '70vh', overflowY: 'auto' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div className="grid grid-cols-2 gap-3">
             <Input label="Full Name" value={name} onChange={e => setName(e.target.value)} placeholder="Jane Smith" />
             <Input label="Email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="jane@company.com" />
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div className="grid grid-cols-2 gap-3">
             <Input label={isEdit ? 'New Password (leave blank to keep)' : 'Password'} type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Min 8 characters" />
             <Input label="Confirm Password" type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="Repeat password" />
           </div>
           {/* Access control — only for non-superadmin members */}
           {!isSelfEdit && (
             <div>
-              <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-tertiary)', fontFamily: 'var(--font-body)', marginBottom: 10 }}>Access Control</p>
+              <p className="t-label mb-2.5">Access Control</p>
               <AccessSelector allowedPersonal={allowedPersonal} allowedAgency={allowedAgency} onChangePersonal={setAllowedPersonal} onChangeAgency={setAllowedAgency} />
             </div>
           )}
@@ -216,11 +216,11 @@ function TeamTab() {
   const teamMembers = members.filter(m => m.role !== 'superadmin');
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+    <div className="flex flex-col gap-5">
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div className="flex items-center justify-between">
         <div>
-          <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', fontFamily: 'var(--font-body)' }}>Team & Access</p>
+          <p className="t-sm-semibold">Team & Access</p>
           <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2, fontFamily: 'var(--font-body)' }}>Manage who can access the platform and what they can see.</p>
         </div>
         <Button icon={<Plus size={13} />} onClick={() => { setEditingMember(null); setEditingSelf(false); setShowModal(true); }}>
@@ -230,14 +230,14 @@ function TeamTab() {
 
       {/* SuperAdmin row — editable */}
       {superAdmin && (
-        <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)', padding: '14px 16px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div className="bg-card", border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)', padding: '14px 16px' }}>
+          <div className="flex items-center gap-3">
             <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--accent-blue-dim)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <Shield size={16} style={{ color: 'var(--accent-blue)' }} />
             </div>
             <div style={{ flex: 1 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', fontFamily: 'var(--font-body)' }}>{superAdmin.name}</span>
+              <div className="flex items-center gap-2">
+                <span className="t-sm-semibold">{superAdmin.name}</span>
                 <span style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', padding: '2px 7px', borderRadius: 100, background: 'var(--accent-blue-dim)', color: 'var(--accent-blue)' }}>SuperAdmin</span>
               </div>
               <p style={{ fontSize: 11, color: 'var(--text-tertiary)', fontFamily: 'var(--font-body)', marginTop: 1 }}>
@@ -259,24 +259,24 @@ function TeamTab() {
 
       {/* Team members */}
       {loading ? (
-        <p style={{ fontSize: 13, color: 'var(--text-tertiary)', fontFamily: 'var(--font-body)' }}>Loading...</p>
+        <p className="t-xs text-tertiary">Loading...</p>
       ) : teamMembers.length === 0 ? (
-        <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)', padding: '32px 20px', textAlign: 'center' }}>
+        <div className="bg-card", border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)', padding: '32px 20px', textAlign: 'center' }}>
           <UserCog size={32} style={{ color: 'var(--text-tertiary)', margin: '0 auto 12px' }} />
-          <p style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', fontFamily: 'var(--font-body)' }}>No team members yet</p>
+          <p className="t-sm-medium">No team members yet</p>
           <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4, fontFamily: 'var(--font-body)' }}>Add a team member to grant them access to the platform.</p>
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div className="flex flex-col gap-2">
           {teamMembers.map(member => (
-            <div key={member.id} style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)', padding: '14px 16px', opacity: member.is_active ? 1 : 0.55, transition: 'opacity 200ms' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div key={member.id} className="bg-card", border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)', padding: '14px 16px', opacity: member.is_active ? 1 : 0.55, transition: 'opacity 200ms' }}>
+              <div className="flex items-center gap-3">
                 <div style={{ width: 36, height: 36, borderRadius: '50%', background: member.is_active ? 'var(--accent-violet-dim)' : 'var(--bg-hover)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: 'var(--accent-violet)', fontFamily: 'var(--font-display)' }}>
                   {member.name[0].toUpperCase()}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', fontFamily: 'var(--font-body)' }}>{member.name}</span>
+                    <span className="t-sm-semibold">{member.name}</span>
                     <span style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', padding: '2px 7px', borderRadius: 100, background: 'var(--accent-violet-dim)', color: 'var(--accent-violet)' }}>{member.role}</span>
                     {!member.is_active && <span style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', padding: '2px 7px', borderRadius: 100, background: 'var(--accent-red-dim)', color: 'var(--accent-red)' }}>Inactive</span>}
                   </div>
@@ -374,15 +374,15 @@ function BrandTab() {
 
   return (
     <form onSubmit={handleSubmit(onSubmit)}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div className="flex flex-col gap-5">
         <Tabs
           tabs={[{ value: 'personal', label: 'Personal' }, { value: 'agency', label: 'Agency' }]}
           value={activeMode}
           onChange={v => { setActiveMode(v as Mode); setValue('mode', v as Mode); }}
         />
         <input type="hidden" {...register('mode')} />
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="flex flex-col gap-3">
             <Input label="Business Name" {...register('business_name')} error={errors.business_name?.message} />
             <Input label="Tagline" {...register('tagline')} />
             <Input label="Email" type="email" {...register('email')} />
@@ -390,7 +390,7 @@ function BrandTab() {
             <Input label="Website" {...register('website')} />
             <Input label="GST Number" {...register('gst_number')} />
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div className="flex flex-col gap-3">
             <ColorPicker label="Primary Colour" value={primaryColour} onChange={v => setValue('primary_colour', v)} />
             <ColorPicker label="Secondary Colour" value={secondaryColour} onChange={v => setValue('secondary_colour', v)} />
             <Select label="Tone of Voice" {...register('tone')} options={[{ value: 'confident', label: 'Confident' }, { value: 'conversational', label: 'Conversational' }, { value: 'formal', label: 'Formal' }]} />
@@ -432,10 +432,10 @@ export default function SettingsPage() {
 
   return (
     <PageTransition>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+      <div className="flex flex-col gap-6">
         <div>
           <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 26, fontWeight: 800, letterSpacing: '-0.5px', color: 'var(--text-primary)' }}>Settings</h1>
-          <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 6, fontFamily: 'var(--font-body)' }}>Manage your brand and team access.</p>
+          <p className="t-xs mt-1.5">Manage your brand and team access.</p>
         </div>
         <Tabs tabs={tabs} value={activeTab} onChange={setActiveTab} />
         <Card variant="base">

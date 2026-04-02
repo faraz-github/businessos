@@ -71,10 +71,10 @@ export default function PersonalClientsPage() {
 
   return (
     <PageTransition>
-      <div className="space-y-6">
+      <div className="flex flex-col gap-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="font-display text-2xl font-extrabold tracking-tight">Clients</h1>
+            <h1 className="t-h1">Clients</h1>
             <p className="text-[13px] text-[var(--text-secondary)] mt-1">Single source of truth for every client.</p>
           </div>
           <Button icon={<Plus size={14} />} onClick={() => setShowCreate(true)}>Add Client</Button>
@@ -101,7 +101,7 @@ export default function PersonalClientsPage() {
           </Card>
         ) : (
           <>
-            <div className="space-y-2">
+            <div className="flex flex-col gap-2">
               {active.map((client) => (
                 <Card
                   key={client.id}
@@ -137,7 +137,7 @@ export default function PersonalClientsPage() {
                   {showPast ? 'Hide' : 'Show'} past clients ({past.length})
                 </button>
                 {showPast && (
-                  <div className="space-y-2 mt-2 opacity-70">
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 8, opacity: 0.7 }}>
                     {past.map((client) => (
                       <Card key={client.id} variant="base" className="flex items-center gap-4 cursor-pointer hover:bg-[var(--bg-hover)]" onClick={() => setSelectedClient(client)}>
                         <div className="w-9 h-9 rounded-full bg-[var(--bg-hover)] flex items-center justify-center text-[12px] font-bold text-[var(--text-tertiary)] shrink-0">
@@ -202,7 +202,7 @@ function ClientDetailModal({ client, onClose, onStageChange, onUpdate }: {
 
   return (
     <Modal open={true} onClose={onClose} title={client.name} description={client.company || undefined} size="lg">
-      <div className="space-y-5">
+      <div className="flex flex-col gap-5">
         {/* Stage */}
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--text-tertiary)] mb-2">Current Stage</p>
@@ -280,7 +280,7 @@ function ClientDetailModal({ client, onClose, onStageChange, onUpdate }: {
         {client.stage_history && client.stage_history.length > 0 && (
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--text-tertiary)] mb-2">Stage History</p>
-            <div className="space-y-1">
+            <div className="flex flex-col gap-1">
               {[...client.stage_history].reverse().map((entry: any, i: number) => (
                 <div key={i} className="flex items-center gap-2 text-[11px]">
                   <span className="text-[var(--text-tertiary)] font-mono">{formatDate(entry.entered_at, 'dd MMM')}</span>
@@ -336,7 +336,7 @@ function CreateClientModal({ open, onClose, mode, onCreated }: {
 
   return (
     <Modal open={open} onClose={onClose} title="Add Client" size="md">
-      <div className="space-y-4">
+      <div className="flex flex-col gap-4">
         <div className="grid grid-cols-2 gap-3">
           <Input label="Client / Project Name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Acme Corp" required />
           <Input label="Company" value={company} onChange={(e) => setCompany(e.target.value)} placeholder="Optional" />
@@ -359,8 +359,8 @@ function CreateClientModal({ open, onClose, mode, onCreated }: {
           />
         </div>
         <div className="flex gap-2 pt-2">
-          <Button variant="secondary" onClick={onClose} className="flex-1">Cancel</Button>
-          <Button onClick={handleCreate} loading={saving} className="flex-1" disabled={!name}>Add Client</Button>
+          <Button variant="secondary" onClick={onClose} style={{ flex: 1 }}>Cancel</Button>
+          <Button onClick={handleCreate} loading={saving} style={{ flex: 1 }} disabled={!name}>Add Client</Button>
         </div>
       </div>
     </Modal>

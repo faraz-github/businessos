@@ -1,31 +1,21 @@
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
-import { cn } from '@/lib/utils';
 
 interface DeltaProps {
-  value: number; // percentage change
+  value: number;
   suffix?: string;
   className?: string;
 }
 
-export function Delta({ value, suffix = '%', className }: DeltaProps) {
+export function Delta({ value, suffix = '%', className = '' }: DeltaProps) {
   const isUp = value > 0;
   const isDown = value < 0;
   const Icon = isUp ? TrendingUp : isDown ? TrendingDown : Minus;
+  const colorClass = isUp ? 'text-accent-green' : isDown ? 'text-accent-red' : 'text-tertiary';
 
   return (
-    <span
-      className={cn(
-        'inline-flex items-center gap-1 text-[11px] font-medium',
-        isUp && 'text-[var(--accent-green)]',
-        isDown && 'text-[var(--accent-red)]',
-        !isUp && !isDown && 'text-[var(--text-tertiary)]',
-        className,
-      )}
-    >
+    <span className={`inline-flex items-center gap-1 t-2xs ${colorClass} ${className}`}>
       <Icon size={12} />
-      {isUp && '+'}
-      {value}
-      {suffix}
+      {isUp && '+'}{value}{suffix}
     </span>
   );
 }

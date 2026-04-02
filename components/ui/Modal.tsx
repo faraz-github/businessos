@@ -3,7 +3,6 @@
 import { useEffect, useCallback, type ReactNode } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X } from 'lucide-react';
-import { cn } from '@/lib/utils';
 
 interface ModalProps {
   open: boolean;
@@ -15,20 +14,12 @@ interface ModalProps {
   className?: string;
 }
 
-const sizeStyles = {
-  sm: 'max-w-md',
-  md: 'max-w-lg',
-  lg: 'max-w-2xl',
-  xl: 'max-w-4xl',
-};
+const sizeMap = { sm: 400, md: 520, lg: 680, xl: 860 };
 
-export function Modal({ open, onClose, title, description, children, size = 'md', className }: ModalProps) {
-  const handleEscape = useCallback(
-    (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    },
-    [onClose],
-  );
+export function Modal({ open, onClose, title, description, children, size = 'md' }: ModalProps) {
+  const handleEscape = useCallback((e: KeyboardEvent) => {
+    if (e.key === 'Escape') onClose();
+  }, [onClose]);
 
   useEffect(() => {
     if (open) {
@@ -45,53 +36,40 @@ export function Modal({ open, onClose, title, description, children, size = 'md'
     <AnimatePresence>
       {open && (
         <>
-          {/* Backdrop */}
           <motion.div
-            className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] bg-black/55 backdrop-blur-[6px]"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            transition={{ duration: 0.18 }}
             onClick={onClose}
           />
-          {/* Panel */}
-          <div className="fixed inset-0 z-[101] flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-[101] flex items-center justify-center p-5">
             <motion.div
-              className={cn(
-                'w-full bg-[var(--bg-elevated)] border border-[var(--border-default)]',
-                'rounded-[var(--radius-xl)] shadow-[var(--shadow-elevated)]',
-                'max-h-[85vh] flex flex-col',
-                sizeStyles[size],
-                className,
-              )}
-              initial={{ opacity: 0, scale: 0.95, y: 8 }}
+              className="card-elevated flex flex-col overflow-hidden w-full"
+              style={{ maxWidth: sizeMap[size], maxHeight: '88vh', boxShadow: 'var(--shadow-modal)' }}
+              initial={{ opacity: 0, scale: 0.96, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 8 }}
+              exit={{ opacity: 0, scale: 0.96, y: 10 }}
               transition={{ duration: 0.2, ease: [0, 0, 0.2, 1] }}
-              onClick={(e) => e.stopPropagation()}
+              onClick={e => e.stopPropagation()}
             >
               {/* Header */}
               {(title || description) && (
-                <div className="flex items-start justify-between px-6 pt-6 pb-4">
+                <div className="flex items-start justify-between px-6 pt-5 pb-4 border-b-subtle shrink-0">
                   <div>
-                    {title && (
-                      <h2 className="font-display text-lg font-extrabold tracking-tight text-[var(--text-primary)]">
-                        {title}
-                      </h2>
-                    )}
-                    {description && (
-                      <p className="mt-1 text-[13px] text-[var(--text-secondary)]">{description}</p>
-                    )}
+                    {title && <h2 className="t-h2">{title}</h2>}
+                    {description && <p className="t-xs mt-1">{description}</p>}
                   </div>
                   <button
                     onClick={onClose}
-                    className="p-1.5 rounded-[var(--radius-sm)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
+                    className="flex items-center justify-center w-7 h-7 radius-sm bg-hover transition-colors text-tertiary hover-text-primary ml-3 shrink-0"
+                    style={{ border: 'none', cursor: 'pointer' }}
                   >
-                    <X size={16} />
+                    <X size={15} />
                   </button>
                 </div>
               )}
               {/* Body */}
-              <div className="flex-1 overflow-y-auto px-6 pb-6">{children}</div>
+              <div className="flex-1 overflow-y-auto p-6">{children}</div>
             </motion.div>
           </div>
         </>

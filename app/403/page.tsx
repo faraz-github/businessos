@@ -4,7 +4,7 @@ export default function ForbiddenPage() {
       minHeight: '100vh', display: 'flex', alignItems: 'center',
       justifyContent: 'center', background: 'var(--bg-base)',
     }}>
-      <div style={{ textAlign: 'center' }}>
+      <div className="text-center">
         <p style={{
           fontFamily: 'var(--font-display)', fontSize: 64, fontWeight: 800,
           color: 'var(--text-primary)', lineHeight: 1,

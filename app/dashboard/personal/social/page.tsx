@@ -62,10 +62,10 @@ export default function PersonalSocialPage() {
 
   return (
     <PageTransition>
-      <div className="space-y-6">
+      <div className="flex flex-col gap-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="font-display text-2xl font-extrabold tracking-tight">Social & Brand</h1>
+            <h1 className="t-h1">Social & Brand</h1>
             <p className="text-[13px] text-[var(--text-secondary)] mt-1">Manage your personal brand across platforms.</p>
           </div>
           <Button icon={<Plus size={14} />} onClick={() => setShowNewPost(true)}>New Post</Button>
@@ -91,7 +91,7 @@ export default function PersonalSocialPage() {
               calendarPosts.length === 0 ? (
                 <Card><EmptyState icon={<Calendar />} title="No posts scheduled" description="Add your first post to start tracking." /></Card>
               ) : (
-                <div className="space-y-2">
+                <div className="flex flex-col gap-2">
                   {calendarPosts.map((post) => (
                     <Card key={post.id} variant="base" className="flex items-center gap-3">
                       <div className="w-1 h-10 rounded-full" style={{ background: post.status === 'published' ? 'var(--accent-green)' : 'var(--accent-blue)' }} />
@@ -105,7 +105,7 @@ export default function PersonalSocialPage() {
                 </div>
               )
             ) : (
-              <div className="space-y-2">
+              <div className="flex flex-col gap-2">
                 {reviews.length === 0 ? (
                   <Card><EmptyState icon={<CheckCircle />} title="No review items" description="Set up your GitHub profile review checklist." /></Card>
                 ) : (
@@ -130,12 +130,12 @@ export default function PersonalSocialPage() {
           </div>
 
           {/* Sidebar: Stats + Ideas */}
-          <div className="space-y-3">
+          <div className="flex flex-col gap-3">
             <Card variant="metric">
               <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--text-tertiary)] mb-2">
                 {activeTab === 'linkedin' ? 'Post Streak' : 'Review Status'}
               </p>
-              <p className="font-display text-3xl font-extrabold">{publishedCount}</p>
+              <p style={{ fontFamily: "Space Grotesk, sans-serif", fontSize: 30, fontWeight: 800, letterSpacing: "-0.5px", color: "var(--text-primary)" }}>{publishedCount}</p>
               <p className="text-[11px] text-[var(--text-secondary)]">published this month</p>
             </Card>
 
@@ -149,7 +149,7 @@ export default function PersonalSocialPage() {
               {ideaPosts.length === 0 ? (
                 <p className="text-[12px] text-[var(--text-tertiary)] italic">No ideas yet. Jot something down.</p>
               ) : (
-                <div className="space-y-1.5">
+                <div className="flex flex-col gap-1.5">
                   {ideaPosts.map((idea) => (
                     <div key={idea.id} className="flex items-center gap-2 py-1.5 px-2 rounded-[var(--radius-sm)] hover:bg-[var(--bg-hover)] cursor-pointer transition-colors">
                       <Lightbulb size={12} className="text-[var(--accent-amber)] shrink-0" />
@@ -208,7 +208,7 @@ function NewPostForm({ mode, platform, onClose, onCreated }: { mode: string; pla
   }
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-4">
       <Input label="Title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Post title or topic" />
       <Textarea label="Content" value={content} onChange={(e) => setContent(e.target.value)} placeholder="Write your post or notes..." />
       <div className="grid grid-cols-2 gap-3">
@@ -228,8 +228,8 @@ function NewPostForm({ mode, platform, onClose, onCreated }: { mode: string; pla
         </div>
       </div>
       <div className="flex gap-2 pt-2">
-        <Button variant="secondary" onClick={onClose} className="flex-1">Cancel</Button>
-        <Button onClick={handleSave} loading={saving} className="flex-1">Save Post</Button>
+        <Button variant="secondary" onClick={onClose} style={{ flex: 1 }}>Cancel</Button>
+        <Button onClick={handleSave} loading={saving} style={{ flex: 1 }}>Save Post</Button>
       </div>
     </div>
   );

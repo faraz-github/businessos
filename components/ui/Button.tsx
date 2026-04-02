@@ -15,49 +15,81 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   children: ReactNode;
 }
 
-const variantStyles: Record<ButtonVariant, string> = {
-  primary:
-    'bg-[var(--accent-blue)] text-white hover:opacity-90 hover:-translate-y-px active:translate-y-0',
-  secondary:
-    'bg-[var(--bg-elevated)] text-[var(--text-primary)] border border-[var(--border-default)] hover:border-[var(--border-strong)] hover:bg-[var(--bg-hover)]',
-  ghost:
-    'bg-transparent text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]',
-  danger:
-    'bg-[var(--accent-red-dim)] text-[var(--accent-red)] border border-[var(--accent-red-dim)] hover:opacity-90',
+// Height targets: sm=30px, md=38px (matches input), lg=44px
+const sizes: Record<ButtonSize, React.CSSProperties> = {
+  sm: { padding: '5px 10px', fontSize: 11, borderRadius: 'var(--radius-sm)', gap: 4 },
+  md: { padding: '9px 16px', fontSize: 13, borderRadius: 'var(--radius-md)', gap: 6 },
+  lg: { padding: '11px 22px', fontSize: 14, borderRadius: 'var(--radius-lg)', gap: 8 },
 };
 
-const sizeStyles: Record<ButtonSize, string> = {
-  sm: 'px-2.5 py-1 text-[11px] rounded-[var(--radius-sm)] gap-1',
-  md: 'px-3.5 py-[7px] text-[13px] rounded-[var(--radius-md)] gap-1.5',
-  lg: 'px-5 py-2.5 text-sm rounded-[var(--radius-lg)] gap-2',
+const variants: Record<ButtonVariant, React.CSSProperties & { hoverStyle?: React.CSSProperties }> = {
+  primary:   { background: 'var(--accent-blue)', color: '#fff' },
+  secondary: { background: 'var(--bg-elevated)', color: 'var(--text-primary)', border: '1px solid var(--border-default)' },
+  ghost:     { background: 'transparent', color: 'var(--text-secondary)' },
+  danger:    { background: 'var(--accent-red-dim)', color: 'var(--accent-red)', border: '1px solid var(--accent-red-dim)' },
 };
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ variant = 'primary', size = 'md', icon, iconRight, loading, children, className, disabled, ...props }, ref) => {
+  ({ variant = 'primary', size = 'md', icon, iconRight, loading, children, className, disabled, style, ...props }, ref) => {
+    const sizeStyle = sizes[size];
+    const variantStyle = variants[variant];
+
+    const baseStyle: React.CSSProperties = {
+      display: 'inline-flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      fontFamily: 'var(--font-body)',
+      fontWeight: 600,
+      lineHeight: 1,
+      border: 'none',
+      cursor: disabled || loading ? 'not-allowed' : 'pointer',
+      opacity: disabled || loading ? 0.5 : 1,
+      transition: 'opacity 150ms, transform 150ms, background 150ms, border-color 150ms',
+      whiteSpace: 'nowrap',
+      flexShrink: 0,
+      ...sizeStyle,
+      ...variantStyle,
+      ...style,
+    };
+
+    function handleMouseEnter(e: React.MouseEvent<HTMLButtonElement>) {
+      if (disabled || loading) return;
+      const el = e.currentTarget;
+      if (variant === 'primary') el.style.opacity = '0.88';
+      if (variant === 'secondary') { el.style.borderColor = 'var(--border-strong)'; el.style.background = 'var(--bg-hover)'; }
+      if (variant === 'ghost') { el.style.background = 'var(--bg-hover)'; el.style.color = 'var(--text-primary)'; }
+      if (variant === 'danger') el.style.opacity = '0.88';
+    }
+
+    function handleMouseLeave(e: React.MouseEvent<HTMLButtonElement>) {
+      const el = e.currentTarget;
+      el.style.opacity = disabled || loading ? '0.5' : '1';
+      if (variant === 'secondary') { el.style.borderColor = 'var(--border-default)'; el.style.background = 'var(--bg-elevated)'; }
+      if (variant === 'ghost') { el.style.background = 'transparent'; el.style.color = 'var(--text-secondary)'; }
+    }
+
     return (
       <button
         ref={ref}
-        className={cn(
-          'inline-flex items-center justify-center font-medium font-body cursor-pointer border-none leading-none',
-          'transition-all duration-[var(--duration-fast)] ease-[var(--ease-out)]',
-          'disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none',
-          variantStyles[variant],
-          sizeStyles[size],
-          className,
-        )}
+        style={baseStyle}
+        className={className}
         disabled={disabled || loading}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
         {...props}
       >
         {loading ? (
-          <svg className="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24" fill="none">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+          <svg style={{ animation: 'spin 0.8s linear infinite', width: 14, height: 14 }} viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="32" strokeLinecap="round" opacity="0.3" />
+            <path fill="currentColor" d="M12 2a10 10 0 0 1 10 10h-3a7 7 0 0 0-7-7V2z" />
           </svg>
         ) : icon ? (
-          <span className="shrink-0 [&>svg]:w-3.5 [&>svg]:h-3.5">{icon}</span>
+          <span style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>{icon}</span>
         ) : null}
         {children}
-        {iconRight && <span className="shrink-0 [&>svg]:w-3.5 [&>svg]:h-3.5">{iconRight}</span>}
+        {iconRight && (
+          <span style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>{iconRight}</span>
+        )}
       </button>
     );
   },

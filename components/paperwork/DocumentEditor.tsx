@@ -33,7 +33,7 @@ export function DocumentEditor({ document: doc, brand, onSaved }: DocumentEditor
   }
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-4">
       {doc.type === 'proposal' && <ProposalForm fields={fields} onChange={updateField} />}
       {doc.type === 'contract' && <ContractForm fields={fields} onChange={updateField} />}
       {doc.type === 'sow' && <SOWForm fields={fields} onChange={updateField} />}
@@ -57,7 +57,7 @@ function ListEditor({ label, items, onChange, placeholder }: {
   return (
     <div>
       <label className="text-[11px] font-medium uppercase tracking-[0.06em] text-[var(--text-tertiary)] block mb-1.5">{label}</label>
-      <div className="space-y-1.5">
+      <div className="flex flex-col gap-1.5">
         {(items || []).map((item, i) => (
           <div key={i} className="flex items-center gap-2">
             <input
@@ -82,7 +82,7 @@ function ListEditor({ label, items, onChange, placeholder }: {
 // ─── PROPOSAL FORM ───
 function ProposalForm({ fields, onChange }: { fields: any; onChange: (k: string, v: any) => void }) {
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-4">
       <Input label="Client Name" value={fields.client_name || ''} onChange={(e) => onChange('client_name', e.target.value)} />
       <Input label="Project Title" value={fields.project_title || ''} onChange={(e) => onChange('project_title', e.target.value)} />
       <Textarea label="Overview" value={fields.overview || ''} onChange={(e) => onChange('overview', e.target.value)} placeholder="Describe the project..." />
@@ -104,7 +104,7 @@ function ContractForm({ fields, onChange }: { fields: any; onChange: (k: string,
   const schedule = fields.payment_schedule || [];
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-4">
       <div className="grid grid-cols-2 gap-3">
         <Input label="Party One (You)" value={fields.party_one || ''} onChange={(e) => onChange('party_one', e.target.value)} />
         <Input label="Party Two (Client)" value={fields.party_two || ''} onChange={(e) => onChange('party_two', e.target.value)} />
@@ -115,7 +115,7 @@ function ContractForm({ fields, onChange }: { fields: any; onChange: (k: string,
       {/* Payment Schedule */}
       <div>
         <label className="text-[11px] font-medium uppercase tracking-[0.06em] text-[var(--text-tertiary)] block mb-1.5">Payment Schedule</label>
-        <div className="space-y-2">
+        <div className="flex flex-col gap-2">
           {schedule.map((item: any, i: number) => (
             <div key={i} className="flex gap-2 items-end">
               <Input label={i === 0 ? 'Amount (₹)' : undefined} type="number" value={item.amount || ''} onChange={(e) => { const next = [...schedule]; next[i] = { ...item, amount: parseFloat(e.target.value) || 0 }; onChange('payment_schedule', next); }} className="w-28" />
@@ -142,7 +142,7 @@ function SOWForm({ fields, onChange }: { fields: any; onChange: (k: string, v: a
   const milestones = fields.milestone_schedule || [];
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-4">
       <Textarea label="Objectives" value={fields.objectives || ''} onChange={(e) => onChange('objectives', e.target.value)} />
 
       <div>
@@ -185,7 +185,7 @@ function RequirementsForm({ fields, onChange }: { fields: any; onChange: (k: str
   const requirements = fields.functional_requirements || [];
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-4">
       <Textarea label="Project Background" value={fields.project_background || ''} onChange={(e) => onChange('project_background', e.target.value)} />
 
       <div>
@@ -243,7 +243,7 @@ function InvoiceForm({ fields, onChange, brand }: { fields: any; onChange: (k: s
   }
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-4">
       <div className="grid grid-cols-2 gap-3">
         <Input label="Invoice Number" value={fields.invoice_number || ''} onChange={(e) => onChange('invoice_number', e.target.value)} />
         <Input label="Due Date" type="date" value={fields.due_date || ''} onChange={(e) => onChange('due_date', e.target.value)} />
@@ -252,12 +252,12 @@ function InvoiceForm({ fields, onChange, brand }: { fields: any; onChange: (k: s
         <Input label="Client Name" value={fields.client_name || ''} onChange={(e) => onChange('client_name', e.target.value)} />
         <Input label="Client Company" value={fields.client_company || ''} onChange={(e) => onChange('client_company', e.target.value)} />
       </div>
-      <Textarea label="Client Address" value={fields.client_address || ''} onChange={(e) => onChange('client_address', e.target.value)} className="min-h-[60px]" />
+      <Textarea label="Client Address" value={fields.client_address || ''} onChange={(e) => onChange('client_address', e.target.value)} style={{ minHeight: 60 }} />
 
       {/* Line Items */}
       <div>
         <label className="text-[11px] font-medium uppercase tracking-[0.06em] text-[var(--text-tertiary)] block mb-1.5">Line Items</label>
-        <div className="space-y-2">
+        <div className="flex flex-col gap-2">
           {lineItems.map((item: any, i: number) => (
             <div key={i} className="grid grid-cols-[1fr_60px_80px_80px_24px] gap-2 items-end">
               <Input label={i === 0 ? 'Description' : undefined} value={item.description || ''} onChange={(e) => updateLineItem(i, 'description', e.target.value)} />
@@ -298,7 +298,7 @@ function InvoiceForm({ fields, onChange, brand }: { fields: any; onChange: (k: s
         )}
         <div className="flex justify-between text-sm font-bold border-t border-[var(--border-subtle)] pt-2 mt-2">
           <span>Total</span>
-          <span className="font-display text-[var(--accent-blue)]">₹{(fields.total || 0).toLocaleString('en-IN')}</span>
+          <span style={{ fontFamily: "Space Grotesk, sans-serif", fontSize: 16, fontWeight: 800, letterSpacing: "0px", color: "var(--accent-blue)" }}>₹{(fields.total || 0).toLocaleString('en-IN')}</span>
         </div>
       </Card>
 
@@ -313,7 +313,7 @@ function DeliveryForm({ fields, onChange }: { fields: any; onChange: (k: string,
   const credentials = fields.credentials || [];
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-4">
       <Textarea label="Project Summary" value={fields.project_summary || ''} onChange={(e) => onChange('project_summary', e.target.value)} />
 
       <div>

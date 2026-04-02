@@ -4,7 +4,7 @@ export default function NotFound() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-[var(--bg-base)]">
       <div className="text-center">
-        <h1 className="font-display text-6xl font-extrabold text-[var(--text-primary)]">404</h1>
+        <h1 style={{ fontFamily: "Space Grotesk, sans-serif", fontSize: 60, fontWeight: 800, letterSpacing: "-1px", color: "var(--text-primary)" }}>404</h1>
         <p className="mt-3 text-[var(--text-secondary)]">This page doesn&apos;t exist.</p>
         <Link
           href="/dashboard/personal/home"

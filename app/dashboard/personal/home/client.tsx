@@ -170,8 +170,8 @@ function AttentionCard({ item, index }: { item: AttentionItem; index: number }) 
             {cfg.icon}
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', fontFamily: 'var(--font-body)' }}>
+            <div className="flex items-center gap-2">
+              <span className="t-sm-medium">
                 {item.title}
               </span>
               <span style={{
@@ -245,7 +245,7 @@ export function PersonalHomeClient({
 
   return (
     <PageTransition>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+      <div className="flex flex-col gap-6">
 
         {/* Header */}
         <div>
@@ -259,7 +259,7 @@ export function PersonalHomeClient({
           }}>
             Good {greeting}
           </h1>
-          <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 6, fontFamily: 'var(--font-body)' }}>
+          <p className="t-xs mt-1.5">
             Here&apos;s what needs your attention today.
           </p>
         </div>
@@ -267,7 +267,7 @@ export function PersonalHomeClient({
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: 20 }}>
 
           {/* LEFT COLUMN */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          <div className="flex flex-col gap-5">
 
             {/* Attention Feed */}
             <div>
@@ -289,13 +289,13 @@ export function PersonalHomeClient({
                   }}>
                     <CheckCircle2 size={20} />
                   </div>
-                  <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', fontFamily: 'var(--font-body)' }}>All clear</p>
+                  <p className="t-sm-semibold">All clear</p>
                   <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4, fontFamily: 'var(--font-body)' }}>
                     Nothing needs your attention right now. Nice work.
                   </p>
                 </div>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div className="flex flex-col gap-2">
                   {attentionItems.map((item, i) => (
                     <AttentionCard key={item.id} item={item} index={i} />
                   ))}
@@ -306,7 +306,7 @@ export function PersonalHomeClient({
             {/* Stats Grid */}
             <div>
               <SectionLabel>Business Health</SectionLabel>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div className="grid grid-cols-2 gap-3">
 
                 {/* Money */}
                 <MetricCard
@@ -356,13 +356,13 @@ export function PersonalHomeClient({
                   }}>
                     <div>
                       <p style={{ fontSize: 10, color: 'var(--text-tertiary)', fontFamily: 'var(--font-body)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 2 }}>Pipeline</p>
-                      <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', fontFamily: 'var(--font-body)' }}>
+                      <p className="t-sm-semibold">
                         {stats?.clients?.pipelineLeads || 0}
                       </p>
                     </div>
                     <div>
                       <p style={{ fontSize: 10, color: 'var(--text-tertiary)', fontFamily: 'var(--font-body)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 2 }}>All time</p>
-                      <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', fontFamily: 'var(--font-body)' }}>
+                      <p className="t-sm-semibold">
                         {stats?.clients?.totalAllTime || 0}
                       </p>
                     </div>
@@ -391,7 +391,7 @@ export function PersonalHomeClient({
           </div>
 
           {/* RIGHT COLUMN — Today's Focus */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div className="flex flex-col gap-4">
             <SectionLabel>Today&apos;s Focus</SectionLabel>
 
             {/* Priorities */}
@@ -409,7 +409,7 @@ export function PersonalHomeClient({
               }}>
                 Top 3 Priorities
               </p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div className="flex flex-col gap-2">
                 {priorities.slice(0, 3).map((p) => (
                   <div key={p.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
                     <button
@@ -506,7 +506,7 @@ export function PersonalHomeClient({
                   No blocks scheduled.
                 </p>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <div className="flex flex-col gap-1.5">
                   {timeBlocks.map((block) => {
                     const color = blockTypeColors[block.type] || 'var(--text-tertiary)';
                     const now = new Date();
@@ -587,7 +587,7 @@ function AddTimeBlockModal({ open, onClose, onAdd }: {
 
   return (
     <Modal open={open} onClose={onClose} title="Add Time Block" size="sm">
-      <div className="space-y-4">
+      <div className="flex flex-col gap-4">
         <Select
           label="Block Type"
           options={[
@@ -604,9 +604,9 @@ function AddTimeBlockModal({ open, onClose, onAdd }: {
           <Input label="Start Time" type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
           <Input label="End Time" type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} />
         </div>
-        <div className="flex gap-2 pt-2">
-          <Button variant="secondary" onClick={onClose} className="flex-1">Cancel</Button>
-          <Button onClick={() => { onAdd(type, startTime, endTime, label); onClose(); }} className="flex-1">Add Block</Button>
+        <div style={{ display: 'flex', gap: 10, paddingTop: 8, borderTop: '1px solid var(--border-subtle)', marginTop: 4 }}>
+          <Button variant="secondary" onClick={onClose} style={{ flex: 1 }}>Cancel</Button>
+          <Button onClick={() => { onAdd(type, startTime, endTime, label); onClose(); }} style={{ flex: 1 }}>Add Block</Button>
         </div>
       </div>
     </Modal>

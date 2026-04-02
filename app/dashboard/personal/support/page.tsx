@@ -41,10 +41,10 @@ export default function PersonalSupportPage() {
 
   return (
     <PageTransition>
-      <div className="space-y-6">
+      <div className="flex flex-col gap-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="font-display text-2xl font-extrabold tracking-tight">Support Periods</h1>
+            <h1 className="t-h1">Support Periods</h1>
             <p className="text-[13px] text-[var(--text-secondary)] mt-1">Track active support and retention touchpoints.</p>
           </div>
           <Button icon={<Plus size={14} />} onClick={() => setShowAdd(true)}>Add Period</Button>
@@ -55,7 +55,7 @@ export default function PersonalSupportPage() {
         ) : (
           <>
             {active.length > 0 && (
-              <div className="space-y-2">
+              <div className="flex flex-col gap-2">
                 <h2 className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--text-tertiary)]">Active</h2>
                 {active.map((sp) => {
                   const days = daysUntil(sp.end_date);
@@ -89,7 +89,7 @@ export default function PersonalSupportPage() {
             )}
 
             {ended.length > 0 && (
-              <div className="space-y-2">
+              <div className="flex flex-col gap-2">
                 <h2 className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--text-tertiary)]">Ended</h2>
                 {ended.map((sp) => (
                   <Card key={sp.id} variant="base" className="flex items-center gap-4 opacity-60">
@@ -146,8 +146,8 @@ ${bizName}`;
 
   return (
     <Modal open={true} onClose={onClose} title="Closing Message" description={`For ${clientName}`} size="md">
-      <div className="space-y-4">
-        <Textarea value={message} className="min-h-[200px] text-[13px]" readOnly />
+      <div className="flex flex-col gap-4">
+        <Textarea value={message} style={{ minHeight: 200, fontSize: 13 }} readOnly />
         <div className="flex gap-2">
           <Button
             variant="secondary"
@@ -203,7 +203,7 @@ function AddSupportModal({ open, onClose, mode, clients, onCreated }: any) {
 
   return (
     <Modal open={open} onClose={onClose} title="Add Support Period" size="sm">
-      <div className="space-y-4">
+      <div className="flex flex-col gap-4">
         <Select label="Client" placeholder="Select..." options={clients.map((c: Client) => ({ value: c.id, label: c.name }))} value={clientId} onChange={(e) => setClientId(e.target.value)} />
         <div className="grid grid-cols-2 gap-3">
           <Input label="Start Date" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
@@ -211,8 +211,8 @@ function AddSupportModal({ open, onClose, mode, clients, onCreated }: any) {
         </div>
         <Textarea label="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Optional notes..." />
         <div className="flex gap-2 pt-2">
-          <Button variant="secondary" onClick={onClose} className="flex-1">Cancel</Button>
-          <Button onClick={handleSave} loading={saving} className="flex-1">Add</Button>
+          <Button variant="secondary" onClick={onClose} style={{ flex: 1 }}>Cancel</Button>
+          <Button onClick={handleSave} loading={saving} style={{ flex: 1 }}>Add</Button>
         </div>
       </div>
     </Modal>

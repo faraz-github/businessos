@@ -114,7 +114,7 @@ export function QuickLogModal({ open, onClose }: QuickLogModalProps) {
       description="Log something in under 10 seconds."
       size="sm"
     >
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+      <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
         <input type="hidden" {...register('mode')} value={mode} />
         <input type="hidden" {...register('type')} />
 
@@ -142,15 +142,15 @@ export function QuickLogModal({ open, onClose }: QuickLogModalProps) {
           {...register('content')}
           placeholder="What happened? Keep it brief..."
           error={errors.content?.message}
-          className="min-h-[60px]"
+          style={{ minHeight: 60 }}
           autoFocus
         />
 
         <div className="flex gap-2 pt-1">
-          <Button variant="secondary" type="button" onClick={onClose} className="flex-1">
+          <Button variant="secondary" type="button" onClick={onClose} style={{ flex: 1 }}>
             Cancel
           </Button>
-          <Button type="submit" loading={saving} className="flex-1">
+          <Button type="submit" loading={saving} style={{ flex: 1 }}>
             Log it
           </Button>
         </div>

@@ -121,15 +121,15 @@ export default function PersonalComposePage() {
 
   return (
     <PageTransition>
-      <div className="space-y-6">
+      <div className="flex flex-col gap-6">
         <div>
-          <h1 className="font-display text-2xl font-extrabold tracking-tight">Composers</h1>
+          <h1 className="t-h1">Composers</h1>
           <p className="text-[13px] text-[var(--text-secondary)] mt-1">Generate professional messages from templates.</p>
         </div>
 
         <div className="grid grid-cols-3 gap-4">
           {/* Controls */}
-          <div className="space-y-4">
+          <div className="flex flex-col gap-4">
             <Tabs
               tabs={[
                 { value: 'email', label: '✉️ Email' },

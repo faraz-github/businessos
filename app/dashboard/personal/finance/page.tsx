@@ -93,10 +93,10 @@ export default function PersonalFinancePage() {
 
   return (
     <PageTransition>
-      <div className="space-y-6">
+      <div className="flex flex-col gap-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="font-display text-2xl font-extrabold tracking-tight">Finance</h1>
+            <h1 className="t-h1">Finance</h1>
             <p className="text-[13px] text-[var(--text-secondary)] mt-1">Track money in, money out, and subscriptions.</p>
           </div>
           <div className="flex gap-2">
@@ -112,21 +112,21 @@ export default function PersonalFinancePage() {
               <TrendingUp size={12} className="text-[var(--accent-green)]" />
               <span className="text-[11px] text-[var(--text-tertiary)] uppercase tracking-wide font-semibold">Income</span>
             </div>
-            <p className="font-display text-xl font-extrabold text-[var(--accent-green)]">{formatINR(monthIncome)}</p>
+            <p style={{ fontFamily: "Space Grotesk, sans-serif", fontSize: 20, fontWeight: 800, letterSpacing: "-0.2px", color: "var(--accent-green)" }}>{formatINR(monthIncome)}</p>
           </Card>
           <Card variant="metric">
             <div className="flex items-center gap-1.5 mb-1">
               <TrendingDown size={12} className="text-[var(--accent-red)]" />
               <span className="text-[11px] text-[var(--text-tertiary)] uppercase tracking-wide font-semibold">Expenses</span>
             </div>
-            <p className="font-display text-xl font-extrabold text-[var(--accent-red)]">{formatINR(monthExpense)}</p>
+            <p style={{ fontFamily: "Space Grotesk, sans-serif", fontSize: 20, fontWeight: 800, letterSpacing: "-0.2px", color: "var(--accent-red)" }}>{formatINR(monthExpense)}</p>
           </Card>
           <Card variant="metric">
             <div className="flex items-center gap-1.5 mb-1">
               <IndianRupee size={12} className="text-[var(--accent-blue)]" />
               <span className="text-[11px] text-[var(--text-tertiary)] uppercase tracking-wide font-semibold">Net</span>
             </div>
-            <p className={cn('font-display text-xl font-extrabold', monthIncome - monthExpense >= 0 ? 'text-[var(--accent-green)]' : 'text-[var(--accent-red)]')}>
+            <p style={{ fontFamily: 'Space Grotesk, sans-serif', fontSize: 20, fontWeight: 800, letterSpacing: '-0.2px', color: monthIncome - monthExpense >= 0 ? 'var(--accent-green)' : 'var(--accent-red)' }}>
               {formatINR(monthIncome - monthExpense)}
             </p>
           </Card>
@@ -135,7 +135,7 @@ export default function PersonalFinancePage() {
               <RotateCw size={12} className="text-[var(--accent-amber)]" />
               <span className="text-[11px] text-[var(--text-tertiary)] uppercase tracking-wide font-semibold">Monthly Burn</span>
             </div>
-            <p className="font-display text-xl font-extrabold text-[var(--accent-amber)]">{formatINR(Math.round(monthlyBurn))}</p>
+            <p style={{ fontFamily: "Space Grotesk, sans-serif", fontSize: 20, fontWeight: 800, letterSpacing: "-0.2px", color: "var(--accent-amber)" }}>{formatINR(Math.round(monthlyBurn))}</p>
           </Card>
         </div>
 
@@ -158,7 +158,7 @@ export default function PersonalFinancePage() {
         )}
 
         {activeTab === 'invoices' && (
-          <div className="space-y-2">
+          <div className="flex flex-col gap-2">
             {invoices.length === 0 ? (
               <Card><EmptyState icon={<Receipt />} title="No invoices" description="Create invoices in Paperwork." /></Card>
             ) : (
@@ -173,7 +173,7 @@ export default function PersonalFinancePage() {
                       </div>
                       <p className="text-[11px] text-[var(--text-tertiary)]">Due {formatDate(inv.due_date)}</p>
                     </div>
-                    <span className="font-display text-base font-extrabold">{formatINR(inv.total)}</span>
+                    <span style={{ fontFamily: "Space Grotesk, sans-serif", fontSize: 16, fontWeight: 800, letterSpacing: "0px", color: "var(--text-primary)" }}>{formatINR(inv.total)}</span>
                     <Badge variant={config.variant}>{inv.status}</Badge>
                     {inv.status !== 'paid' && (
                       <Button variant="ghost" size="sm" onClick={() => markInvoicePaid(inv.id)}>
@@ -188,7 +188,7 @@ export default function PersonalFinancePage() {
         )}
 
         {activeTab === 'transactions' && (
-          <div className="space-y-2">
+          <div className="flex flex-col gap-2">
             {transactions.length === 0 ? (
               <Card><EmptyState icon={<IndianRupee />} title="No transactions" description="Log your first income or expense." action={<Button icon={<Plus size={14} />} onClick={() => setShowAddTx(true)}>Add Transaction</Button>} /></Card>
             ) : (
@@ -202,8 +202,7 @@ export default function PersonalFinancePage() {
                     <p className="text-[13px] font-medium text-[var(--text-primary)] truncate">{tx.description || tx.category}</p>
                     <p className="text-[11px] text-[var(--text-tertiary)]">{formatDate(tx.date)} · {tx.category.replace(/_/g, ' ')}</p>
                   </div>
-                  <span className={cn('font-display text-base font-extrabold',
-                    tx.type === 'income' ? 'text-[var(--accent-green)]' : 'text-[var(--accent-red)]')}>
+                  <span style={{ fontFamily: 'Space Grotesk, sans-serif', fontSize: 16, fontWeight: 800, letterSpacing: '0px', color: 'var(--text-primary)' }}>
                     {tx.type === 'income' ? '+' : '-'}{formatINR(tx.amount)}
                   </span>
                 </Card>
@@ -213,7 +212,7 @@ export default function PersonalFinancePage() {
         )}
 
         {activeTab === 'subscriptions' && (
-          <div className="space-y-2">
+          <div className="flex flex-col gap-2">
             {subscriptions.length === 0 ? (
               <Card><EmptyState icon={<CreditCard />} title="No subscriptions" description="Track your recurring expenses." action={<Button icon={<Plus size={14} />} onClick={() => setShowAddSub(true)}>Add Subscription</Button>} /></Card>
             ) : (
@@ -235,7 +234,7 @@ export default function PersonalFinancePage() {
                         Next: {formatDate(sub.next_renewal_at)} · {sub.category}
                       </p>
                     </div>
-                    <span className="font-display text-base font-extrabold">{formatINR(sub.cost)}</span>
+                    <span style={{ fontFamily: "Space Grotesk, sans-serif", fontSize: 16, fontWeight: 800, letterSpacing: "0px", color: "var(--text-primary)" }}>{formatINR(sub.cost)}</span>
                     <Badge variant={sub.status === 'active' ? 'green' : sub.status === 'paused' ? 'amber' : 'outline'}>{sub.status}</Badge>
                   </Card>
                 );
@@ -277,15 +276,15 @@ function AddTransactionModal({ open, onClose, mode, onCreated }: any) {
 
   return (
     <Modal open={open} onClose={onClose} title="Add Transaction" size="sm">
-      <div className="space-y-4">
+      <div className="flex flex-col gap-4">
         <Tabs tabs={[{ value: 'income', label: 'Income' }, { value: 'expense', label: 'Expense' }]} value={type} onChange={(v) => { setType(v as any); setCategory(v === 'income' ? 'project_payment' : 'tools_and_subscriptions'); }} />
         <Select label="Category" options={categories} value={category} onChange={(e) => setCategory(e.target.value)} />
         <Input label="Amount (₹)" type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0" />
         <Input label="Description" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Optional" />
         <Input label="Date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
         <div className="flex gap-2 pt-2">
-          <Button variant="secondary" onClick={onClose} className="flex-1">Cancel</Button>
-          <Button onClick={handleSave} loading={saving} className="flex-1">Add</Button>
+          <Button variant="secondary" onClick={onClose} style={{ flex: 1 }}>Cancel</Button>
+          <Button onClick={handleSave} loading={saving} style={{ flex: 1 }}>Add</Button>
         </div>
       </div>
     </Modal>
@@ -314,7 +313,7 @@ function AddSubscriptionModal({ open, onClose, mode, onCreated }: any) {
 
   return (
     <Modal open={open} onClose={onClose} title="Add Subscription" size="sm">
-      <div className="space-y-4">
+      <div className="flex flex-col gap-4">
         <Input label="Name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g., Figma" />
         <div className="grid grid-cols-2 gap-3">
           <Input label="Cost (₹)" type="number" value={cost} onChange={(e) => setCost(e.target.value)} placeholder="0" />
@@ -322,8 +321,8 @@ function AddSubscriptionModal({ open, onClose, mode, onCreated }: any) {
         </div>
         <Input label="Next Renewal" type="date" value={renewalDate} onChange={(e) => setRenewalDate(e.target.value)} />
         <div className="flex gap-2 pt-2">
-          <Button variant="secondary" onClick={onClose} className="flex-1">Cancel</Button>
-          <Button onClick={handleSave} loading={saving} className="flex-1">Add</Button>
+          <Button variant="secondary" onClick={onClose} style={{ flex: 1 }}>Cancel</Button>
+          <Button onClick={handleSave} loading={saving} style={{ flex: 1 }}>Add</Button>
         </div>
       </div>
     </Modal>

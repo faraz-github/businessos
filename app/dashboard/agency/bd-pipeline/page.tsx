@@ -57,10 +57,10 @@ export default function AgencyBDPipelinePage() {
 
   return (
     <PageTransition>
-      <div className="space-y-6">
+      <div className="flex flex-col gap-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="font-display text-2xl font-extrabold tracking-tight">BD Pipeline</h1>
+            <h1 className="t-h1">BD Pipeline</h1>
             <p className="text-[13px] text-[var(--text-secondary)] mt-1">Manage leads from prospect to close.</p>
           </div>
           <Button icon={<Plus size={14} />} onClick={() => setShowCreate(true)}>Add Lead</Button>
@@ -81,7 +81,7 @@ export default function AgencyBDPipelinePage() {
                     {stageLeads.length}
                   </span>
                 </div>
-                <div className="space-y-2">
+                <div className="flex flex-col gap-2">
                   {stageLeads.map((lead) => (
                     <Card
                       key={lead.id}
@@ -160,7 +160,7 @@ function LeadDetailModal({ lead, onClose, onMoveStage, onUpdate }: {
 
   return (
     <Modal open={true} onClose={onClose} title={lead.company} description={lead.contact_name || undefined} size="md">
-      <div className="space-y-5">
+      <div className="flex flex-col gap-5">
         <div className="flex items-center gap-2 flex-wrap">
           <Badge variant="blue">{stageLabel(lead.stage)}</Badge>
           {lead.deal_value && <Badge variant="green">{formatINR(lead.deal_value)}</Badge>}
@@ -181,7 +181,7 @@ function LeadDetailModal({ lead, onClose, onMoveStage, onUpdate }: {
         {/* Notes */}
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--text-tertiary)] mb-2">Activity Log</p>
-          <div className="space-y-2 max-h-[200px] overflow-y-auto mb-3">
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 200, overflowY: "auto", marginBottom: 12 }}>
             {(lead.notes || []).slice().reverse().map((note: any, i: number) => (
               <div key={i} className="text-[12px] pl-3 border-l-2 border-[var(--border-subtle)]">
                 <p className="text-[var(--text-primary)]">{note.text}</p>
@@ -229,7 +229,7 @@ function CreateLeadModal({ open, onClose, mode, onCreated }: any) {
 
   return (
     <Modal open={open} onClose={onClose} title="Add Lead" size="md">
-      <div className="space-y-4">
+      <div className="flex flex-col gap-4">
         <div className="grid grid-cols-2 gap-3">
           <Input label="Company" value={company} onChange={(e) => setCompany(e.target.value)} required />
           <Input label="Contact Name" value={contactName} onChange={(e) => setContactName(e.target.value)} />
@@ -243,8 +243,8 @@ function CreateLeadModal({ open, onClose, mode, onCreated }: any) {
           <Input label="Deal Value (₹)" type="number" value={dealValue} onChange={(e) => setDealValue(e.target.value)} />
         </div>
         <div className="flex gap-2 pt-2">
-          <Button variant="secondary" onClick={onClose} className="flex-1">Cancel</Button>
-          <Button onClick={handleCreate} loading={saving} className="flex-1" disabled={!company}>Add Lead</Button>
+          <Button variant="secondary" onClick={onClose} style={{ flex: 1 }}>Cancel</Button>
+          <Button onClick={handleCreate} loading={saving} style={{ flex: 1 }} disabled={!company}>Add Lead</Button>
         </div>
       </div>
     </Modal>

@@ -42,10 +42,10 @@ export default function PersonalFeedbackPage() {
 
   return (
     <PageTransition>
-      <div className="space-y-6">
+      <div className="flex flex-col gap-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="font-display text-2xl font-extrabold tracking-tight">Feedback</h1>
+            <h1 className="t-h1">Feedback</h1>
             <p className="text-[13px] text-[var(--text-secondary)] mt-1">Collect and manage client testimonials.</p>
           </div>
           <Button icon={<Plus size={14} />} onClick={() => setShowAdd(true)}>Add Testimonial</Button>
@@ -55,15 +55,15 @@ export default function PersonalFeedbackPage() {
         <div className="grid grid-cols-3 gap-3">
           <Card variant="metric">
             <p className="text-[11px] text-[var(--text-tertiary)] uppercase tracking-wide font-semibold">Total</p>
-            <p className="font-display text-2xl font-extrabold mt-1">{testimonials.length}</p>
+            <p className="t-h1">{testimonials.length}</p>
           </Card>
           <Card variant="metric">
             <p className="text-[11px] text-[var(--text-tertiary)] uppercase tracking-wide font-semibold">Portfolio</p>
-            <p className="font-display text-2xl font-extrabold mt-1">{portfolioUsable.length}</p>
+            <p className="t-h1">{portfolioUsable.length}</p>
           </Card>
           <Card variant="metric">
             <p className="text-[11px] text-[var(--text-tertiary)] uppercase tracking-wide font-semibold">Clients</p>
-            <p className="font-display text-2xl font-extrabold mt-1">
+            <p className="t-h1">
               {new Set(testimonials.map((t) => t.client_id)).size}
             </p>
           </Card>
@@ -97,7 +97,7 @@ export default function PersonalFeedbackPage() {
             <EmptyState icon={<Quote />} title="No testimonials yet" description="Collect feedback from your delivered clients." />
           </Card>
         ) : (
-          <div className="space-y-2">
+          <div className="flex flex-col gap-2">
             {testimonials.map((t) => (
               <Card key={t.id} variant="base">
                 <div className="flex items-start gap-3">
@@ -157,7 +157,7 @@ function AddTestimonialModal({ open, onClose, mode, clients, onCreated }: any) {
 
   return (
     <Modal open={open} onClose={onClose} title="Add Testimonial" size="md">
-      <div className="space-y-4">
+      <div className="flex flex-col gap-4">
         <Select
           label="Client"
           placeholder="Select client..."
@@ -187,8 +187,8 @@ function AddTestimonialModal({ open, onClose, mode, clients, onCreated }: any) {
           </div>
         </div>
         <div className="flex gap-2 pt-2">
-          <Button variant="secondary" onClick={onClose} className="flex-1">Cancel</Button>
-          <Button onClick={handleSave} loading={saving} className="flex-1" disabled={!clientId || !content}>Save</Button>
+          <Button variant="secondary" onClick={onClose} style={{ flex: 1 }}>Cancel</Button>
+          <Button onClick={handleSave} loading={saving} style={{ flex: 1 }} disabled={!clientId || !content}>Save</Button>
         </div>
       </div>
     </Modal>

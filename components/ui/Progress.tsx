@@ -1,29 +1,24 @@
-import { cn } from '@/lib/utils';
-
 interface ProgressProps {
-  value: number; // 0-100
+  value: number;
   color?: string;
   className?: string;
   label?: string;
 }
 
-export function Progress({ value, color = 'var(--accent-blue)', className, label }: ProgressProps) {
-  const clampedValue = Math.min(100, Math.max(0, value));
-
+export function Progress({ value, color = 'var(--accent-blue)', className = '', label }: ProgressProps) {
+  const clamped = Math.min(100, Math.max(0, value));
   return (
     <div className={className}>
       {label && (
         <div className="flex items-center justify-between mb-1.5">
-          <span className="text-[11px] text-[var(--text-tertiary)]">{label}</span>
-          <span className="text-[11px] font-medium text-[var(--text-secondary)] font-mono">
-            {Math.round(clampedValue)}%
-          </span>
+          <span className="t-label">{label}</span>
+          <span className="t-mono-sm">{Math.round(clamped)}%</span>
         </div>
       )}
-      <div className="h-1 bg-[var(--bg-hover)] rounded-full overflow-hidden">
+      <div className="h-1 bg-hover rounded-full overflow-hidden">
         <div
-          className={cn('h-full rounded-full transition-[width] duration-600 ease-[var(--ease-out)]')}
-          style={{ width: `${clampedValue}%`, background: color }}
+          className="h-full rounded-full transition-all duration-500"
+          style={{ width: `${clamped}%`, background: color }}
         />
       </div>
     </div>
