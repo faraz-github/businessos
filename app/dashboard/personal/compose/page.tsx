@@ -124,7 +124,7 @@ export default function PersonalComposePage() {
       <div className="flex flex-col gap-6">
         <div>
           <h1 className="t-h1">Composers</h1>
-          <p className="text-[13px] text-[var(--text-secondary)] mt-1">Generate professional messages from templates.</p>
+          <p className="t-xs mt-1">Generate professional messages from templates.</p>
         </div>
 
         <div className="grid grid-cols-3 gap-4">
@@ -158,10 +158,10 @@ export default function PersonalComposePage() {
             />
 
             {selectedClient && (
-              <Card variant="base" className="text-[12px]">
-                <p className="font-medium text-[var(--text-primary)]">{selectedClient.name}</p>
-                {selectedClient.contact_email && <p className="text-[var(--text-secondary)]">{selectedClient.contact_email}</p>}
-                {selectedClient.contact_phone && <p className="text-[var(--text-secondary)]">{selectedClient.contact_phone}</p>}
+              <Card variant="base" >
+                <p className="font-medium text-primary">{selectedClient.name}</p>
+                {selectedClient.contact_email && <p className="text-secondary">{selectedClient.contact_email}</p>}
+                {selectedClient.contact_phone && <p className="text-secondary">{selectedClient.contact_phone}</p>}
               </Card>
             )}
           </div>
@@ -175,7 +175,7 @@ export default function PersonalComposePage() {
               label="Message"
               value={body}
               onChange={(e) => setBody(e.target.value)}
-              className="min-h-[320px] font-body text-[13px] leading-relaxed"
+              style={{ minHeight: 320 }}
             />
             <div className="flex items-center gap-2">
               <Button

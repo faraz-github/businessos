@@ -75,18 +75,18 @@ export default function PersonalClientsPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="t-h1">Clients</h1>
-            <p className="text-[13px] text-[var(--text-secondary)] mt-1">Single source of truth for every client.</p>
+            <p className="t-xs mt-1">Single source of truth for every client.</p>
           </div>
           <Button icon={<Plus size={14} />} onClick={() => setShowCreate(true)}>Add Client</Button>
         </div>
 
         <div className="relative max-w-sm">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-tertiary)]" />
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-tertiary" />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search clients..."
-            className="w-full bg-[var(--bg-hover)] border border-transparent rounded-[var(--radius-md)] pl-9 pr-3 py-2 text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none focus:border-[var(--border-default)]"
+            className="w-full bg-[var(--bg-hover)] border border-transparent rounded-[var(--radius-md)] pl-9 pr-3 py-2 text-[12px] text-primary placeholder:text-tertiary outline-none transition-colors"
           />
         </div>
 
@@ -106,7 +106,7 @@ export default function PersonalClientsPage() {
                 <Card
                   key={client.id}
                   variant="base"
-                  className="flex items-center gap-4 cursor-pointer hover:bg-[var(--bg-hover)] transition-colors"
+                  className="flex items-center gap-4 cursor-pointer hover-bg-hover transition-colors"
                   onClick={() => setSelectedClient(client)}
                 >
                   <div
@@ -117,13 +117,13 @@ export default function PersonalClientsPage() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="text-[13px] font-medium text-[var(--text-primary)]">{client.name}</span>
-                      {client.company && <span className="text-[11px] text-[var(--text-tertiary)]">· {client.company}</span>}
+                      <span className="t-sm-medium">{client.name}</span>
+                      {client.company && <span className="t-2xs text-tertiary">· {client.company}</span>}
                     </div>
-                    <p className="text-[11px] text-[var(--text-tertiary)]">Updated {formatRelative(client.updated_at)}</p>
+                    <p className="t-2xs text-tertiary">Updated {formatRelative(client.updated_at)}</p>
                   </div>
                   <Badge variant={stageBadgeVariant(client.current_stage)}>{stageLabel(client.current_stage)}</Badge>
-                  <ChevronRight size={14} className="text-[var(--text-tertiary)]" />
+                  <ChevronRight size={14} className="text-tertiary" />
                 </Card>
               ))}
             </div>
@@ -132,19 +132,19 @@ export default function PersonalClientsPage() {
               <div>
                 <button
                   onClick={() => setShowPast(!showPast)}
-                  className="text-[12px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+                  className="text-[12px] text-secondary hover:text-primary transition-colors"
                 >
                   {showPast ? 'Hide' : 'Show'} past clients ({past.length})
                 </button>
                 {showPast && (
                   <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 8, opacity: 0.7 }}>
                     {past.map((client) => (
-                      <Card key={client.id} variant="base" className="flex items-center gap-4 cursor-pointer hover:bg-[var(--bg-hover)]" onClick={() => setSelectedClient(client)}>
-                        <div className="w-9 h-9 rounded-full bg-[var(--bg-hover)] flex items-center justify-center text-[12px] font-bold text-[var(--text-tertiary)] shrink-0">
+                      <Card key={client.id} variant="base" className="flex items-center gap-4 cursor-pointer hover-bg-hover" onClick={() => setSelectedClient(client)}>
+                        <div className="w-9 h-9 rounded-full bg-[var(--bg-hover)] flex items-center justify-center text-[12px] font-bold text-tertiary shrink-0">
                           {client.name[0].toUpperCase()}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <span className="text-[13px] text-[var(--text-secondary)]">{client.name}</span>
+                          <span className="t-xs text-secondary">{client.name}</span>
                         </div>
                         <Badge variant="outline">Completed</Badge>
                       </Card>
@@ -205,7 +205,7 @@ function ClientDetailModal({ client, onClose, onStageChange, onUpdate }: {
       <div className="flex flex-col gap-5">
         {/* Stage */}
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--text-tertiary)] mb-2">Current Stage</p>
+          <p className="t-label mb-2">Current Stage</p>
           <div className="flex items-center gap-2 flex-wrap">
             <Badge variant={stageBadgeVariant(client.current_stage)} className="text-xs">
               {stageLabel(client.current_stage)}
@@ -227,25 +227,25 @@ function ClientDetailModal({ client, onClose, onStageChange, onUpdate }: {
         <div className="grid grid-cols-2 gap-3">
           {client.contact_name && (
             <div>
-              <p className="text-[11px] text-[var(--text-tertiary)]">Contact</p>
-              <p className="text-[13px] text-[var(--text-primary)]">{client.contact_name}</p>
+              <p className="t-2xs text-tertiary">Contact</p>
+              <p className="t-sm text-primary">{client.contact_name}</p>
             </div>
           )}
           {client.contact_email && (
             <div>
-              <p className="text-[11px] text-[var(--text-tertiary)]">Email</p>
-              <p className="text-[13px] text-[var(--accent-blue)]">{client.contact_email}</p>
+              <p className="t-2xs text-tertiary">Email</p>
+              <p className="t-sm text-accent-blue">{client.contact_email}</p>
             </div>
           )}
           {client.contact_phone && (
             <div>
-              <p className="text-[11px] text-[var(--text-tertiary)]">Phone</p>
-              <p className="text-[13px] text-[var(--text-primary)]">{client.contact_phone}</p>
+              <p className="t-2xs text-tertiary">Phone</p>
+              <p className="t-sm">{client.contact_phone}</p>
             </div>
           )}
           <div>
-            <p className="text-[11px] text-[var(--text-tertiary)]">Preferred Channel</p>
-            <p className="text-[13px] text-[var(--text-primary)] capitalize">{client.preferred_channel}</p>
+            <p className="t-2xs text-tertiary">Preferred Channel</p>
+            <p className="t-sm" style={{ textTransform: "capitalize" }}>{client.preferred_channel}</p>
           </div>
         </div>
 
@@ -264,14 +264,14 @@ function ClientDetailModal({ client, onClose, onStageChange, onUpdate }: {
 
         {/* Notes */}
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--text-tertiary)] mb-2">Running Notes</p>
+          <p className="t-label mb-2">Running Notes</p>
           <Textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            className="min-h-[120px] text-[13px]"
+            style={{ minHeight: 120 }}
             placeholder="Notes about this client (never deleted)..."
           />
-          <Button variant="secondary" size="sm" onClick={saveNotes} loading={saving} className="mt-2">
+          <Button variant="secondary" size="sm" onClick={saveNotes} loading={saving} style={{ marginTop: 8 }}>
             <StickyNote size={12} /> Save Notes
           </Button>
         </div>
@@ -279,12 +279,12 @@ function ClientDetailModal({ client, onClose, onStageChange, onUpdate }: {
         {/* Stage History */}
         {client.stage_history && client.stage_history.length > 0 && (
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--text-tertiary)] mb-2">Stage History</p>
+            <p className="t-label mb-2">Stage History</p>
             <div className="flex flex-col gap-1">
               {[...client.stage_history].reverse().map((entry: any, i: number) => (
                 <div key={i} className="flex items-center gap-2 text-[11px]">
-                  <span className="text-[var(--text-tertiary)] font-mono">{formatDate(entry.entered_at, 'dd MMM')}</span>
-                  <span className="text-[var(--text-secondary)]">{stageLabel(entry.stage)}</span>
+                  <span className="text-tertiary font-mono">{formatDate(entry.entered_at, 'dd MMM')}</span>
+                  <span className="text-secondary">{stageLabel(entry.stage)}</span>
                 </div>
               ))}
             </div>
