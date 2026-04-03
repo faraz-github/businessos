@@ -55,8 +55,8 @@ export default function AgencyBDPipelinePage() {
 
   return (
     <PageTransition>
-      <div className="flex flex-col gap-6">
-        <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-9">
+        <div className="flex items-center justify-between mb-2">
           <div>
             <h1 className="t-h1">BD Pipeline</h1>
             <p className="t-xs mt-1">Manage leads from prospect to close.</p>
@@ -75,7 +75,7 @@ export default function AgencyBDPipelinePage() {
                   <span className="t-label">{stage.label}</span>
                   <span className="t-mono-sm">{stageLeads.length}</span>
                 </div>
-                <div className="flex flex-col gap-2">
+                <div className="flex flex-col gap-3">
                   {stageLeads.map((lead) => (
                     <Card key={lead.id} variant="base" className="cursor-pointer hover-bg-hover interactive" onClick={() => setSelectedLead(lead)}>
                       <p className="t-sm-medium truncate">{lead.company}</p>
@@ -135,7 +135,7 @@ function LeadDetailModal({ lead, onClose, onMoveStage, onUpdate }: {
 
   return (
     <Modal open={true} onClose={onClose} title={lead.company} description={lead.contact_name || undefined} size="md">
-      <div className="flex flex-col gap-5">
+      <div className="flex flex-col gap-6">
         <div className="flex items-center gap-2 flex-wrap">
           <Badge variant="blue">{stageLabel(lead.stage)}</Badge>
           {lead.deal_value && <Badge variant="green">{formatINR(lead.deal_value)}</Badge>}
@@ -147,22 +147,22 @@ function LeadDetailModal({ lead, onClose, onMoveStage, onUpdate }: {
           )}
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-4">
           {lead.contact_email && (
             <div>
-              <p className="t-label mb-1">Email</p>
+              <p className="t-label sub-label-gap">Email</p>
               <p className="t-xs text-accent-blue">{lead.contact_email}</p>
             </div>
           )}
           {lead.contact_phone && (
             <div>
-              <p className="t-label mb-1">Phone</p>
+              <p className="t-label sub-label-gap">Phone</p>
               <p className="t-xs">{lead.contact_phone}</p>
             </div>
           )}
           {lead.next_action && (
             <div>
-              <p className="t-label mb-1">Next Action</p>
+              <p className="t-label sub-label-gap">Next Action</p>
               <p className="t-xs" style={{ color: 'var(--accent-amber)' }}>{lead.next_action}</p>
             </div>
           )}
@@ -170,7 +170,7 @@ function LeadDetailModal({ lead, onClose, onMoveStage, onUpdate }: {
 
         {/* Activity Log */}
         <div>
-          <p className="t-label mb-2">Activity Log</p>
+          <p className="t-label section-gap">Activity Log</p>
           <div className="flex flex-col gap-2 overflow-y-auto mb-3" style={{ maxHeight: 200 }}>
             {(lead.notes || []).slice().reverse().map((note: any, i: number) => (
               <div key={i} className="t-xs pl-3" style={{ borderLeft: '2px solid var(--border-subtle)' }}>
@@ -217,16 +217,16 @@ function CreateLeadModal({ open, onClose, mode, currentUser, onCreated }: any) {
 
   return (
     <Modal open={open} onClose={onClose} title="Add Lead" size="md">
-      <div className="flex flex-col gap-4">
-        <div className="grid grid-cols-2 gap-3">
+      <div className="flex flex-col gap-5">
+        <div className="grid grid-cols-2 gap-4">
           <Input label="Company" value={company} onChange={(e) => setCompany(e.target.value)} required />
           <Input label="Contact Name" value={contactName} onChange={(e) => setContactName(e.target.value)} />
         </div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-4">
           <Input label="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
           <Input label="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
         </div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-4">
           <Input label="Source" value={source} onChange={(e) => setSource(e.target.value)} placeholder="e.g., LinkedIn, referral" />
           <Input label="Deal Value (₹)" type="number" value={dealValue} onChange={(e) => setDealValue(e.target.value)} />
         </div>

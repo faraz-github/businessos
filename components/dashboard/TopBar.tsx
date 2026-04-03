@@ -15,21 +15,38 @@ export function TopBar() {
   return (
     <>
       <header
-        className="flex items-center gap-3 px-6 bg-surface border-b-subtle sticky top-0 z-50 shrink-0"
-        style={{ height: 'var(--topbar-height)' }}
+        className="flex items-center gap-4 bg-surface shrink-0 sticky top-0 z-50"
+        style={{
+          height: 'var(--topbar-height)',
+          padding: '0 40px 0 40px',
+          borderBottom: '1px solid var(--border-subtle)',
+        }}
       >
-        <span className="t-xs-medium text-secondary whitespace-nowrap">{today}</span>
+        {/* Date */}
+        <span style={{
+          fontSize: 12, fontWeight: 500, color: 'var(--text-secondary)',
+          fontFamily: 'var(--font-body)', whiteSpace: 'nowrap',
+        }}>
+          {today}
+        </span>
 
         {/* Search */}
-        <div className="relative ml-2" style={{ flex: 1, maxWidth: 380 }}>
-          <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-tertiary pointer-events-none" />
+        <div className="relative" style={{ flex: 1, maxWidth: 400, marginLeft: 8 }}>
+          <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
+            style={{ color: 'var(--text-tertiary)' }} />
           <input
             type="text"
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
             placeholder="Search clients, documents, leads..."
-            className="w-full bg-hover radius-md t-xs text-primary outline-none border border-transparent transition-colors"
-            style={{ paddingLeft: 30, paddingRight: 12, paddingTop: 7, paddingBottom: 7 }}
+            className="w-full bg-hover radius-md interactive outline-none"
+            style={{
+              padding: '8px 12px 8px 32px',
+              border: '1px solid transparent',
+              fontSize: 12,
+              fontFamily: 'var(--font-body)',
+              color: 'var(--text-primary)',
+            }}
             onFocus={e => { e.target.style.borderColor = 'var(--border-default)'; }}
             onBlur={e => { e.target.style.borderColor = 'transparent'; }}
           />
@@ -41,17 +58,33 @@ export function TopBar() {
         <button
           onClick={toggleTheme}
           title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-          className="flex items-center justify-center w-8 h-8 radius-md bg-hover border-subtle text-secondary interactive hover-text-primary shrink-0"
-          style={{ border: '1px solid var(--border-subtle)', cursor: 'pointer' }}
+          className="flex items-center justify-center bg-hover radius-md interactive shrink-0"
+          style={{
+            width: 34, height: 34,
+            border: '1px solid var(--border-subtle)',
+            color: 'var(--text-secondary)',
+            cursor: 'pointer',
+          }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-primary)'; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-secondary)'; }}
         >
           {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
         </button>
 
-        {/* Quick Log */}
+        {/* Quick Log — explicit white text, no t-xs color override */}
         <button
           onClick={() => setQuickLogOpen(true)}
-          className="flex items-center gap-1.5 bg-accent-blue text-white radius-md t-xs font-semibold interactive shrink-0 whitespace-nowrap"
-          style={{ padding: '7px 14px', border: 'none', cursor: 'pointer' }}
+          className="flex items-center gap-1.5 bg-accent-blue radius-md interactive shrink-0 whitespace-nowrap"
+          style={{
+            padding: '8px 16px',
+            border: 'none',
+            cursor: 'pointer',
+            /* Always white text — inline wins over any CSS class color */
+            color: '#fff',
+            fontSize: 12,
+            fontWeight: 600,
+            fontFamily: 'var(--font-body)',
+          }}
           onMouseEnter={e => { (e.currentTarget as HTMLElement).style.opacity = '0.88'; }}
           onMouseLeave={e => { (e.currentTarget as HTMLElement).style.opacity = '1'; }}
         >

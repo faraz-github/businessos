@@ -197,8 +197,6 @@ export async function getHomeStats(mode: Mode) {
 
   const now = new Date();
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-  const startOfWeek = new Date(now.getTime() - now.getDay() * 86400000).toISOString().split('T')[0];
-
   // Revenue this month
   const { data: monthIncome } = await supabase
     .from('transactions')
@@ -282,22 +280,25 @@ export async function getHomeStats(mode: Mode) {
     );
   }).length || 0;
 
-  // 5-month revenue sparkline
-  const sparklineData = [];
-  for (let i = 4; i >= 0; i--) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+  // 5-month revenue sparkline — single query, aggregate in JS
+  const fiveMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 4, 1).toISOString().split('T')[0];
+  const { data: allSparklineTx } = await supabase
+    .from('transactions')
+    .select('amount, date')
+    .eq('user_id', user.id)
+    .eq('mode', mode)
+    .eq('type', 'income')
+    .gte('date', fiveMonthsAgo);
+
+  const sparklineData = Array.from({ length: 5 }, (_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - 4 + i, 1);
     const monthStart = d.toISOString().split('T')[0];
-    const nextMonth = new Date(d.getFullYear(), d.getMonth() + 1, 1).toISOString().split('T')[0];
-    const { data: monthData } = await supabase
-      .from('transactions')
-      .select('amount')
-      .eq('user_id', user.id)
-      .eq('mode', mode)
-      .eq('type', 'income')
-      .gte('date', monthStart)
-      .lt('date', nextMonth);
-    sparklineData.push({ value: monthData?.reduce((s, t) => s + Number(t.amount), 0) || 0 });
-  }
+    const monthEnd   = new Date(d.getFullYear(), d.getMonth() + 1, 1).toISOString().split('T')[0];
+    const value = allSparklineTx
+      ?.filter(t => t.date >= monthStart && t.date < monthEnd)
+      .reduce((s, t) => s + Number(t.amount), 0) || 0;
+    return { value };
+  });
 
   return {
     money: {

@@ -71,8 +71,8 @@ export default function PersonalClientsPage() {
 
   return (
     <PageTransition>
-      <div className="flex flex-col gap-6">
-        <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-9">
+        <div className="flex items-center justify-between mb-2">
           <div>
             <h1 className="t-h1">Clients</h1>
             <p className="t-xs mt-1">Single source of truth for every client.</p>
@@ -101,7 +101,7 @@ export default function PersonalClientsPage() {
           </Card>
         ) : (
           <>
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-3">
               {active.map((client) => (
                 <Card
                   key={client.id}
@@ -202,10 +202,10 @@ function ClientDetailModal({ client, onClose, onStageChange, onUpdate }: {
 
   return (
     <Modal open={true} onClose={onClose} title={client.name} description={client.company || undefined} size="lg">
-      <div className="flex flex-col gap-5">
+      <div className="flex flex-col gap-6">
         {/* Stage */}
         <div>
-          <p className="t-label mb-2">Current Stage</p>
+          <p className="t-label section-gap">Current Stage</p>
           <div className="flex items-center gap-2 flex-wrap">
             <Badge variant={stageBadgeVariant(client.current_stage)} className="text-xs">
               {stageLabel(client.current_stage)}
@@ -224,7 +224,7 @@ function ClientDetailModal({ client, onClose, onStageChange, onUpdate }: {
         </div>
 
         {/* Contact Info */}
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-4">
           {client.contact_name && (
             <div>
               <p className="t-2xs text-tertiary">Contact</p>
@@ -264,7 +264,7 @@ function ClientDetailModal({ client, onClose, onStageChange, onUpdate }: {
 
         {/* Notes */}
         <div>
-          <p className="t-label mb-2">Running Notes</p>
+          <p className="t-label section-gap">Running Notes</p>
           <Textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
@@ -279,7 +279,7 @@ function ClientDetailModal({ client, onClose, onStageChange, onUpdate }: {
         {/* Stage History */}
         {client.stage_history && client.stage_history.length > 0 && (
           <div>
-            <p className="t-label mb-2">Stage History</p>
+            <p className="t-label section-gap">Stage History</p>
             <div className="flex flex-col gap-1">
               {[...client.stage_history].reverse().map((entry: any, i: number) => (
                 <div key={i} className="flex items-center gap-2 text-[11px]">
@@ -336,16 +336,16 @@ function CreateClientModal({ open, onClose, mode, onCreated }: {
 
   return (
     <Modal open={open} onClose={onClose} title="Add Client" size="md">
-      <div className="flex flex-col gap-4">
-        <div className="grid grid-cols-2 gap-3">
+      <div className="flex flex-col gap-5">
+        <div className="grid grid-cols-2 gap-4">
           <Input label="Client / Project Name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Acme Corp" required />
           <Input label="Company" value={company} onChange={(e) => setCompany(e.target.value)} placeholder="Optional" />
         </div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-4">
           <Input label="Contact Name" value={contactName} onChange={(e) => setContactName(e.target.value)} />
           <Input label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
         </div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-4">
           <Input label="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
           <Select
             label="Preferred Channel"

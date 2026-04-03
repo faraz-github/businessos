@@ -62,8 +62,8 @@ export default function PersonalPaperworkPage() {
 
   return (
     <PageTransition>
-      <div className="flex flex-col gap-6">
-        <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-9">
+        <div className="flex items-center justify-between mb-2">
           <div>
             <h1 className="t-h1">Paperwork</h1>
             <p className="t-xs mt-1">Create and manage branded documents.</p>
@@ -87,7 +87,7 @@ export default function PersonalPaperworkPage() {
             />
           </Card>
         ) : (
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-3">
             {documents.map((doc) => {
               const config = statusConfig[doc.status] || statusConfig.draft;
               const shareUrl = doc.share_token
@@ -163,7 +163,7 @@ function CreateDocumentModal({ open, onClose, mode, clients, currentUser, onCrea
 
   return (
     <Modal open={open} onClose={onClose} title="New Document" size="sm">
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-5">
         <Select label="Document Type" options={docTypes} value={docType} onChange={(e) => setDocType(e.target.value as DocumentType)} />
         <Input label="Title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g., Website Redesign Proposal" />
         <Select

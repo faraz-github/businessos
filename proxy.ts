@@ -48,6 +48,9 @@ export async function proxy(request: NextRequest) {
   }
 
   // ── Section-level access control for non-superadmin ──
+  // NOTE: This logic mirrors userCanAccess() in lib/auth/use-auth.ts.
+  // They cannot share code because proxy.ts runs at Edge (no client imports).
+  // If you update access logic, update both places.
   if (session.role !== 'superadmin') {
     const target = sectionFromPath(pathname);
     if (target) {

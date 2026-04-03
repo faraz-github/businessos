@@ -3,50 +3,54 @@
 
 /* ─── DESIGN SYSTEM TOKENS — DARK (default) ─── */
 :root {
-  --bg-base:        #0F1117;
-  --bg-surface:     #161B25;
-  --bg-elevated:    #1C2233;
-  --bg-hover:       #232B3E;
-  --bg-card:        #192030;
-  --bg-input:       #111620;  /* Input fields — darker than surface for contrast */
+  /* Backgrounds */
+  --bg-base:     #0D1117;
+  --bg-surface:  #141922;
+  --bg-elevated: #1A2033;
+  --bg-hover:    #1F2840;
+  --bg-card:     #161D2E;
+  --bg-input:    #0F1520;
 
+  /* Accents */
   --accent-blue:        #4F8EF7;
   --accent-blue-dim:    rgba(79, 142, 247, 0.14);
-  --accent-blue-glow:   rgba(79, 142, 247, 0.10);
+  --accent-blue-glow:   rgba(79, 142, 247, 0.12);
   --accent-violet:      #8B6CF7;
   --accent-violet-dim:  rgba(139, 108, 247, 0.14);
   --accent-green:       #34C988;
-  --accent-green-dim:   rgba(52, 201, 136, 0.12);
+  --accent-green-dim:   rgba(52, 201, 136, 0.13);
   --accent-amber:       #F5A623;
-  --accent-amber-dim:   rgba(245, 166, 35, 0.12);
+  --accent-amber-dim:   rgba(245, 166, 35, 0.13);
   --accent-red:         #F05252;
-  --accent-red-dim:     rgba(240, 82, 82, 0.12);
+  --accent-red-dim:     rgba(240, 82, 82, 0.13);
 
+  /* Text */
   --text-primary:   #ECEEF5;
   --text-secondary: #8892A4;
-  --text-tertiary:  #505A6E;
+  --text-tertiary:  #4E5870;
   --text-label:     #6B7280;
 
-  --border-subtle:  rgba(255, 255, 255, 0.055);
-  --border-default: rgba(255, 255, 255, 0.10);
-  --border-strong:  rgba(255, 255, 255, 0.18);
+  /* Borders */
+  --border-subtle:  rgba(255, 255, 255, 0.06);
+  --border-default: rgba(255, 255, 255, 0.11);
+  --border-strong:  rgba(255, 255, 255, 0.20);
 
-  /* Typography — Space Grotesk for display, DM Sans for body */
+  /* Typography */
   --font-display: Space Grotesk, sans-serif;
   --font-body:    DM Sans, sans-serif;
   --font-mono:    DM Mono, monospace;
 
   /* Spacing */
-  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
+  --space-1: 4px;  --space-2: 8px;  --space-3: 12px; --space-4: 16px;
   --space-5: 20px; --space-6: 24px; --space-8: 32px; --space-12: 48px;
 
   /* Radius */
   --radius-sm: 6px; --radius-md: 10px; --radius-lg: 14px; --radius-xl: 20px;
 
-  /* Shadows */
-  --shadow-card:     0 1px 4px rgba(0,0,0,0.45), 0 0 0 1px rgba(255,255,255,0.04);
-  --shadow-elevated: 0 6px 32px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.06);
-  --shadow-modal:    0 16px 64px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.08);
+  /* Shadows — dark mode uses subtle depth */
+  --shadow-card:     0 1px 3px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.05);
+  --shadow-elevated: 0 4px 20px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.07);
+  --shadow-modal:    0 16px 64px rgba(0,0,0,0.75), 0 0 0 1px rgba(255,255,255,0.08);
 
   /* Motion */
   --duration-fast: 150ms; --duration-default: 200ms;
@@ -56,44 +60,44 @@
   --ease-inout: cubic-bezier(0.4, 0, 0.2, 1);
 
   /* Layout */
-  --sidebar-width:  224px;
-  --topbar-height:  56px;
+  --sidebar-width:  228px;
+  --topbar-height:  58px;
   --content-max-w:  1280px;
 }
 
 /* ─── LIGHT MODE ─── */
 [data-theme='light'] {
-  --bg-base:        #F1F3F8;
-  --bg-surface:     #FFFFFF;
-  --bg-elevated:    #FFFFFF;
-  --bg-hover:       #F5F7FC;
-  --bg-card:        #FFFFFF;
-  --bg-input:       #F8F9FC;  /* Input fields — slightly off-white */
+  --bg-base:     #EDEEF3;   /* Subtle cool grey — not white */
+  --bg-surface:  #F7F8FC;   /* Sidebar/topbar — distinct from base */
+  --bg-elevated: #FFFFFF;   /* Cards float above */
+  --bg-hover:    #EEF0F7;
+  --bg-card:     #FFFFFF;
+  --bg-input:    #F0F2F8;
 
-  --border-subtle:  rgba(0, 0, 0, 0.06);
-  --border-default: rgba(0, 0, 0, 0.09);
-  --border-strong:  rgba(0, 0, 0, 0.16);
+  --border-subtle:  rgba(0, 0, 0, 0.08);    /* Stronger than before — cards visible */
+  --border-default: rgba(0, 0, 0, 0.12);
+  --border-strong:  rgba(0, 0, 0, 0.20);
 
-  --text-primary:   #0F1117;
-  --text-secondary: #4A5568;
-  --text-tertiary:  #8895A7;
+  --text-primary:   #0E1117;
+  --text-secondary: #454E64;
+  --text-tertiary:  #8895AA;
   --text-label:     #8B90A0;
 
   --accent-blue-dim:    rgba(79, 142, 247, 0.10);
-  --accent-blue-glow:   rgba(79, 142, 247, 0.07);
+  --accent-blue-glow:   rgba(79, 142, 247, 0.08);
   --accent-violet-dim:  rgba(139, 108, 247, 0.10);
   --accent-green-dim:   rgba(52, 201, 136, 0.10);
   --accent-amber-dim:   rgba(245, 166, 35, 0.10);
   --accent-red-dim:     rgba(240, 82, 82, 0.10);
 
-  --shadow-card:     0 1px 3px rgba(0,0,0,0.07), 0 0 0 1px rgba(0,0,0,0.06);
-  --shadow-elevated: 0 4px 24px rgba(0,0,0,0.10), 0 0 0 1px rgba(0,0,0,0.07);
-  --shadow-modal:    0 12px 48px rgba(0,0,0,0.18), 0 0 0 1px rgba(0,0,0,0.08);
+  /* Light mode cards need real shadows to float off the background */
+  --shadow-card:     0 1px 4px rgba(0,0,0,0.09), 0 0 0 1px rgba(0,0,0,0.07);
+  --shadow-elevated: 0 4px 24px rgba(0,0,0,0.12), 0 0 0 1px rgba(0,0,0,0.08);
+  --shadow-modal:    0 12px 48px rgba(0,0,0,0.20), 0 0 0 1px rgba(0,0,0,0.09);
 }
 
 /* ─── BASE RESET ─── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
 html { height: 100%; }
 
 body {
@@ -108,11 +112,8 @@ body {
               color var(--duration-slow) var(--ease-out);
 }
 
-/* Select and option elements inherit bg */
-select option {
-  background: var(--bg-surface);
-  color: var(--text-primary);
-}
+select option { background: var(--bg-surface); color: var(--text-primary); }
+input, select, textarea { font-family: var(--font-body); }
 
 /* ─── SCROLLBAR ─── */
 ::-webkit-scrollbar { width: 4px; height: 4px; }
@@ -120,83 +121,19 @@ select option {
 ::-webkit-scrollbar-thumb { background: var(--border-default); border-radius: 2px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--border-strong); }
 
-/* ─── FONT UTILITY CLASSES ─── */
+/* ─── FONT UTILITIES ─── */
 .font-display { font-family: var(--font-display); }
 .font-body    { font-family: var(--font-body); }
 .font-mono    { font-family: var(--font-mono); }
 
 /* ─── ANIMATIONS ─── */
-@keyframes ds-fade-up {
-  from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-@keyframes ds-fade-in {
-  from { opacity: 0; } to { opacity: 1; }
-}
-@keyframes spin {
-  from { transform: rotate(0deg); } to { transform: rotate(360deg); }
-}
-
-/* ─── PAGE HEADER STANDARD ─── */
-/* All dashboard page titles follow this pattern */
-.page-title {
-  font-family: Space Grotesk, sans-serif;
-  font-size: 24px;
-  font-weight: 700;
-  letter-spacing: -0.3px;
-  color: var(--text-primary);
-  line-height: 1.1;
-}
-.page-subtitle {
-  font-family: DM Sans, sans-serif;
-  font-size: 13px;
-  color: var(--text-secondary);
-  margin-top: 5px;
-}
-
-/* ─── FORM FIELD LABEL STANDARD ─── */
-.field-label {
-  font-family: DM Sans, sans-serif;
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-  color: var(--text-tertiary);
-}
-
-/* ─── SECTION HEADER STANDARD ─── */
-.section-label {
-  font-family: DM Sans, sans-serif;
-  font-size: 9px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.09em;
-  color: var(--text-tertiary);
-}
-
-/* ─── BADGE STANDARD ─── */
-.role-badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 2px 8px;
-  border-radius: 100px;
-  font-family: DM Sans, sans-serif;
-  font-size: 9px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
-
-/* ─── INPUT STANDARD (ensure bg-input applies) ─── */
-input, select, textarea {
-  font-family: DM Sans, sans-serif;
-}
+@keyframes ds-fade-up  { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes ds-fade-in  { from { opacity: 0; } to { opacity: 1; } }
+@keyframes spin        { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
 /* ================================================================
-   UTILITY LAYER — Design token classes
-   Use these in className instead of inline style props.
-   Tailwind handles: flex, grid, gap, p-*, m-*, w-*, h-*, overflow-*
-   These classes handle: color, font, background, border, radius, shadow
+   UTILITY LAYER
+   CSS for design tokens. Tailwind for layout only.
    ================================================================ */
 
 /* ── TEXT COLORS ── */
@@ -208,15 +145,15 @@ input, select, textarea {
 .text-accent-amber  { color: var(--accent-amber); }
 .text-accent-red    { color: var(--accent-red); }
 .text-accent-violet { color: var(--accent-violet); }
-.text-white     { color: #fff; }
+.text-white { color: #fff; }
 
 /* ── BACKGROUNDS ── */
-.bg-base     { background: var(--bg-base); }
-.bg-surface  { background: var(--bg-surface); }
-.bg-elevated { background: var(--bg-elevated); }
-.bg-hover    { background: var(--bg-hover); }
-.bg-card     { background: var(--bg-card); }
-.bg-input    { background: var(--bg-input); }
+.bg-base          { background: var(--bg-base); }
+.bg-surface       { background: var(--bg-surface); }
+.bg-elevated      { background: var(--bg-elevated); }
+.bg-hover         { background: var(--bg-hover); }
+.bg-card          { background: var(--bg-card); }
+.bg-input         { background: var(--bg-input); }
 .bg-accent-blue-dim   { background: var(--accent-blue-dim); }
 .bg-accent-violet-dim { background: var(--accent-violet-dim); }
 .bg-accent-green-dim  { background: var(--accent-green-dim); }
@@ -225,20 +162,20 @@ input, select, textarea {
 .bg-accent-blue       { background: var(--accent-blue); }
 
 /* ── BORDERS ── */
-.border-subtle  { border: 1px solid var(--border-subtle); }
-.border-default { border: 1px solid var(--border-default); }
-.border-strong  { border: 1px solid var(--border-strong); }
+.border-subtle   { border: 1px solid var(--border-subtle); }
+.border-default  { border: 1px solid var(--border-default); }
+.border-strong   { border: 1px solid var(--border-strong); }
 .border-t-subtle { border-top: 1px solid var(--border-subtle); }
 .border-b-subtle { border-bottom: 1px solid var(--border-subtle); }
-.border-accent-blue   { border: 1px solid var(--accent-blue-dim); }
-.border-accent-red    { border: 1px solid var(--accent-red-dim); }
-.border-accent-green  { border: 1px solid var(--accent-green-dim); }
+.border-accent-blue  { border: 1px solid var(--accent-blue-dim); }
+.border-accent-red   { border: 1px solid var(--accent-red-dim); }
+.border-accent-green { border: 1px solid var(--accent-green-dim); }
 
 /* ── BORDER RADIUS ── */
-.radius-sm  { border-radius: var(--radius-sm); }
-.radius-md  { border-radius: var(--radius-md); }
-.radius-lg  { border-radius: var(--radius-lg); }
-.radius-xl  { border-radius: var(--radius-xl); }
+.radius-sm   { border-radius: var(--radius-sm); }
+.radius-md   { border-radius: var(--radius-md); }
+.radius-lg   { border-radius: var(--radius-lg); }
+.radius-xl   { border-radius: var(--radius-xl); }
 .radius-full { border-radius: 9999px; }
 
 /* ── SHADOWS ── */
@@ -246,33 +183,34 @@ input, select, textarea {
 .shadow-elevated { box-shadow: var(--shadow-elevated); }
 .shadow-modal    { box-shadow: var(--shadow-modal); }
 
-/* ── TYPOGRAPHY — DISPLAY (Space Grotesk) ── */
-.t-display  { font-family: var(--font-display); font-size: 26px; font-weight: 800; letter-spacing: -0.5px; line-height: 1.1; color: var(--text-primary); }
-.t-h1       { font-family: var(--font-display); font-size: 24px; font-weight: 700; letter-spacing: -0.3px; line-height: 1.1; color: var(--text-primary); }
-.t-h2       { font-family: var(--font-display); font-size: 18px; font-weight: 700; letter-spacing: -0.2px; line-height: 1.2; color: var(--text-primary); }
-.t-metric   { font-family: var(--font-display); font-size: 28px; font-weight: 800; letter-spacing: -0.5px; line-height: 1; color: var(--text-primary); }
-.t-metric-sm { font-family: var(--font-display); font-size: 20px; font-weight: 800; letter-spacing: -0.3px; line-height: 1; color: var(--text-primary); }
-.t-num      { font-family: var(--font-display); font-size: 24px; font-weight: 700; letter-spacing: -0.3px; line-height: 1; color: var(--text-primary); }
+/* ── TYPOGRAPHY — DISPLAY ── */
+.t-display   { font-family: var(--font-display); font-size: 32px; font-weight: 800; letter-spacing: -0.8px; line-height: 1.05; color: var(--text-primary); }
+.t-h1        { font-family: var(--font-display); font-size: 24px; font-weight: 700; letter-spacing: -0.4px; line-height: 1.15; color: var(--text-primary); }
+.t-h2        { font-family: var(--font-display); font-size: 18px; font-weight: 700; letter-spacing: -0.2px; line-height: 1.2;  color: var(--text-primary); }
+.t-metric    { font-family: var(--font-display); font-size: 32px; font-weight: 800; letter-spacing: -1px;   line-height: 1;    color: var(--text-primary); }
+.t-metric-sm { font-family: var(--font-display); font-size: 22px; font-weight: 800; letter-spacing: -0.5px; line-height: 1;    color: var(--text-primary); }
+.t-num       { font-family: var(--font-display); font-size: 24px; font-weight: 700; letter-spacing: -0.4px; line-height: 1;    color: var(--text-primary); }
 
-/* ── TYPOGRAPHY — BODY (DM Sans) ── */
-.t-body     { font-family: var(--font-body); font-size: 14px; font-weight: 400; line-height: 1.6; color: var(--text-primary); }
-.t-sm       { font-family: var(--font-body); font-size: 13px; font-weight: 400; line-height: 1.5; color: var(--text-primary); }
-.t-sm-medium { font-family: var(--font-body); font-size: 13px; font-weight: 500; line-height: 1.5; color: var(--text-primary); }
-.t-sm-semibold { font-family: var(--font-body); font-size: 13px; font-weight: 600; line-height: 1.5; color: var(--text-primary); }
-.t-xs       { font-family: var(--font-body); font-size: 12px; font-weight: 400; line-height: 1.5; color: var(--text-secondary); }
-.t-xs-medium { font-family: var(--font-body); font-size: 12px; font-weight: 500; line-height: 1.5; color: var(--text-secondary); }
-.t-2xs      { font-family: var(--font-body); font-size: 11px; font-weight: 400; line-height: 1.4; color: var(--text-secondary); }
+/* ── TYPOGRAPHY — BODY ── */
+.t-body        { font-family: var(--font-body); font-size: 14px; font-weight: 400; line-height: 1.6;  color: var(--text-primary); }
+.t-sm          { font-family: var(--font-body); font-size: 13px; font-weight: 400; line-height: 1.55; color: var(--text-primary); }
+.t-sm-medium   { font-family: var(--font-body); font-size: 13px; font-weight: 500; line-height: 1.55; color: var(--text-primary); }
+.t-sm-semibold { font-family: var(--font-body); font-size: 13px; font-weight: 600; line-height: 1.55; color: var(--text-primary); }
+.t-xs          { font-family: var(--font-body); font-size: 12px; font-weight: 400; line-height: 1.5;  color: var(--text-secondary); }
+.t-xs-medium   { font-family: var(--font-body); font-size: 12px; font-weight: 500; line-height: 1.5;  color: var(--text-secondary); }
+.t-2xs         { font-family: var(--font-body); font-size: 11px; font-weight: 400; line-height: 1.45; color: var(--text-secondary); }
 
-/* ── LABELS — always uppercase, tracked ── */
-.t-label    { font-family: var(--font-body); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-tertiary); }
+/* ── LABELS ── */
+.t-label    { font-family: var(--font-body); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-tertiary); }
 .t-label-xs { font-family: var(--font-body); font-size: 9px;  font-weight: 700; text-transform: uppercase; letter-spacing: 0.09em; color: var(--text-tertiary); }
+.t-role     { font-family: var(--font-body); font-size: 9px;  font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-tertiary); }
 
 /* ── MONOSPACE ── */
-.t-mono     { font-family: var(--font-mono); font-size: 12px; font-weight: 400; color: var(--text-secondary); }
-.t-mono-sm  { font-family: var(--font-mono); font-size: 10px; font-weight: 400; color: var(--text-tertiary); }
+.t-mono    { font-family: var(--font-mono); font-size: 12px; font-weight: 400; color: var(--text-secondary); }
+.t-mono-sm { font-family: var(--font-mono); font-size: 10px; font-weight: 400; color: var(--text-tertiary); }
 
-/* ── BADGE / STATUS ── */
-.badge      { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 9999px; font-family: var(--font-body); font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; line-height: 1; }
+/* ── BADGES ── */
+.badge        { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 9999px; font-family: var(--font-body); font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; line-height: 1; }
 .badge-blue   { background: var(--accent-blue-dim);   color: var(--accent-blue); }
 .badge-green  { background: var(--accent-green-dim);  color: var(--accent-green); }
 .badge-amber  { background: var(--accent-amber-dim);  color: var(--accent-amber); }
@@ -280,21 +218,31 @@ input, select, textarea {
 .badge-violet { background: var(--accent-violet-dim); color: var(--accent-violet); }
 
 /* ── INTERACTIVE STATES ── */
-.interactive { transition: background var(--duration-fast), color var(--duration-fast), border-color var(--duration-fast), opacity var(--duration-fast); }
+.interactive          { transition: background var(--duration-fast), color var(--duration-fast), border-color var(--duration-fast), box-shadow var(--duration-fast), opacity var(--duration-fast); }
 .hover-bg-hover:hover { background: var(--bg-hover); }
 .hover-text-primary:hover { color: var(--text-primary); }
-.hover-text-red:hover { color: var(--accent-red); }
+.hover-text-red:hover     { color: var(--accent-red); }
 .hover-border-strong:hover { border-color: var(--border-strong); }
 
 /* ── CARD PATTERNS ── */
-.card       { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); box-shadow: var(--shadow-card); }
-.card-elevated { background: var(--bg-elevated); border: 1px solid var(--border-default); border-radius: var(--radius-xl); box-shadow: var(--shadow-elevated); }
-.card-metric { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); box-shadow: var(--shadow-card); padding: 16px 20px; }
+/* Cards have generous padding built in — do not add extra p-* when using these */
+.card          { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); box-shadow: var(--shadow-card); padding: 20px 24px; }
+.card-elevated { background: var(--bg-elevated); border: 1px solid var(--border-default); border-radius: var(--radius-xl); box-shadow: var(--shadow-elevated); padding: 24px; }
+.card-metric   { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); box-shadow: var(--shadow-card); padding: 20px 24px; }
 
-/* ── TRUNCATION ── */
-.truncate   { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-/* ── TRANSITIONS ── */
+/* ── MISC ── */
+.truncate          { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .transition-colors { transition: color var(--duration-fast), background var(--duration-fast), border-color var(--duration-fast); }
 .transition-all    { transition: all var(--duration-default) var(--ease-out); }
-.t-role { font-family: var(--font-body); font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-tertiary); }
+
+/* ── SEMANTIC SPACING — enforces consistent label→content gaps ── */
+/* Section label above a full section (e.g. NEEDS ATTENTION, BUSINESS HEALTH) */
+.section-gap  { margin-bottom: 10px; }
+/* Card-internal heading above its content (e.g. TOP 3 PRIORITIES) */
+.card-heading-gap { margin-bottom: 12px; }
+/* Sub-label above a value (e.g. OUTSTANDING → ₹0) */
+.sub-label-gap { margin-bottom: 3px; }
+/* Icon-row in MetricCard above the metric number */
+.metric-header-gap { margin-bottom: 10px; }
+/* Gap utilities to ensure Tailwind scanning */
+.gap-9 { gap: 36px; }

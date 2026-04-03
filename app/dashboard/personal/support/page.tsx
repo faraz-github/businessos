@@ -37,8 +37,8 @@ export default function PersonalSupportPage() {
 
   return (
     <PageTransition>
-      <div className="flex flex-col gap-6">
-        <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-9">
+        <div className="flex items-center justify-between mb-2">
           <div>
             <h1 className="t-h1">Support Periods</h1>
             <p className="t-xs mt-1">Track active support and retention touchpoints.</p>
@@ -51,7 +51,7 @@ export default function PersonalSupportPage() {
         ) : (
           <>
             {active.length > 0 && (
-              <div className="flex flex-col gap-2">
+              <div className="flex flex-col gap-3">
                 <h2 className="t-label">Active</h2>
                 {active.map((sp) => {
                   const days = daysUntil(sp.end_date);
@@ -76,7 +76,7 @@ export default function PersonalSupportPage() {
               </div>
             )}
             {ended.length > 0 && (
-              <div className="flex flex-col gap-2">
+              <div className="flex flex-col gap-3">
                 <h2 className="t-label">Ended</h2>
                 {ended.map((sp) => (
                   <Card key={sp.id} variant="base" className="flex items-center gap-4" style={{ opacity: 0.6 }}>
@@ -110,7 +110,7 @@ function ClosingComposer({ period, brand, onClose }: { period: any; brand: any; 
 
   return (
     <Modal open={true} onClose={onClose} title="Closing Message" description={`For ${clientName}`} size="md">
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-5">
         {/* Read-only textarea styled distinctly */}
         <div className="p-3 bg-hover radius-md border-subtle" style={{ whiteSpace: 'pre-wrap', fontSize: 13, fontFamily: 'var(--font-body)', color: 'var(--text-primary)', lineHeight: 1.6, minHeight: 200, overflowY: 'auto' }}>
           {message}
@@ -158,9 +158,9 @@ function AddSupportModal({ open, onClose, mode, clients, currentUser, onCreated 
 
   return (
     <Modal open={open} onClose={onClose} title="Add Support Period" size="sm">
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-5">
         <Select label="Client" placeholder="Select..." options={clients.map((c: Client) => ({ value: c.id, label: c.name }))} value={clientId} onChange={(e) => setClientId(e.target.value)} />
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-4">
           <Input label="Start Date" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
           <Input label="End Date" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
         </div>

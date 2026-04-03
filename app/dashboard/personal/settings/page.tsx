@@ -91,7 +91,7 @@ function AccessSelector({
   );
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-3">
       {modeBlock('personal', allowedPersonal !== null, allowedPersonal, ALL_SECTIONS.personal)}
       {modeBlock('agency', allowedAgency !== null, allowedAgency, ALL_SECTIONS.agency)}
     </div>
@@ -151,18 +151,18 @@ function MemberModal({
 
         {/* Body */}
         <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 14, maxHeight: '70vh', overflowY: 'auto' }}>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-4">
             <Input label="Full Name" value={name} onChange={e => setName(e.target.value)} placeholder="Jane Smith" />
             <Input label="Email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="jane@company.com" />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-4">
             <Input label={isEdit ? 'New Password (leave blank to keep)' : 'Password'} type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Min 8 characters" />
             <Input label="Confirm Password" type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="Repeat password" />
           </div>
           {/* Access control — only for non-superadmin members */}
           {!isSelfEdit && (
             <div>
-              <p className="t-label mb-2.5">Access Control</p>
+              <p className="t-label section-gap">Access Control</p>
               <AccessSelector allowedPersonal={allowedPersonal} allowedAgency={allowedAgency} onChangePersonal={setAllowedPersonal} onChangeAgency={setAllowedAgency} />
             </div>
           )}
@@ -216,7 +216,7 @@ function TeamTab() {
   const teamMembers = members.filter(m => m.role !== 'superadmin');
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -230,7 +230,7 @@ function TeamTab() {
 
       {/* SuperAdmin row — editable */}
       {superAdmin && (
-        <div className="bg-card", border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)', padding: '14px 16px' }}>
+        <div className="card" style={{ padding: '14px 16px' }}>
           <div className="flex items-center gap-3">
             <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--accent-blue-dim)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <Shield size={16} style={{ color: 'var(--accent-blue)' }} />
@@ -261,15 +261,15 @@ function TeamTab() {
       {loading ? (
         <p className="t-xs text-tertiary">Loading...</p>
       ) : teamMembers.length === 0 ? (
-        <div className="bg-card", border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)', padding: '32px 20px', textAlign: 'center' }}>
+        <div className="card" style={{ padding: '32px 20px', textAlign: 'center' }}>
           <UserCog size={32} style={{ color: 'var(--text-tertiary)', margin: '0 auto 12px' }} />
           <p className="t-sm-medium">No team members yet</p>
           <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4, fontFamily: 'var(--font-body)' }}>Add a team member to grant them access to the platform.</p>
         </div>
       ) : (
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-3">
           {teamMembers.map(member => (
-            <div key={member.id} className="bg-card", border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)', padding: '14px 16px', opacity: member.is_active ? 1 : 0.55, transition: 'opacity 200ms' }}>
+            <div key={member.id} className="card" style={{ padding: '14px 16px', opacity: member.is_active ? 1 : 0.55, transition: 'opacity 200ms' }}>
               <div className="flex items-center gap-3">
                 <div style={{ width: 36, height: 36, borderRadius: '50%', background: member.is_active ? 'var(--accent-violet-dim)' : 'var(--bg-hover)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: 'var(--accent-violet)', fontFamily: 'var(--font-display)' }}>
                   {member.name[0].toUpperCase()}
@@ -374,7 +374,7 @@ function BrandTab() {
 
   return (
     <form onSubmit={handleSubmit(onSubmit)}>
-      <div className="flex flex-col gap-5">
+      <div className="flex flex-col gap-6">
         <Tabs
           tabs={[{ value: 'personal', label: 'Personal' }, { value: 'agency', label: 'Agency' }]}
           value={activeMode}
@@ -382,7 +382,7 @@ function BrandTab() {
         />
         <input type="hidden" {...register('mode')} />
         <div className="grid grid-cols-2 gap-4">
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-4">
             <Input label="Business Name" {...register('business_name')} error={errors.business_name?.message} />
             <Input label="Tagline" {...register('tagline')} />
             <Input label="Email" type="email" {...register('email')} />
@@ -390,7 +390,7 @@ function BrandTab() {
             <Input label="Website" {...register('website')} />
             <Input label="GST Number" {...register('gst_number')} />
           </div>
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-4">
             <ColorPicker label="Primary Colour" value={primaryColour} onChange={v => setValue('primary_colour', v)} />
             <ColorPicker label="Secondary Colour" value={secondaryColour} onChange={v => setValue('secondary_colour', v)} />
             <Select label="Tone of Voice" {...register('tone')} options={[{ value: 'confident', label: 'Confident' }, { value: 'conversational', label: 'Conversational' }, { value: 'formal', label: 'Formal' }]} />
@@ -432,10 +432,10 @@ export default function SettingsPage() {
 
   return (
     <PageTransition>
-      <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-9">
         <div>
-          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 26, fontWeight: 800, letterSpacing: '-0.5px', color: 'var(--text-primary)' }}>Settings</h1>
-          <p className="t-xs mt-1.5">Manage your brand and team access.</p>
+          <h1 className="t-h1">Settings</h1>
+          <p className="t-xs mt-1">Manage your brand and team access.</p>
         </div>
         <Tabs tabs={tabs} value={activeTab} onChange={setActiveTab} />
         <Card variant="base">

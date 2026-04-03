@@ -50,7 +50,7 @@ function MetricCard({ icon, iconColor, label, value, sub, children }: {
   icon: React.ReactNode; iconColor: string; label: string; value: string | number; sub?: string; children?: React.ReactNode;
 }) {
   return (
-    <div className="card p-5">
+    <div className="card">
       <div className="flex items-center gap-2 mb-3">
         <div className="w-7 h-7 radius-sm flex items-center justify-center shrink-0"
           style={{ background: `${iconColor}20`, color: iconColor }}>
@@ -111,7 +111,7 @@ export function AgencyHomeClient({ attentionItems, stats, priorities, timeBlocks
 
   return (
     <PageTransition>
-      <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-9">
         {/* Agency header */}
         <div>
           <h1 className="t-display">Good {greeting}</h1>
@@ -120,8 +120,8 @@ export function AgencyHomeClient({ attentionItems, stats, priorities, timeBlocks
 
         {/* BD Activity */}
         <div>
-          <p className="t-label mb-3">BD Activity This Week</p>
-          <div className="grid grid-cols-2 gap-3">
+          <p className="t-label section-gap">BD Activity This Week</p>
+          <div className="grid grid-cols-2 gap-4">
             <Card variant="metric">
               <div className="flex items-center gap-2 mb-2">
                 <Kanban size={14} style={{ color: 'var(--accent-violet)' }} />
@@ -139,14 +139,14 @@ export function AgencyHomeClient({ attentionItems, stats, priorities, timeBlocks
           </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: 20 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: 28 }}>
           {/* Left */}
-          <div className="flex flex-col gap-5">
+          <div className="flex flex-col gap-6">
             {/* Attention Feed */}
             <div>
-              <p className="t-label mb-2.5">Needs Attention</p>
+              <p className="t-label section-gap">Needs Attention</p>
               {attentionItems.length === 0 ? (
-                <div className="card p-8 text-center">
+                <div className="card" style={{ padding: "40px 24px", textAlign: "center" }}>
                   <div className="w-11 h-11 rounded-full bg-accent-green-dim flex items-center justify-center mx-auto mb-3"
                     style={{ color: 'var(--accent-green)' }}>
                     <CheckCircle2 size={20} />
@@ -155,7 +155,7 @@ export function AgencyHomeClient({ attentionItems, stats, priorities, timeBlocks
                   <p className="t-xs mt-1">Nothing needs your attention right now.</p>
                 </div>
               ) : (
-                <div className="flex flex-col gap-2">
+                <div className="flex flex-col gap-3">
                   {attentionItems.map((item, i) => {
                     const cfgs = {
                       critical: { color: 'var(--accent-red)', bg: 'var(--accent-red-dim)', icon: <AlertCircle size={13} /> },
@@ -166,7 +166,7 @@ export function AgencyHomeClient({ attentionItems, stats, priorities, timeBlocks
                     return (
                       <motion.div key={item.id} {...stagger(i)}>
                         <Link href={item.link} style={{ textDecoration: 'none' }}>
-                          <div className="card p-3 flex items-start gap-3 cursor-pointer interactive hover-bg-hover">
+                          <div className="card flex items-start gap-3 cursor-pointer interactive hover-bg-hover" style={{ padding: "14px 18px" }}>
                             <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 mt-0.5"
                               style={{ background: cfg.bg, color: cfg.color }}>{cfg.icon}</div>
                             <div className="flex-1 min-w-0">
@@ -187,21 +187,21 @@ export function AgencyHomeClient({ attentionItems, stats, priorities, timeBlocks
 
             {/* Stats */}
             <div>
-              <p className="t-label mb-2.5">Business Health</p>
-              <div className="grid grid-cols-2 gap-3">
+              <p className="t-label section-gap">Business Health</p>
+              <div className="grid grid-cols-2 gap-4">
                 <MetricCard icon={<IndianRupee size={14} />} iconColor="var(--accent-green)" label="Money"
                   value={formatINR(stats?.money?.revenueThisMonth || 0)} sub="Revenue this month">
-                  <div className="grid grid-cols-2 gap-3 mt-3 pt-3 border-t-subtle">
-                    <div><p className="t-label mb-1">Outstanding</p><p className="t-xs-medium" style={{ color: 'var(--accent-amber)' }}>{formatCompactINR(stats?.money?.outstandingTotal || 0)}</p></div>
-                    <div><p className="t-label mb-1">Overdue</p><p className="t-xs-medium" style={{ color: 'var(--accent-red)' }}>{formatCompactINR(stats?.money?.overdueTotal || 0)}</p></div>
+                  <div className="grid grid-cols-2 gap-4 mt-4 pt-4 border-t-subtle">
+                    <div><p className="t-label sub-label-gap">Outstanding</p><p className="t-xs-medium" style={{ color: 'var(--accent-amber)' }}>{formatCompactINR(stats?.money?.outstandingTotal || 0)}</p></div>
+                    <div><p className="t-label sub-label-gap">Overdue</p><p className="t-xs-medium" style={{ color: 'var(--accent-red)' }}>{formatCompactINR(stats?.money?.overdueTotal || 0)}</p></div>
                   </div>
                   {stats?.money?.sparklineData && <div className="mt-2"><Sparkline data={stats.money.sparklineData} color="var(--accent-green)" height={36} /></div>}
                 </MetricCard>
                 <MetricCard icon={<Users size={14} />} iconColor="var(--accent-blue)" label="Clients"
                   value={stats?.clients?.totalActive || 0} sub="Active clients">
-                  <div className="grid grid-cols-2 gap-3 mt-3 pt-3 border-t-subtle">
-                    <div><p className="t-label mb-1">Pipeline</p><p className="t-sm-semibold">{stats?.clients?.pipelineLeads || 0}</p></div>
-                    <div><p className="t-label mb-1">All time</p><p className="t-sm-semibold">{stats?.clients?.totalAllTime || 0}</p></div>
+                  <div className="grid grid-cols-2 gap-4 mt-4 pt-4 border-t-subtle">
+                    <div><p className="t-label sub-label-gap">Pipeline</p><p className="t-sm-semibold">{stats?.clients?.pipelineLeads || 0}</p></div>
+                    <div><p className="t-label sub-label-gap">All time</p><p className="t-sm-semibold">{stats?.clients?.totalAllTime || 0}</p></div>
                   </div>
                 </MetricCard>
                 <MetricCard icon={<Share2 size={14} />} iconColor="var(--accent-violet)" label="Brand" value={stats?.social?.postsThisMonth || 0} sub="Posts this month" />
@@ -211,12 +211,11 @@ export function AgencyHomeClient({ attentionItems, stats, priorities, timeBlocks
           </div>
 
           {/* Right — Focus */}
-          <div className="flex flex-col gap-4">
-            <p className="t-label">Today&apos;s Focus</p>
-            {/* Priorities */}
-            <div className="card p-4">
-              <p className="t-label mb-3">Top 3 Priorities</p>
-              <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-5">
+            {/* Priorities — paddingTop matches left col label+gap offset */}
+            <div className="card">
+              <p className="t-label section-gap">Top 3 Priorities</p>
+              <div className="flex flex-col gap-3">
                 {prios.slice(0, 3).map((p) => (
                   <div key={p.id} className="flex items-start gap-2.5">
                     <button onClick={() => handleTogglePriority(p.id, p.completed)} style={{
@@ -253,7 +252,7 @@ export function AgencyHomeClient({ attentionItems, stats, priorities, timeBlocks
             </div>
 
             {/* Time Blocks */}
-            <div className="card p-4">
+            <div className="card">
               <div className="flex items-center justify-between mb-3">
                 <p className="t-label">Time Blocks</p>
                 <button onClick={() => setShowAddBlock(true)} style={{ color: 'var(--accent-blue)', background: 'none', border: 'none', cursor: 'pointer', display: 'flex' }}>
@@ -310,13 +309,13 @@ function AddTimeBlockModal({ open, onClose, onAdd }: {
 
   return (
     <Modal open={open} onClose={onClose} title="Add Time Block" size="sm">
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-5">
         <Select label="Block Type" options={[
           { value: 'deep', label: 'Deep Work' }, { value: 'outreach', label: 'Outreach' },
           { value: 'admin', label: 'Admin' }, { value: 'personal', label: 'Personal' },
         ]} value={type} onChange={(e) => setType(e.target.value)} />
         <Input label="Label (Optional)" value={label} onChange={(e) => setLabel(e.target.value)} placeholder="e.g., Client project sprint" />
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-4">
           <Input label="Start Time" type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
           <Input label="End Time" type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} />
         </div>

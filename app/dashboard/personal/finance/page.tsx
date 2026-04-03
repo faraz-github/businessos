@@ -88,8 +88,8 @@ export default function PersonalFinancePage() {
 
   return (
     <PageTransition>
-      <div className="flex flex-col gap-6">
-        <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-9">
+        <div className="flex items-center justify-between mb-2">
           <div>
             <h1 className="t-h1">Finance</h1>
             <p className="t-xs mt-1">Track money in, money out, and subscriptions.</p>
@@ -101,7 +101,7 @@ export default function PersonalFinancePage() {
         </div>
 
         {/* Summary Cards — using t-metric-sm CSS class */}
-        <div className="grid grid-cols-4 gap-3">
+        <div className="grid grid-cols-4 gap-4">
           {[
             { icon: <TrendingUp size={12} />, iconColor: 'var(--accent-green)',  label: 'Income',       value: monthIncome,              valueColor: 'var(--accent-green)' },
             { icon: <TrendingDown size={12} />,iconColor: 'var(--accent-red)',   label: 'Expenses',     value: monthExpense,             valueColor: 'var(--accent-red)' },
@@ -131,13 +131,13 @@ export default function PersonalFinancePage() {
 
         {activeTab === 'overview' && (
           <Card variant="base">
-            <p className="t-label mb-3">Revenue vs Expenses (6 Months)</p>
+            <p className="t-label section-gap">Revenue vs Expenses (6 Months)</p>
             <RevenueChart data={chartData} />
           </Card>
         )}
 
         {activeTab === 'invoices' && (
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-3">
             {invoices.length === 0 ? (
               <Card><EmptyState icon={<Receipt />} title="No invoices" description="Create invoices in Paperwork." /></Card>
             ) : invoices.map((inv) => {
@@ -165,7 +165,7 @@ export default function PersonalFinancePage() {
         )}
 
         {activeTab === 'transactions' && (
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-3">
             {transactions.length === 0 ? (
               <Card>
                 <EmptyState icon={<IndianRupee />} title="No transactions" description="Log your first income or expense."
@@ -192,7 +192,7 @@ export default function PersonalFinancePage() {
         )}
 
         {activeTab === 'subscriptions' && (
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-3">
             {subscriptions.length === 0 ? (
               <Card>
                 <EmptyState icon={<CreditCard />} title="No subscriptions" description="Track your recurring expenses."
@@ -253,7 +253,7 @@ function AddTransactionModal({ open, onClose, mode, currentUser, onCreated }: an
 
   return (
     <Modal open={open} onClose={onClose} title="Add Transaction" size="sm">
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-5">
         <Tabs tabs={[{ value: 'income', label: 'Income' }, { value: 'expense', label: 'Expense' }]} value={type}
           onChange={(v) => { setType(v as any); setCategory(v === 'income' ? 'project_payment' : 'tools_and_subscriptions'); }} />
         <Select label="Category" options={categories} value={category} onChange={(e) => setCategory(e.target.value)} />
@@ -289,9 +289,9 @@ function AddSubscriptionModal({ open, onClose, mode, currentUser, onCreated }: a
 
   return (
     <Modal open={open} onClose={onClose} title="Add Subscription" size="sm">
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-5">
         <Input label="Name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g., Figma" />
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-4">
           <Input label="Cost (₹)" type="number" value={cost} onChange={(e) => setCost(e.target.value)} placeholder="0" />
           <Select label="Billing Cycle" options={[{ value: 'monthly', label: 'Monthly' }, { value: 'annual', label: 'Annual' }]} value={cycle} onChange={(e) => setCycle(e.target.value)} />
         </div>

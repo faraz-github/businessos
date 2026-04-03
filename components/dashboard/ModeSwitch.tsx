@@ -15,28 +15,58 @@ export function ModeSwitch() {
   }
 
   return (
-    <div className="flex items-center bg-hover radius-md p-[3px] w-full mb-0.5">
+    <div style={{
+      display: 'flex',
+      alignItems: 'center',
+      background: 'var(--bg-hover)',
+      borderRadius: 'var(--radius-md)',
+      padding: 3,
+      gap: 2,
+      width: '100%',
+    }}>
       {(['personal', 'agency'] as const).map(m => {
         const isActive = mode === m;
         return (
           <button
             key={m}
             onClick={() => handleModeChange(m)}
-            className={`relative flex-1 flex items-center justify-center gap-1.5 py-2 radius-sm t-xs font-medium interactive ${
-              isActive ? 'text-primary' : 'text-tertiary hover-text-secondary'
-            }`}
-            style={{ border: 'none', cursor: 'pointer', background: 'transparent' }}
+            style={{
+              position: 'relative',
+              flex: 1,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 5,
+              padding: '6px 8px',   /* compact — not dominating the sidebar */
+              borderRadius: 'var(--radius-sm)',
+              border: 'none',
+              cursor: 'pointer',
+              background: 'transparent',
+              fontSize: 12,
+              fontFamily: 'var(--font-body)',
+              fontWeight: 500,
+              color: isActive ? 'var(--text-primary)' : 'var(--text-tertiary)',
+              transition: 'color 150ms',
+              whiteSpace: 'nowrap',
+            }}
+            onMouseEnter={e => { if (!isActive) (e.currentTarget as HTMLElement).style.color = 'var(--text-secondary)'; }}
+            onMouseLeave={e => { if (!isActive) (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)'; }}
           >
             {isActive && (
               <motion.div
                 layoutId="mode-indicator"
-                className="absolute inset-0 bg-surface radius-sm shadow-[0_1px_4px_rgba(0,0,0,0.25)]"
-                transition={{ duration: 0.2, ease: [0, 0, 0.2, 1] }}
+                style={{
+                  position: 'absolute', inset: 0,
+                  background: 'var(--bg-surface)',
+                  borderRadius: 'var(--radius-sm)',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.12), 0 0 0 1px var(--border-subtle)',
+                }}
+                transition={{ duration: 0.18, ease: [0, 0, 0.2, 1] }}
               />
             )}
-            <span className="relative z-10 flex items-center gap-1.5">
-              {m === 'personal' ? <User size={13} /> : <Building2 size={13} />}
-              {m === 'personal' ? 'Personal' : 'Agency'}
+            <span style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', gap: 5 }}>
+              {m === 'personal' ? <User size={12} /> : <Building2 size={12} />}
+              <span style={{ textTransform: 'capitalize' }}>{m}</span>
             </span>
           </button>
         );

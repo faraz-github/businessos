@@ -7,9 +7,10 @@ interface CardProps extends HTMLAttributes<HTMLDivElement> {
   children: ReactNode;
 }
 
+// CSS classes .card, .card-elevated, .card-metric already include padding
 const variantClass: Record<CardVariant, string> = {
-  base:     'card p-5',
-  elevated: 'card-elevated p-6',
+  base:     'card',
+  elevated: 'card-elevated',
   metric:   'card-metric',
 };
 

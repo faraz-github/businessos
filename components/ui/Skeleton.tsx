@@ -6,7 +6,7 @@ export function Skeleton({ className = '' }: SkeletonProps) {
 
 export function SkeletonCard() {
   return (
-    <div className="card p-5">
+    <div className="card">
       <Skeleton className="h-3 w-20 mb-3" />
       <Skeleton className="h-7 w-32 mb-2" />
       <Skeleton className="h-3 w-24" />

@@ -1,12 +1,7 @@
 'use client';
 
 import {
-  createContext,
-  useContext,
-  useState,
-  useEffect,
-  useCallback,
-  type ReactNode,
+  createContext, useContext, useState, useEffect, useCallback, type ReactNode,
 } from 'react';
 import { usePathname } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
@@ -38,58 +33,44 @@ export function BrandProvider({ children }: { children: ReactNode }) {
   const fetchBrands = useCallback(async () => {
     setLoading(true);
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return;
+      // Use our custom JWT auth — NOT supabase.auth.getUser() which requires Supabase Auth
+      const meRes = await fetch('/api/auth/me');
+      if (!meRes.ok) return;
+      const me = await meRes.json() as { id: string };
 
       const { data } = await supabase
         .from('brand_profiles')
         .select('*')
-        .eq('user_id', user.id);
+        .eq('user_id', me.id);
 
       if (data) {
         const personal = data.find((b) => b.mode === 'personal') as BrandProfile | undefined;
-        const agency = data.find((b) => b.mode === 'agency') as BrandProfile | undefined;
+        const agency   = data.find((b) => b.mode === 'agency')   as BrandProfile | undefined;
         setPersonalBrand(personal ?? null);
-        setAgencyBrand(agency ?? null);
+        setAgencyBrand(agency   ?? null);
       }
-    } catch (error) {
-      console.error('Failed to fetch brand profiles:', error);
+    } catch (err) {
+      console.error('Failed to fetch brand profiles:', err);
     } finally {
       setLoading(false);
     }
   }, [supabase]);
 
-  useEffect(() => {
-    fetchBrands();
-  }, [fetchBrands]);
+  useEffect(() => { fetchBrands(); }, [fetchBrands]);
 
   const brand = mode === 'personal' ? personalBrand : agencyBrand;
 
   return (
-    <BrandContext.Provider
-      value={{
-        mode,
-        setMode,
-        brand,
-        personalBrand,
-        agencyBrand,
-        loading,
-        refreshBrand: fetchBrands,
-      }}
-    >
+    <BrandContext.Provider value={{ mode, setMode, brand, personalBrand, agencyBrand, loading, refreshBrand: fetchBrands }}>
       {children}
     </BrandContext.Provider>
   );
 }
 
 export function useBrand() {
-  const context = useContext(BrandContext);
-  if (!context) {
-    throw new Error('useBrand must be used within a BrandProvider');
-  }
-  return context;
+  const ctx = useContext(BrandContext);
+  if (!ctx) throw new Error('useBrand must be used within a BrandProvider');
+  return ctx;
 }
 
 export function useMode(): [Mode, (mode: Mode) => void] {

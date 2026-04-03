@@ -48,8 +48,8 @@ export default function PersonalSocialPage() {
 
   return (
     <PageTransition>
-      <div className="flex flex-col gap-6">
-        <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-9">
+        <div className="flex items-center justify-between mb-2">
           <div>
             <h1 className="t-h1">Social & Brand</h1>
             <p className="t-xs mt-1">Manage your personal brand across platforms.</p>
@@ -73,7 +73,7 @@ export default function PersonalSocialPage() {
               calendarPosts.length === 0 ? (
                 <Card><EmptyState icon={<Calendar />} title="No posts scheduled" description="Add your first post to start tracking." /></Card>
               ) : (
-                <div className="flex flex-col gap-2">
+                <div className="flex flex-col gap-3">
                   {calendarPosts.map((post) => (
                     <Card key={post.id} variant="base" className="flex items-center gap-3">
                       <div className="w-1 h-10 rounded-full shrink-0"
@@ -88,7 +88,7 @@ export default function PersonalSocialPage() {
                 </div>
               )
             ) : (
-              <div className="flex flex-col gap-2">
+              <div className="flex flex-col gap-3">
                 {reviews.length === 0 ? (
                   <Card><EmptyState icon={<CheckCircle />} title="No review items" description="Set up your GitHub profile review checklist." /></Card>
                 ) : (
@@ -111,9 +111,9 @@ export default function PersonalSocialPage() {
           </div>
 
           {/* Stats + Ideas */}
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-4">
             <Card variant="metric">
-              <p className="t-label mb-2">{activeTab === 'linkedin' ? 'Post Streak' : 'Review Status'}</p>
+              <p className="t-label section-gap">{activeTab === 'linkedin' ? 'Post Streak' : 'Review Status'}</p>
               <p className="t-metric">{publishedCount}</p>
               <p className="t-2xs mt-1">published this month</p>
             </Card>
@@ -177,10 +177,10 @@ function NewPostForm({ mode, platform, currentUser, onClose, onCreated }: {
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-5">
       <Input label="Title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Post title or topic" />
       <Textarea label="Content" value={content} onChange={(e) => setContent(e.target.value)} placeholder="Write your post or notes..." />
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-4">
         <Input label="Planned Date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
         <Select
           label="Status"

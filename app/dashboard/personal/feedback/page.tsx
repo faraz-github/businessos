@@ -34,8 +34,8 @@ export default function PersonalFeedbackPage() {
 
   return (
     <PageTransition>
-      <div className="flex flex-col gap-6">
-        <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-9">
+        <div className="flex items-center justify-between mb-2">
           <div>
             <h1 className="t-h1">Feedback</h1>
             <p className="t-xs mt-1">Collect and manage client testimonials.</p>
@@ -44,24 +44,24 @@ export default function PersonalFeedbackPage() {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-3 gap-4">
           <Card variant="metric">
-            <p className="t-label mb-2">Total</p>
+            <p className="t-label section-gap">Total</p>
             <p className="t-metric">{testimonials.length}</p>
           </Card>
           <Card variant="metric">
-            <p className="t-label mb-2">Portfolio</p>
+            <p className="t-label section-gap">Portfolio</p>
             <p className="t-metric">{portfolioUsable.length}</p>
           </Card>
           <Card variant="metric">
-            <p className="t-label mb-2">Clients</p>
+            <p className="t-label section-gap">Clients</p>
             <p className="t-metric">{new Set(testimonials.map((t) => t.client_id)).size}</p>
           </Card>
         </div>
 
         {/* Request Feedback */}
         <Card variant="base">
-          <p className="t-label mb-3">Request Feedback</p>
+          <p className="t-label section-gap">Request Feedback</p>
           <div className="grid grid-cols-2 gap-2">
             {clients
               .filter((c) => ['delivered', 'deployed', 'support_period_active', 'completed'].includes(c.current_stage))
@@ -89,7 +89,7 @@ export default function PersonalFeedbackPage() {
         {testimonials.length === 0 ? (
           <Card><EmptyState icon={<Quote />} title="No testimonials yet" description="Collect feedback from your delivered clients." /></Card>
         ) : (
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-3">
             {testimonials.map((t) => (
               <Card key={t.id} variant="base">
                 <div className="flex items-start gap-3">
@@ -141,10 +141,10 @@ function AddTestimonialModal({ open, onClose, mode, clients, currentUser, onCrea
 
   return (
     <Modal open={open} onClose={onClose} title="Add Testimonial" size="md">
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-5">
         <Select label="Client" placeholder="Select client..." options={clients.map((c: Client) => ({ value: c.id, label: c.name }))} value={clientId} onChange={(e) => setClientId(e.target.value)} />
         <Textarea label="Testimonial Content" value={content} onChange={(e) => setContent(e.target.value)} placeholder="What did they say?" />
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-4">
           <Select label="Source" options={[{ value: 'direct', label: 'Direct' }, { value: 'linkedin', label: 'LinkedIn' }, { value: 'email', label: 'Email' }, { value: 'form', label: 'Form' }]} value={source} onChange={(e) => setSource(e.target.value)} />
           <div className="flex flex-col gap-1.5">
             <label className="t-label">Portfolio Usable</label>

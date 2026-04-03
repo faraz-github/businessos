@@ -14,6 +14,12 @@ export interface CurrentUser {
 let cachedUser: CurrentUser | null = null;
 let fetchPromise: Promise<CurrentUser | null> | null = null;
 
+/** Call this on logout to clear the module-level cache. */
+export function clearUserCache(): void {
+  cachedUser = null;
+  fetchPromise = null;
+}
+
 async function fetchCurrentUser(): Promise<CurrentUser | null> {
   if (cachedUser) return cachedUser;
   if (fetchPromise) return fetchPromise;

@@ -5,7 +5,7 @@ export default function NotFound() {
         <p className="t-display">404</p>
         <p className="t-xs text-secondary mt-3">This page doesn&apos;t exist.</p>
         <a href="/dashboard/personal/home"
-          className="inline-block mt-6 px-5 py-2.5 bg-accent-blue text-white radius-md t-xs font-medium no-underline interactive">
+          className="inline-block mt-6 bg-accent-blue radius-md interactive no-underline" style={{ padding: "10px 20px", color: "#fff", fontSize: 12, fontWeight: 500, fontFamily: "var(--font-body)" }}>
           Go home
         </a>
       </div>
