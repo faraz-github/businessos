@@ -38,7 +38,7 @@ export default function PersonalFeedbackPage() {
         <div className="flex items-center justify-between mb-2">
           <div>
             <h1 className="t-h1">Feedback</h1>
-            <p className="t-xs mt-1">Collect and manage client testimonials.</p>
+            <p className="t-xs mt-1">Request feedback, store testimonials, and send re-engagement messages.</p>
           </div>
           <Button icon={<Plus size={14} />} onClick={() => setShowAdd(true)}>Add Testimonial</Button>
         </div>
@@ -64,7 +64,7 @@ export default function PersonalFeedbackPage() {
           <p className="t-label section-gap">Request Feedback</p>
           <div className="grid grid-cols-2 gap-2">
             {clients
-              .filter((c) => ['delivered', 'deployed', 'support_period_active', 'completed'].includes(c.current_stage))
+              .filter((c) => ['handover', 'deployed', 'support_active', 'feedback_sent', 'retention_sent', 'completed'].includes(c.current_stage))
               .map((client) => (
                 <div key={client.id} className="flex items-center gap-3 p-3 radius-md border-subtle hover-bg-hover interactive">
                   <div className="flex-1 min-w-0">

@@ -214,14 +214,14 @@ export function PersonalHomeClient({ attentionItems, stats, priorities: initialP
                 <MetricCard icon={<Users size={15} />} iconColor="var(--accent-blue)"
                   label="Clients" value={stats?.clients?.totalActive || 0} sub="Active clients">
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--border-subtle)' }}>
-                    <SubMetric label="Pipeline" value={String(stats?.clients?.pipelineLeads || 0)} />
+                    <SubMetric label="LinkedIn leads" value={String(stats?.clients?.pipelineLeads || 0)} />
                     <SubMetric label="All time" value={String(stats?.clients?.totalAllTime || 0)} />
                   </div>
                 </MetricCard>
 
                 {/* Brand */}
                 <MetricCard icon={<Share2 size={15} />} iconColor="var(--accent-violet)"
-                  label="Brand" value={stats?.social?.postsThisMonth || 0} sub="Posts this month" />
+                  label="Outreach" value={stats?.social?.postsThisMonth || 0} sub="Posts this month" />
 
                 {/* Work */}
                 <MetricCard icon={<Briefcase size={15} />} iconColor="var(--accent-amber)"

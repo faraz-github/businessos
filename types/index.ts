@@ -8,23 +8,37 @@ export type Tone = 'formal' | 'conversational' | 'confident';
 export type PreferredChannel = 'email' | 'whatsapp' | 'phone';
 
 export type ClientStage =
-  | 'interested'
-  | 'proposal_sent'
-  | 'contract_sent'
-  | 'contract_signed'
-  | 'requirements_sent'
-  | 'requirements_received'
-  | 'initial_payment_received'
-  | 'work_in_progress'
-  | 'phase_1_complete'
-  | 'phase_2_complete'
-  | 'review_and_feedback'
-  | 'revisions_complete'
-  | 'final_payment_received'
-  | 'delivered'
-  | 'deployed'
-  | 'support_period_active'
-  | 'completed';
+  // Discovery
+  | 'lead'               // Found on LinkedIn, not yet contacted
+  | 'contacted'          // Sent connection/intro message
+  | 'qualified'          // Showed interest, had initial conversation
+  // Proposal
+  | 'proposal_sent'      // Proposal shared
+  | 'proposal_accepted'  // Verbal/written acceptance
+  // Contracting
+  | 'contract_sent'      // Contract + SOW sent for signing
+  | 'contract_signed'    // Signed, upfront payment requested
+  // Kickoff
+  | 'upfront_paid'       // 20-50% upfront received
+  | 'requirements_sent'  // Client requirements doc sent
+  | 'requirements_received' // Requirements filled and returned
+  | 'credentials_pending' // Waiting for domain/hosting/access
+  // Active development
+  | 'in_progress'        // Development underway
+  | 'milestone_review'   // Shared update, awaiting feedback
+  | 'revision'           // Revisions in progress
+  // Closing
+  | 'final_review'       // Final walkthrough with client
+  | 'final_payment_sent' // Final invoice sent
+  | 'final_payment_received' // Full payment cleared
+  // Handover
+  | 'handover'           // Code/credentials/docs transferred
+  | 'deployed'           // Live and deployed
+  // Post-project
+  | 'support_active'     // Within support period
+  | 'feedback_sent'      // Feedback request sent (~1 week after)
+  | 'retention_sent'     // Re-engagement message sent (~1 month after)
+  | 'completed';         // Fully closed
 
 export type DocumentType = 'proposal' | 'contract' | 'sow' | 'requirements' | 'invoice' | 'delivery';
 export type DocumentStatus = 'draft' | 'final' | 'sent' | 'viewed' | 'signed';

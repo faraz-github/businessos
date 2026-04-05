@@ -40,8 +40,8 @@ export default function PersonalSupportPage() {
       <div className="flex flex-col gap-9">
         <div className="flex items-center justify-between mb-2">
           <div>
-            <h1 className="t-h1">Support Periods</h1>
-            <p className="t-xs mt-1">Track active support and retention touchpoints.</p>
+            <h1 className="t-h1">Support</h1>
+            <p className="t-xs mt-1">Active support periods and closing messages after delivery.</p>
           </div>
           <Button icon={<Plus size={14} />} onClick={() => setShowAdd(true)}>Add Period</Button>
         </div>

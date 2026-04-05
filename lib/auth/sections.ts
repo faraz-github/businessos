@@ -4,7 +4,7 @@
 // ============================================================
 
 export const ALL_SECTIONS = {
-  personal: ['home', 'social', 'compose', 'paperwork', 'clients', 'feedback', 'support', 'finance'],
+  personal: ['home', 'social', 'clients', 'paperwork', 'compose', 'lab', 'finance', 'support', 'feedback'],
   agency: ['home', 'bd-pipeline', 'social', 'compose', 'paperwork', 'clients', 'feedback', 'support', 'finance'],
 } as const;
 
@@ -13,7 +13,7 @@ export type AgencySection = typeof ALL_SECTIONS.agency[number];
 
 export const SECTION_LABELS: Record<string, string> = {
   home: 'Home',
-  social: 'Social & Brand',
+  social: 'Outreach',
   compose: 'Composers',
   paperwork: 'Paperwork',
   clients: 'All Clients',
@@ -21,4 +21,5 @@ export const SECTION_LABELS: Record<string, string> = {
   support: 'Support',
   finance: 'Finance',
   'bd-pipeline': 'BD Pipeline',
+  lab: 'Lab',
 };
