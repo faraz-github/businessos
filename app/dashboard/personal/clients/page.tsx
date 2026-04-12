@@ -85,7 +85,7 @@ export default function PersonalClientsPage() {
   const { mode } = useBrand();
   const { user: currentUser } = useCurrentUser();
   const supabaseRef = useRef(createClient());
-  const supabase = supabaseRef.current;
+  const supabase = supabaseRef.current!;
 
   const [clients, setClients]             = useState<Client[]>([]);
   const [loading, setLoading]             = useState(true);
@@ -285,7 +285,7 @@ function ClientDetailModal({ client, onClose, onStageChange, onUpdate, onDelete 
   onDelete: () => void;
 }) {
   const supabaseRef = useRef(createClient());
-  const supabase = supabaseRef.current;
+  const supabase = supabaseRef.current!;
 
   const [notes, setNotes]         = useState(client.notes || '');
   const [savingNotes, setSavingNotes] = useState(false);
@@ -589,7 +589,7 @@ function CredentialAdder({ clientId, existing, onSaved }: {
   existing: { service: string; detail: string }[];
   onSaved: (updated: { service: string; detail: string }[]) => void;
 }) {
-  const supabase = useRef(createClient()).current;
+  const supabase = useRef(createClient()).current!;
   const [service, setService] = useState('');
   const [detail, setDetail]   = useState('');
   const [saving, setSaving]   = useState(false);
@@ -622,7 +622,7 @@ function CredentialAdder({ clientId, existing, onSaved }: {
 function EditClientModal({ client, onClose, onSaved }: {
   client: Client; onClose: () => void; onSaved: (c: Client) => void;
 }) {
-  const supabase = useRef(createClient()).current;
+  const supabase = useRef(createClient()).current!;
   const [name, setName]               = useState(client.name);
   const [company, setCompany]         = useState(client.company || '');
   const [contactName, setContactName] = useState(client.contact_name || '');
@@ -675,7 +675,7 @@ function EditClientModal({ client, onClose, onSaved }: {
 function CreateClientModal({ open, onClose, mode, currentUser, onCreated }: {
   open: boolean; onClose: () => void; mode: string; currentUser: any; onCreated: (c: Client) => void;
 }) {
-  const supabase = useRef(createClient()).current;
+  const supabase = useRef(createClient()).current!;
   const [name, setName]               = useState('');
   const [company, setCompany]         = useState('');
   const [contactName, setContactName] = useState('');

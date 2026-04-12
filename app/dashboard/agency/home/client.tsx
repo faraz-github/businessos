@@ -115,7 +115,7 @@ export function AgencyHomeClient({
   const { mode } = useBrand();
   const { user: currentUser } = useCurrentUser();
   const supabaseRef = useRef(createClient());
-  const supabase    = supabaseRef.current;
+  const supabase    = supabaseRef.current!;
 
   const [prios, setPrios]     = useState(initialPrios);
   const [blocks, setBlocks]   = useState(initialBlocks);

@@ -75,7 +75,7 @@ function StatusPill({ label, color, bg }: { label: string; color: string; bg: st
 export default function LabPage() {
   const { user: currentUser } = useCurrentUser();
   const supabaseRef = useRef(createClient());
-  const supabase    = supabaseRef.current;
+  const supabase    = supabaseRef.current!;
 
   const [activeTab, setActiveTab]   = useState<'projects' | 'tools' | 'skills'>('projects');
   const [projects, setProjects]     = useState<LabProject[]>([]);
@@ -489,7 +489,7 @@ export default function LabPage() {
 
 // ── PROJECT FORM ───────────────────────────────────────────────
 function ProjectForm({ currentUser, existing, onClose, onSaved }: any) {
-  const supabase = useRef(createClient()).current;
+  const supabase = useRef(createClient()).current!;
   const isEdit = !!existing;
   const [title, setTitle]             = useState(existing?.title || '');
   const [description, setDescription] = useState(existing?.description || '');
@@ -537,7 +537,7 @@ function ProjectForm({ currentUser, existing, onClose, onSaved }: any) {
 
 // ── TOOL FORM ──────────────────────────────────────────────────
 function ToolForm({ currentUser, existing, onClose, onSaved }: any) {
-  const supabase = useRef(createClient()).current;
+  const supabase = useRef(createClient()).current!;
   const isEdit = !!existing;
   const [name, setName]           = useState(existing?.name || '');
   const [category, setCategory]   = useState(existing?.category || 'AI / LLM');
@@ -586,7 +586,7 @@ function ToolForm({ currentUser, existing, onClose, onSaved }: any) {
 
 // ── SKILL FORM ─────────────────────────────────────────────────
 function SkillForm({ currentUser, existing, onClose, onSaved }: any) {
-  const supabase = useRef(createClient()).current;
+  const supabase = useRef(createClient()).current!;
   const isEdit = !!existing;
   const [name, setName]         = useState(existing?.name || '');
   const [category, setCategory] = useState(existing?.category || 'Frontend');

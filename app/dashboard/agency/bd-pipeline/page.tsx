@@ -97,7 +97,7 @@ export default function AgencyBDPipelinePage() {
   const { mode } = useBrand();
   const { user: currentUser } = useCurrentUser();
   const supabaseRef = useRef(createClient());
-  const supabase    = supabaseRef.current;
+  const supabase    = supabaseRef.current!;
 
   const [leads, setLeads]           = useState<Lead[]>([]);
   const [loading, setLoading]       = useState(true);
@@ -679,7 +679,7 @@ function LeadDetailModal({ lead, onClose, onMoveStage, onDelete, onUpdate }: {
   onDelete: (id: string) => void;
   onUpdate: (lead: Lead) => void;
 }) {
-  const supabase = useRef(createClient()).current;
+  const supabase = useRef(createClient()).current!;
   const [newNote, setNewNote]         = useState('');
   const [savingNote, setSavingNote]   = useState(false);
   const [editing, setEditing]         = useState(false);
@@ -923,7 +923,7 @@ function CreateLeadModal({ open, onClose, mode, currentUser, initialTab, onCreat
   open: boolean; onClose: () => void; mode: string; currentUser: any;
   initialTab: 'contacts' | 'deals'; onCreated: (lead: Lead) => void;
 }) {
-  const supabase = useRef(createClient()).current;
+  const supabase = useRef(createClient()).current!;
   const [company, setCompany]         = useState('');
   const [contactName, setContactName] = useState('');
   const [email, setEmail]             = useState('');

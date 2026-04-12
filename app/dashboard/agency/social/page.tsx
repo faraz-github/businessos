@@ -27,7 +27,7 @@ export default function AgencyContentPage() {
   const { mode } = useBrand();
   const { user: currentUser } = useCurrentUser();
   const supabaseRef = useRef(createClient());
-  const supabase    = supabaseRef.current;
+  const supabase    = supabaseRef.current!;
 
   const [posts, setPosts]           = useState<SocialPost[]>([]);
   const [loading, setLoading]       = useState(true);
@@ -254,7 +254,7 @@ function PostForm({ currentUser, mode, existing, onClose, onSaved }: {
   currentUser: any; mode: string; existing?: SocialPost;
   onClose: () => void; onSaved: (post: SocialPost) => void;
 }) {
-  const supabase  = useRef(createClient()).current;
+  const supabase  = useRef(createClient()).current!;
   const [title, setTitle]       = useState(existing?.title || '');
   const [content, setContent]   = useState(existing?.content || '');
   const [date, setDate]         = useState(existing?.planned_date || '');

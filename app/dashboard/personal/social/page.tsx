@@ -74,7 +74,7 @@ export default function OutreachPage() {
   const { mode } = useBrand();
   const { user: currentUser } = useCurrentUser();
   const supabaseRef = useRef(createClient());
-  const supabase = supabaseRef.current;
+  const supabase = supabaseRef.current!;
 
   const [activeTab, setActiveTab] = useState<'pipeline' | 'content'>('pipeline');
   const [leads, setLeads] = useState<OutreachLead[]>([]);
@@ -484,7 +484,7 @@ function AddLeadForm({ currentUser, mode, onClose, onCreated }: {
   currentUser: any; mode: string;
   onClose: () => void; onCreated: (lead: OutreachLead) => void;
 }) {
-  const supabase = useRef(createClient()).current;
+  const supabase = useRef(createClient()).current!;
   const [name, setName] = useState('');
   const [profileUrl, setProfileUrl] = useState('');
   const [company, setCompany] = useState('');
@@ -529,7 +529,7 @@ function LeadDetailView({ lead, onClose, onUpdate, onDelete }: {
   lead: OutreachLead; onClose: () => void;
   onUpdate: (l: OutreachLead) => void; onDelete: () => void;
 }) {
-  const supabase = useRef(createClient()).current;
+  const supabase = useRef(createClient()).current!;
   const [status, setStatus] = useState(lead.status);
   const [notes, setNotes] = useState(lead.notes || '');
   const [saving, setSaving] = useState(false);
@@ -588,7 +588,7 @@ function AddPostForm({ currentUser, mode, existing, onClose, onCreated }: {
   currentUser: any; mode: string; existing?: SocialPost;
   onClose: () => void; onCreated: (post: SocialPost) => void;
 }) {
-  const supabase = useRef(createClient()).current;
+  const supabase = useRef(createClient()).current!;
   const [title, setTitle] = useState(existing?.title || '');
   const [content, setContent] = useState(existing?.content || '');
   const [date, setDate] = useState(existing?.planned_date || '');

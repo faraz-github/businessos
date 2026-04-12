@@ -88,7 +88,7 @@ export default function PersonalPaperworkPage() {
   const { mode } = useBrand();
   const { user: currentUser } = useCurrentUser();
   const supabaseRef = useRef(createClient());
-  const supabase = supabaseRef.current;
+  const supabase = supabaseRef.current!;
 
   const [activeType, setActiveType]   = useState<DocType | 'all'>('all');
   const [documents, setDocuments]     = useState<DocumentWithClient[]>([]);
@@ -368,7 +368,7 @@ function CreateDocumentModal({ open, onClose, mode, clients, currentUser, onCrea
   open: boolean; onClose: () => void; mode: string;
   clients: Client[]; currentUser: any; onCreated: (doc: any) => void;
 }) {
-  const supabase = useRef(createClient()).current;
+  const supabase = useRef(createClient()).current!;
   const [docType, setDocType]   = useState<DocType>('proposal');
   const [title, setTitle]       = useState('');
   const [clientId, setClientId] = useState('');
@@ -455,7 +455,7 @@ function DocumentEditorModal({ doc, clients, onClose, onSend, onDuplicateAsContr
   onDuplicateAsContract: (doc: any) => void;
   onSaved: (doc: any) => void;
 }) {
-  const supabase       = useRef(createClient()).current;
+  const supabase       = useRef(createClient()).current!;
   const autoSaveTimer  = useRef<ReturnType<typeof setTimeout> | null>(null);
   const latestFields   = useRef<Record<string, any>>(doc.fields || {});
   const latestTitle    = useRef<string>(doc.title || '');
@@ -2009,7 +2009,7 @@ function DeliverySection({ type, fields, setField, onRemove }: {
 function SendDocumentDialog({ doc, onClose, onSent }: {
   doc: any; onClose: () => void; onSent: (updated: any) => void;
 }) {
-  const supabase = useRef(createClient()).current;
+  const supabase = useRef(createClient()).current!;
   const [sending, setSending]         = useState(false);
   const [sent, setSent]               = useState(doc.status === 'sent' || doc.status === 'viewed' || doc.status === 'signed');
   const [code, setCode]               = useState<string>(doc.access_code || '');

@@ -72,7 +72,7 @@ export default function PersonalFinancePage() {
   const { mode } = useBrand();
   const { user: currentUser } = useCurrentUser();
   const supabaseRef = useRef(createClient());
-  const supabase    = supabaseRef.current;
+  const supabase    = supabaseRef.current!;
 
   const [activeTab, setActiveTab] = useState<'overview' | 'invoices' | 'transactions' | 'subscriptions'>('overview');
   const [invoices, setInvoices]           = useState<NormalizedInvoice[]>([]);
@@ -725,7 +725,7 @@ export default function PersonalFinancePage() {
 
 /* ── ADD TRANSACTION MODAL ──────────────────────────────────── */
 function AddTransactionModal({ open, onClose, mode, currentUser, onCreated }: any) {
-  const supabase = useRef(createClient()).current;
+  const supabase = useRef(createClient()).current!;
   const [type, setType]               = useState<'income' | 'expense'>('income');
   const [category, setCategory]       = useState('project_payment');
   const [amount, setAmount]           = useState('');
@@ -778,7 +778,7 @@ function AddTransactionModal({ open, onClose, mode, currentUser, onCreated }: an
 
 /* ── ADD SUBSCRIPTION MODAL ─────────────────────────────────── */
 function AddSubscriptionModal({ open, onClose, mode, currentUser, onCreated }: any) {
-  const supabase = useRef(createClient()).current;
+  const supabase = useRef(createClient()).current!;
   const [name, setName]             = useState('');
   const [cost, setCost]             = useState('');
   const [cycle, setCycle]           = useState('monthly');
@@ -826,7 +826,7 @@ function AddSubscriptionModal({ open, onClose, mode, currentUser, onCreated }: a
 
 /* ── EDIT SUBSCRIPTION MODAL ────────────────────────────────── */
 function EditSubscriptionModal({ sub, onClose, onSaved }: { sub: Subscription; onClose: () => void; onSaved: (s: Subscription) => void }) {
-  const supabase = useRef(createClient()).current;
+  const supabase = useRef(createClient()).current!;
   const [name, setName]             = useState(sub.name);
   const [cost, setCost]             = useState(String(sub.cost));
   const [cycle, setCycle]           = useState(sub.billing_cycle);

@@ -47,7 +47,7 @@ export default function PersonalSupportPage() {
   const { mode, brand } = useBrand();
   const { user: currentUser } = useCurrentUser();
   const supabaseRef = useRef(createClient());
-  const supabase    = supabaseRef.current;
+  const supabase    = supabaseRef.current!;
 
   const [periods, setPeriods]     = useState<SupportPeriodWithClient[]>([]);
   const [clients, setClients]     = useState<Client[]>([]);
@@ -258,7 +258,7 @@ function AddEditModal({ mode, clients, currentUser, existing, onClose, onSaved }
   mode: string; clients: Client[]; currentUser: any;
   existing?: any; onClose: () => void; onSaved: (sp: any) => void;
 }) {
-  const supabase = useRef(createClient()).current;
+  const supabase = useRef(createClient()).current!;
   const isEdit   = !!existing;
 
   const [clientId, setClientId]   = useState(existing?.client_id || '');

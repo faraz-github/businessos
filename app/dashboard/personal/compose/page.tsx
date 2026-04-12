@@ -237,7 +237,7 @@ export default function PersonalComposePage() {
   const { mode, brand } = useBrand();
   const { user: currentUser } = useCurrentUser();
   const supabaseRef = useRef(createClient());
-  const supabase    = supabaseRef.current;
+  const supabase    = supabaseRef.current!;
 
   const [channel, setChannel]           = useState<'email' | 'whatsapp' | 'linkedin'>('email');
   const [templateKey, setTemplateKey]   = useState('li_intro');

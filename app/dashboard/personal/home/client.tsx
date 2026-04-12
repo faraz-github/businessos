@@ -109,7 +109,7 @@ export function PersonalHomeClient({ attentionItems, stats, priorities: initialP
   const { mode } = useBrand();
   const { user: currentUser } = useCurrentUser();
   const supabaseRef = useRef(createClient());
-  const supabase    = supabaseRef.current;
+  const supabase    = supabaseRef.current!;
 
   const [priorities, setPriorities]   = useState(initialPriorities);
   const [timeBlocks, setTimeBlocks]   = useState(initialTimeBlocks);
