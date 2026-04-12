@@ -306,7 +306,7 @@ function ClientDetailModal({ client, onClose, onStageChange, onUpdate, onDelete 
       .select('id, type, title, status, updated_at, share_token')
       .eq('client_id', client.id)
       .order('updated_at', { ascending: false })
-      .then(({ data }) => { setClientDocs(data || []); setDocsLoading(false); });
+      .then(({ data }) => { setClientDocs((data || []) as unknown as DocumentWithClient[]); setDocsLoading(false); });
   }, [activeSection, client.id, supabase]);
 
   const currentIdx = ALL_STAGES.indexOf(client.current_stage);
