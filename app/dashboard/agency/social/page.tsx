@@ -14,9 +14,9 @@ import {
   Plus, Calendar, Lightbulb, Check, Pencil, Trash2, ArrowRight,
   Linkedin, Instagram, Share2,
 } from 'lucide-react';
-import type { SocialPost } from '@/types';
+import type { SocialPost, SocialPlatform } from '@/types';
 
-const CONTENT_PLATFORMS: { value: string; label: string; color: string; icon: React.ReactNode }[] = [
+const CONTENT_PLATFORMS: { value: SocialPlatform; label: string; color: string; icon: React.ReactNode }[] = [
   { value: 'linkedin',  label: 'LinkedIn',  color: 'var(--accent-blue)',   icon: <Linkedin size={12} /> },
   { value: 'instagram', label: 'Instagram', color: 'var(--accent-violet)', icon: <Instagram size={12} /> },
   { value: 'other',     label: 'Other',     color: 'var(--text-tertiary)', icon: <Share2 size={12} /> },
@@ -259,7 +259,7 @@ function PostForm({ currentUser, mode, existing, onClose, onSaved }: {
   const [content, setContent]   = useState(existing?.content || '');
   const [date, setDate]         = useState(existing?.planned_date || '');
   const [status, setStatus]     = useState(existing?.status || 'idea');
-  const [platform, setPlatform] = useState(existing?.platform || 'linkedin');
+  const [platform, setPlatform] = useState<SocialPlatform>(existing?.platform || 'linkedin');
   const [saving, setSaving]     = useState(false);
 
   async function handleSave() {
@@ -287,7 +287,7 @@ function PostForm({ currentUser, mode, existing, onClose, onSaved }: {
         <label className="t-label" style={{ display: 'block', marginBottom: 7 }}>Platform</label>
         <div style={{ display: 'flex', gap: 6 }}>
           {CONTENT_PLATFORMS.map(p => (
-            <button key={p.value} type="button" onClick={() => setPlatform(p.value)}
+            <button key={p.value} type="button" onClick={() => setPlatform(p.value as SocialPlatform)}
               style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 'var(--radius-sm)', border: `1px solid ${platform === p.value ? p.color : 'var(--border-default)'}`, background: platform === p.value ? `${p.color}14` : 'transparent', color: platform === p.value ? p.color : 'var(--text-secondary)', fontSize: 11, fontWeight: platform === p.value ? 600 : 400, fontFamily: 'var(--font-body)', cursor: 'pointer', transition: 'all 150ms' }}>
               {p.icon} {p.label}
             </button>
