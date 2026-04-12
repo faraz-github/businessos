@@ -1,6 +1,9 @@
 import type { Metadata } from 'next';
 import './globals.css';
-import { ThemeProvider } from '@/lib/theme';
+import { ThemeProvider as ThemeProviderComponent } from '@/lib/theme';
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const ThemeProvider = ThemeProviderComponent as any;
 
 export const metadata: Metadata = {
   title: 'Business OS',

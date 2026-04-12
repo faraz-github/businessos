@@ -1,9 +1,12 @@
-import { BrandProvider } from '@/lib/brand';
+import { BrandProvider as BrandProviderComponent } from '@/lib/brand';
 import { Sidebar } from '@/components/dashboard/Sidebar';
 import { TopBar } from '@/components/dashboard/TopBar';
 import { ToastContainer } from '@/components/ui/Toast';
 import { DashboardErrorBoundary } from '@/components/dashboard/ErrorBoundary';
 import type { ReactNode } from 'react';
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const BrandProvider = BrandProviderComponent as any;
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   return (
