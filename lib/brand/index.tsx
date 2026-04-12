@@ -1,6 +1,6 @@
 'use client';
 
-import {
+import React, {
   createContext, useContext, useState, useEffect, useCallback, type ReactNode,
 } from 'react';
 import { usePathname } from 'next/navigation';
@@ -70,7 +70,7 @@ export function BrandProvider({ children }: { children: ReactNode }): ReactNode 
     <BrandContext.Provider value={{ mode, setMode, brand, personalBrand, agencyBrand, loading, refreshBrand: fetchBrands }}>
       {children}
     </BrandContext.Provider>
-  );
+  ) as React.ReactNode;
 }
 
 export function useBrand() {
