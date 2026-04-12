@@ -11,7 +11,7 @@ interface SkeletonProps {
 
 // A single skeleton bar. All sizing via inline style — keeps
 // the skeleton output pixel-accurate to the real content.
-export function Skeleton({ style, rounded = 'md' }: SkeletonProps)): JSX.Element {
+export function Skeleton({ style, rounded = 'md' }: SkeletonProps) {
   const radii = {
     sm:   'var(--radius-sm)',
     md:   'var(--radius-md)',

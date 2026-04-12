@@ -16,7 +16,7 @@ interface ModalProps {
 
 const sizeMap = { sm: 400, md: 520, lg: 680, xl: 860 };
 
-export function Modal({ open, onClose, title, description, children, size = 'md' }: ModalProps)): JSX.Element {
+export function Modal({ open, onClose, title, description, children, size = 'md' }: ModalProps) {
   const handleEscape = useCallback((e: KeyboardEvent) => {
     if (e.key === 'Escape') onClose();
   }, [onClose]);

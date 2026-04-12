@@ -84,7 +84,7 @@ function getAgencyNav(): NavSection[] {
   ];
 }
 
-export function Sidebar()): JSX.Element {
+export function Sidebar() {
   const pathname = usePathname();
   const router   = useRouter();
   const { mode, brand } = useBrand();

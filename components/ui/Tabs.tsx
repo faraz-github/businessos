@@ -8,7 +8,7 @@ interface TabsProps {
   className?: string;
 }
 
-export function Tabs({ tabs, value, onChange, className = '' }: TabsProps)): JSX.Element {
+export function Tabs({ tabs, value, onChange, className = '' }: TabsProps) {
   return (
     <div className={`inline-flex items-center bg-hover radius-md p-[3px] gap-0.5 ${className}`}>
       {tabs.map(tab => {

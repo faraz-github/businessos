@@ -6,7 +6,7 @@ interface DeltaProps {
   className?: string;
 }
 
-export function Delta({ value, suffix = '%', className = '' }: DeltaProps)): JSX.Element {
+export function Delta({ value, suffix = '%', className = '' }: DeltaProps) {
   const isUp = value > 0;
   const isDown = value < 0;
   const Icon = isUp ? TrendingUp : isDown ? TrendingDown : Minus;

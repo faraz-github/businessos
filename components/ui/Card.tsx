@@ -14,7 +14,7 @@ const variantClass: Record<CardVariant, string> = {
   metric:   'card-metric',
 };
 
-export function Card({ variant = 'base', children, className = '', ...props }: CardProps)): JSX.Element {
+export function Card({ variant = 'base', children, className = '', ...props }: CardProps) {
   return (
     <div className={`${variantClass[variant]} ${className}`} {...props}>
       {children}
