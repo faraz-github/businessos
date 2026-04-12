@@ -318,7 +318,7 @@ function TestimonialModal({ mode, clients, currentUser, existing, onClose, onSav
         </div>
 
         {/* Portfolio toggle */}
-        <button type="button" onClick={() => setPortfolioUsable(v => !v)}
+        <button type="button" onClick={() => setPortfolioUsable((v: boolean) => !v)}
           style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 'var(--radius-md)', border: `1px solid ${portfolioUsable ? 'var(--accent-green)' : 'var(--border-default)'}`, background: portfolioUsable ? 'var(--accent-green-dim)' : 'transparent', cursor: 'pointer', transition: 'all 150ms', textAlign: 'left' }}>
           <div style={{ width: 36, height: 20, borderRadius: 100, background: portfolioUsable ? 'var(--accent-green)' : 'var(--bg-hover)', position: 'relative', flexShrink: 0, transition: 'background 150ms' }}>
             <div style={{ width: 14, height: 14, borderRadius: '50%', background: '#fff', position: 'absolute', top: 3, left: portfolioUsable ? 19 : 3, transition: 'left 150ms', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
