@@ -12,7 +12,7 @@ import {
   Plus, Users, Search, ChevronRight, ChevronLeft, Mail, MessageCircle,
   StickyNote, Key, CheckCircle2, Trash2, Pencil, X, FileText, ExternalLink,
 } from 'lucide-react';
-import type { Client, ClientStage } from '@/types';
+import type { Client, ClientStage, DocumentWithClient } from '@/types';
 
 const ALL_STAGES: ClientStage[] = [
   'lead', 'contacted', 'qualified',
@@ -292,7 +292,7 @@ function ClientDetailModal({ client, onClose, onStageChange, onUpdate, onDelete 
   const [activeSection, setActiveSection] = useState<'overview' | 'documents' | 'credentials' | 'history'>('overview');
   const [editing, setEditing]     = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [clientDocs, setClientDocs] = useState<any[]>([]);
+  const [clientDocs, setClientDocs] = useState<DocumentWithClient[]>([]);
   const [docsLoading, setDocsLoading] = useState(false);
 
   // Update notes when client changes

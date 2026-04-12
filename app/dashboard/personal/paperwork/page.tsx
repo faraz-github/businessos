@@ -13,7 +13,15 @@ import {
   Send, Check, ExternalLink, Copy, Pen, ArrowRight,
   AlertCircle, X,
 } from 'lucide-react';
-import type { Client } from '@/types';
+import type { Client, DocumentWithClient } from '@/types';
+import {
+  proposalFieldsSchema,
+  contractFieldsSchema,
+  sowFieldsSchema,
+  requirementsFieldsSchema,
+  invoiceFieldsSchema,
+  deliveryFieldsSchema,
+} from '@/types/schemas';
 
 type DocType = 'proposal' | 'contract' | 'sow' | 'requirements' | 'invoice' | 'delivery';
 
@@ -83,12 +91,12 @@ export default function PersonalPaperworkPage() {
   const supabase = supabaseRef.current;
 
   const [activeType, setActiveType]   = useState<DocType | 'all'>('all');
-  const [documents, setDocuments]     = useState<any[]>([]);
+  const [documents, setDocuments]     = useState<DocumentWithClient[]>([]);
   const [clients, setClients]         = useState<Client[]>([]);
   const [loading, setLoading]         = useState(true);
   const [showCreate, setShowCreate]   = useState(false);
-  const [editingDoc, setEditingDoc]   = useState<any | null>(null);
-  const [sendingDoc, setSendingDoc]   = useState<any | null>(null);
+  const [editingDoc, setEditingDoc]   = useState<DocumentWithClient | null>(null);
+  const [sendingDoc, setSendingDoc]   = useState<DocumentWithClient | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [search, setSearch]           = useState('');
   const [page, setPage]               = useState(0);
@@ -249,6 +257,12 @@ export default function PersonalPaperworkPage() {
                         Updated {formatDate(doc.updated_at)}
                         {doc.signed_at && ` · ${doc.type === 'proposal' ? 'Accepted' : 'Signed'} by ${doc.signer_name}`}
                       </p>
+                      {/* Edit count badge — shown only on sent/viewed/signed docs that were edited post-send */}
+                      {doc.edit_count > 0 && (
+                        <span style={{ fontSize: 10, fontWeight: 500, fontFamily: 'var(--font-body)', color: 'var(--accent-amber)', background: 'var(--accent-amber-dim)', padding: '1px 6px', borderRadius: 100 }}>
+                          {doc.edit_count} edit{doc.edit_count !== 1 ? 's' : ''} after send
+                        </span>
+                      )}
                       {/* "Create Contract" shortcut on accepted proposals */}
                       {isProposalAccepted && (
                         <button onClick={() => handleDuplicateAsContract(doc)}
@@ -405,6 +419,34 @@ function CreateDocumentModal({ open, onClose, mode, clients, currentUser, onCrea
   );
 }
 
+// ─── FIELD VALIDATION ─────────────────────────────────────────
+// Validates document fields against the per-type Zod schema before any DB write.
+// Returns null on success, or a human-readable error string on failure.
+// Uses safeParse so we never throw — validation failures surface as toasts.
+interface FieldSchema {
+  safeParse: (data: unknown) => { success: boolean; error?: { issues: { path: (string | number)[]; message: string }[] } };
+}
+
+const FIELD_SCHEMAS: Record<string, FieldSchema> = {
+  proposal:     proposalFieldsSchema,
+  contract:     contractFieldsSchema,
+  sow:          sowFieldsSchema,
+  requirements: requirementsFieldsSchema,
+  invoice:      invoiceFieldsSchema,
+  delivery:     deliveryFieldsSchema,
+};
+
+function validateDocumentFields(type: string, fields: Record<string, unknown>): string | null {
+  const schema = FIELD_SCHEMAS[type];
+  if (!schema) return null; // unknown type — pass through
+  const result = schema.safeParse(fields);
+  if (result.success) return null;
+  // Return the first meaningful error message
+  const firstIssue = result.error.issues[0];
+  const fieldPath = firstIssue.path.join(' → ') || 'field';
+  return `${fieldPath}: ${firstIssue.message}`;
+}
+
 // ─── DOCUMENT EDITOR MODAL ────────────────────────────────────
 function DocumentEditorModal({ doc, clients, onClose, onSend, onDuplicateAsContract, onSaved }: {
   doc: any; clients: Client[];
@@ -461,6 +503,16 @@ function DocumentEditorModal({ doc, clients, onClose, onSend, onDuplicateAsContr
 
   async function handleSave() {
     if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+
+    // Validate fields against the per-type schema before writing to DB.
+    // Auto-save skips validation (drafts-in-progress are intentionally incomplete).
+    // Only explicit Save triggers validation.
+    const validationError = validateDocumentFields(doc.type, fields);
+    if (validationError) {
+      toast.error(`Validation: ${validationError}`);
+      return;
+    }
+
     setSaving(true);
     const now = new Date().toISOString();
     // Only count as an edit revision if the document has already been sent to a client.
@@ -1522,13 +1574,15 @@ function ReqSection({ type, fields, setField, onRemove }: {
 // 3. Line items with quantity < 1 or rate <= 0 are rejected before adding.
 // 4. GST rate is validated: must be a positive number ≤ 100.
 
+interface LineItem { description: string; quantity: string; rate: string; }
+
 function InvoiceEditor({ fields, setField }: { fields: any; setField: (k: string, v: any) => void }) {
   const [newItem, setNewItem] = useState({ description: '', quantity: '', rate: '' });
-  const lineItems: any[] = fields.line_items || [];
+  const lineItems: LineItem[] = fields.line_items || [];
 
   // Single source of truth for all totals.
   // Always called with the full items array and current rates — never stale.
-  function recalculate(items: any[], gstEnabled: boolean, gstRate: number) {
+  function recalculate(items: LineItem[], gstEnabled: boolean, gstRate: number) {
     const rate    = Math.max(0, Math.min(100, gstRate || 18));
     const subtotal = items.reduce((s, item) => s + (Number(item.quantity) * Number(item.rate)), 0);
     const gstAmount = gstEnabled ? Math.round(subtotal * rate / 100) : 0;
@@ -1972,6 +2026,28 @@ function SendDocumentDialog({ doc, onClose, onSent }: {
     const token   = doc.share_token || generateShareToken();
     const newCode = generateAccessCode();
     const expires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+
+    // Snapshot the current fields before marking as sent.
+    // This preserves what the client received, even if the document
+    // is edited afterwards. Version numbers are per-document, starting at 1.
+    const { data: latestVersion } = await supabase
+      .from('document_versions')
+      .select('version_number')
+      .eq('document_id', doc.id)
+      .order('version_number', { ascending: false })
+      .limit(1)
+      .single();
+    const nextVersion = (latestVersion?.version_number ?? 0) + 1;
+    // Fire-and-forget: don't block the send if version insert fails
+    supabase.from('document_versions').insert({
+      document_id:    doc.id,
+      user_id:        doc.user_id,
+      version_number: nextVersion,
+      fields:         doc.fields,
+      title:          doc.title,
+      status:         'sent',
+    }).then(() => {});
+
     const { data } = await supabase.from('documents')
       .update({ status: 'sent', share_token: token, access_code: newCode, access_code_expires_at: expires, updated_at: new Date().toISOString() })
       .eq('id', doc.id).select().single();

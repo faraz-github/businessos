@@ -1,13 +1,14 @@
 'use server';
 
-import { getSession } from '@/lib/auth';
+import { getSession, getOwnerId } from '@/lib/auth';
 
 import { createClient } from '@/lib/supabase/server';
 import type { Mode, AttentionItem, AttentionSeverity } from '@/types';
 
 export async function getAttentionFeed(mode: Mode): Promise<AttentionItem[]> {
   const supabase = await createClient();
-  const session = await getSession(); const user = session ? { id: session.ownerId ?? session.sub } : null;
+  const session = await getSession();
+  const user = session ? { id: getOwnerId(session) } : null;
   if (!user) return [];
 
   const now = new Date();
@@ -34,7 +35,9 @@ export async function getAttentionFeed(mode: Mode): Promise<AttentionItem[]> {
       .not('status', 'in', '(paid,signed)'),
     supabase.from('clients').select('id, name, updated_at')
       .eq('user_id', user.id).eq('mode', mode)
-      .not('current_stage', 'in', '(completed,delivered,deployed,support_active,feedback_sent,retention_sent)'),
+      // Exclude post-project stages — these clients no longer need active attention.
+      // Stage values match the constraint in migration 006.
+      .not('current_stage', 'in', '(handover,deployed,support_active,feedback_sent,retention_sent,completed)'),
     supabase.from('social_posts').select('id, title, planned_date')
       .eq('user_id', user.id).eq('mode', mode)
       .in('status', ['draft', 'scheduled']).lte('planned_date', today),
@@ -140,141 +143,57 @@ export async function getAttentionFeed(mode: Mode): Promise<AttentionItem[]> {
 
 export async function getHomeStats(mode: Mode) {
   const supabase = await createClient();
-  const session = await getSession(); const user = session ? { id: session.ownerId ?? session.sub } : null;
+  const session  = await getSession();
+  const user     = session ? { id: getOwnerId(session) } : null;
   if (!user) return null;
 
-  const now = new Date();
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-  // Revenue this month
-  const { data: monthIncome } = await supabase
-    .from('transactions')
-    .select('amount')
-    .eq('user_id', user.id)
-    .eq('mode', mode)
-    .eq('type', 'income')
-    .gte('date', startOfMonth);
+  // Single round-trip to the database.
+  // Previously 8 sequential queries; now one RPC call.
+  // See migration 017_get_home_stats_rpc.sql for the full function.
+  const { data, error } = await supabase
+    .rpc('get_home_stats', { p_user_id: user.id, p_mode: mode });
 
-  const revenueThisMonth = monthIncome?.reduce((sum, t) => sum + Number(t.amount), 0) || 0;
+  if (error) {
+    console.error('[getHomeStats] RPC error:', error.message);
+    return null;
+  }
 
-  // Outstanding + overdue — from invoice documents (documents table, type='invoice')
-  const { data: invDocStats } = await supabase
-    .from('documents')
-    .select('fields, status')
-    .eq('user_id', user.id)
-    .eq('mode', mode)
-    .eq('type', 'invoice')
-    .not('status', 'in', '(paid,signed)');
-
-  const todayStr = now.toISOString().split('T')[0];
-  const outstandingTotal = invDocStats?.reduce((sum, doc) => {
-    const f = doc.fields as Record<string, any>;
-    return sum + Number(f?.total || 0);
-  }, 0) || 0;
-  const overdueTotal = invDocStats?.reduce((sum, doc) => {
-    const f = doc.fields as Record<string, any>;
-    const dueDate = f?.due_date as string | undefined;
-    if (!dueDate || dueDate >= todayStr) return sum;
-    return sum + Number(f?.total || 0);
-  }, 0) || 0;
-
-  // Client counts
-  const { data: activeClients } = await supabase
-    .from('clients')
-    .select('id, current_stage')
-    .eq('user_id', user.id)
-    .eq('mode', mode)
-    .not('current_stage', 'in', '(completed,delivered,deployed,support_active,feedback_sent,retention_sent)');
-
-  const { count: totalClients } = await supabase
-    .from('clients')
-    .select('id', { count: 'exact', head: true })
-    .eq('user_id', user.id)
-    .eq('mode', mode);
-
-  const { count: pipelineLeads } = await supabase
-    .from('leads')
-    .select('id', { count: 'exact', head: true })
-    .eq('user_id', user.id)
-    .eq('mode', mode)
-    .not('stage', 'in', '(closed_won,closed_lost)');
-
-  // Posts this month
-  const { count: postsThisMonth } = await supabase
-    .from('social_posts')
-    .select('id', { count: 'exact', head: true })
-    .eq('user_id', user.id)
-    .eq('mode', mode)
-    .eq('status', 'published')
-    .gte('planned_date', startOfMonth);
-
-  // Active projects (clients in work stages)
-  // Active development stages matching ClientStage type
-  const workStages = ['in_progress', 'milestone_review', 'revision', 'final_review', 'final_payment_sent'];
-  const activeProjectsCount = activeClients?.filter((c) => workStages.includes(c.current_stage)).length || 0;
-
-  // Delivered this month — clients whose stage_history contains 'delivered' or 'completed' entered this month
-  const { data: recentlyDelivered } = await supabase
-    .from('clients')
-    .select('stage_history')
-    .eq('user_id', user.id)
-    .eq('mode', mode)
-    .in('current_stage', ['delivered', 'deployed', 'support_period_active', 'completed']);
-
-  const deliveredThisMonth = recentlyDelivered?.filter((c) => {
-    const history = (c.stage_history as { stage: string; entered_at: string }[]) || [];
-    return history.some(
-      (h) =>
-        (h.stage === 'delivered' || h.stage === 'completed') &&
-        h.entered_at >= startOfMonth,
-    );
-  }).length || 0;
-
-  // 5-month revenue sparkline — single query, aggregate in JS
-  const fiveMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 4, 1).toISOString().split('T')[0];
-  const { data: allSparklineTx } = await supabase
-    .from('transactions')
-    .select('amount, date')
-    .eq('user_id', user.id)
-    .eq('mode', mode)
-    .eq('type', 'income')
-    .gte('date', fiveMonthsAgo);
-
-  const sparklineData = Array.from({ length: 5 }, (_, i) => {
-    const d = new Date(now.getFullYear(), now.getMonth() - 4 + i, 1);
-    const monthStart = d.toISOString().split('T')[0];
-    const monthEnd   = new Date(d.getFullYear(), d.getMonth() + 1, 1).toISOString().split('T')[0];
-    const value = allSparklineTx
-      ?.filter(t => t.date >= monthStart && t.date < monthEnd)
-      .reduce((s, t) => s + Number(t.amount), 0) || 0;
-    return { value };
-  });
+  // The RPC returns a JSONB object. Cast it to the expected shape.
+  // Null-safe: all numeric fields default to 0, sparklineData to [].
+  const d = (data as Record<string, unknown>) ?? {};
+  const money   = (d.money   as Record<string, unknown>) ?? {};
+  const clients = (d.clients as Record<string, unknown>) ?? {};
+  const social  = (d.social  as Record<string, unknown>) ?? {};
+  const work    = (d.work    as Record<string, unknown>) ?? {};
 
   return {
     money: {
-      revenueThisMonth,
-      outstandingTotal,
-      overdueTotal,
-      sparklineData,
+      revenueThisMonth: Number(money.revenueThisMonth  ?? 0),
+      outstandingTotal: Number(money.outstandingTotal  ?? 0),
+      overdueTotal:     Number(money.overdueTotal      ?? 0),
+      sparklineData:    (money.sparklineData as { value: number }[]) ?? [],
     },
     clients: {
-      activeProjects: activeProjectsCount,
-      totalActive: activeClients?.length || 0,
-      pipelineLeads: pipelineLeads || 0,
-      totalAllTime: totalClients || 0,
+      activeProjects: Number(clients.activeProjects ?? 0),
+      totalActive:    Number(clients.totalActive    ?? 0),
+      pipelineLeads:  Number(clients.pipelineLeads  ?? 0),
+      totalAllTime:   Number(clients.totalAllTime   ?? 0),
     },
     social: {
-      postsThisMonth: postsThisMonth || 0,
+      postsThisMonth: Number(social.postsThisMonth ?? 0),
     },
     work: {
-      activeProjects: activeProjectsCount,
-      deliveredThisMonth,
+      activeProjects:     Number(work.activeProjects     ?? 0),
+      deliveredThisMonth: Number(work.deliveredThisMonth ?? 0),
     },
   };
 }
 
+
 export async function getTodaysPriorities(mode: Mode) {
   const supabase = await createClient();
-  const session = await getSession(); const user = session ? { id: session.ownerId ?? session.sub } : null;
+  const session = await getSession();
+  const user = session ? { id: getOwnerId(session) } : null;
   if (!user) return [];
 
   const today = new Date().toISOString().split('T')[0];
@@ -291,7 +210,8 @@ export async function getTodaysPriorities(mode: Mode) {
 
 export async function getTodaysTimeBlocks(mode: Mode) {
   const supabase = await createClient();
-  const session = await getSession(); const user = session ? { id: session.ownerId ?? session.sub } : null;
+  const session = await getSession();
+  const user = session ? { id: getOwnerId(session) } : null;
   if (!user) return [];
 
   const today = new Date().toISOString().split('T')[0];
@@ -309,7 +229,7 @@ export async function getTodaysTimeBlocks(mode: Mode) {
 export async function getRecentLogs(mode: Mode) {
   const supabase = await createClient();
   const session = await getSession();
-  const user = session ? { id: session.ownerId ?? session.sub } : null;
+  const user = session ? { id: getOwnerId(session) } : null;
   if (!user) return [];
 
   const { data } = await supabase

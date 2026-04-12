@@ -35,6 +35,12 @@ interface SkillItem {
   resource: string | null; notes: string | null; created_at: string; updated_at: string;
 }
 
+/** Discriminated union for the editingItem modal state. */
+type EditingItem =
+  | { type: 'project'; data: LabProject }
+  | { type: 'tool';    data: LabTool }
+  | { type: 'skill';   data: SkillItem };
+
 // ── Config ─────────────────────────────────────────────────────
 const PROJECT_STATUS: Record<ProjectStatus, { label: string; color: string; bg: string }> = {
   idea:     { label: 'Idea',     color: 'var(--text-tertiary)',  bg: 'var(--bg-hover)' },
@@ -77,7 +83,7 @@ export default function LabPage() {
   const [skills, setSkills]         = useState<SkillItem[]>([]);
   const [loading, setLoading]       = useState(true);
   const [showAdd, setShowAdd]       = useState(false);
-  const [editingItem, setEditingItem] = useState<any>(null);
+  const [editingItem, setEditingItem] = useState<EditingItem | null>(null);
 
   const loadData = useCallback(async () => {
     if (!currentUser) return;

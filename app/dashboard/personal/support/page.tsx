@@ -12,7 +12,7 @@ import {
   Plus, Shield, Mail, MessageCircle, Copy, Check,
   Pencil, Trash2, Calendar, Clock, RotateCcw,
 } from 'lucide-react';
-import type { Client } from '@/types';
+import type { Client, SupportPeriodWithClient } from '@/types';
 
 // ── Helpers ────────────────────────────────────────────────────
 function progressPct(start: string, end: string): number {
@@ -49,11 +49,11 @@ export default function PersonalSupportPage() {
   const supabaseRef = useRef(createClient());
   const supabase    = supabaseRef.current;
 
-  const [periods, setPeriods]     = useState<any[]>([]);
+  const [periods, setPeriods]     = useState<SupportPeriodWithClient[]>([]);
   const [clients, setClients]     = useState<Client[]>([]);
   const [showAdd, setShowAdd]     = useState(false);
-  const [editingPeriod, setEditingPeriod] = useState<any>(null);
-  const [composingFor, setComposingFor]   = useState<any>(null);
+  const [editingPeriod, setEditingPeriod] = useState<SupportPeriodWithClient | null>(null);
+  const [composingFor, setComposingFor]   = useState<SupportPeriodWithClient | null>(null);
 
   const loadData = useCallback(async () => {
     if (!currentUser) return;

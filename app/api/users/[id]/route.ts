@@ -84,7 +84,7 @@ export async function DELETE(
   const { id } = await params;
 
   if (id === session!.sub) {
-    return NextResponse.json({ error: 'Cannot delete yourself' }, { status: 400 });
+    return NextResponse.json({ error: 'Cannot deactivate yourself' }, { status: 400 });
   }
 
   const admin = getSupabaseAdmin();
@@ -92,14 +92,17 @@ export async function DELETE(
   // Prevent deleting another superadmin
   const { data: target } = await admin.from('bos_users').select('role').eq('id', id).single();
   if (target?.role === 'superadmin') {
-    return NextResponse.json({ error: 'Cannot delete a superadmin account' }, { status: 403 });
+    return NextResponse.json({ error: 'Cannot deactivate a superadmin account' }, { status: 403 });
   }
 
+  // Soft-delete: set is_active = false rather than destroying the row.
+  // The user's JWT remains valid until TTL (24h) — acceptable window.
+  // Hard deleting would break audit history and any linked data references.
   const { error } = await admin
     .from('bos_users')
-    .delete()
+    .update({ is_active: false })
     .eq('id', id);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, deactivated: true });
 }

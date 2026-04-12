@@ -12,7 +12,7 @@ import {
   Plus, Mail, MessageCircle, Quote, Copy, Check,
   Pencil, Trash2, Star, Filter, RotateCcw,
 } from 'lucide-react';
-import type { Client } from '@/types';
+import type { Client, TestimonialWithClient } from '@/types';
 
 // ── Stages considered "post-delivery" for feedback requests ──
 const FEEDBACK_ELIGIBLE_STAGES = [
@@ -31,10 +31,10 @@ export default function PersonalFeedbackPage() {
   const supabaseRef = useRef(createClient());
   const supabase    = supabaseRef.current;
 
-  const [testimonials, setTestimonials] = useState<any[]>([]);
+  const [testimonials, setTestimonials] = useState<TestimonialWithClient[]>([]);
   const [clients, setClients]           = useState<Client[]>([]);
   const [showAdd, setShowAdd]           = useState(false);
-  const [editingT, setEditingT]         = useState<any>(null);
+  const [editingT, setEditingT]         = useState<TestimonialWithClient | null>(null);
   const [composingFor, setComposingFor] = useState<Client | null>(null);
   const [filterMode, setFilterMode]     = useState<'all' | 'portfolio' | 'private'>('all');
   const [copied, setCopied]             = useState<string | null>(null);

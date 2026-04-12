@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { canAccessSection } from '@/lib/auth/access';
 
 export interface CurrentUser {
   id: string;
@@ -72,15 +73,13 @@ export function useCurrentUser() {
   return { user, loading, invalidate };
 }
 
-// Utility: check if user can access a section
+// Thin wrapper around the shared canAccessSection utility from lib/auth/access.ts.
+// Kept here so existing call sites (userCanAccess(user, mode, section)) don't change.
 export function userCanAccess(
   user: CurrentUser | null,
   mode: 'personal' | 'agency',
   section: string,
 ): boolean {
   if (!user) return false;
-  if (user.role === 'superadmin') return true;
-  const allowed = mode === 'personal' ? user.allowedPersonal : user.allowedAgency;
-  if (!allowed) return false;
-  return allowed.includes(section);
+  return canAccessSection(user, mode, section);
 }

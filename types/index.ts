@@ -43,6 +43,24 @@ export type ClientStage =
 export type DocumentType = 'proposal' | 'contract' | 'sow' | 'requirements' | 'invoice' | 'delivery';
 export type DocumentStatus = 'draft' | 'final' | 'sent' | 'viewed' | 'signed' | 'paid';
 export type InvoiceStatus = 'draft' | 'sent' | 'viewed' | 'overdue' | 'paid';
+
+/**
+ * Normalized invoice shape used in the finance page.
+ * Built from a Document row (type='invoice') with client-side overdue computation.
+ */
+export interface NormalizedInvoice {
+  id: string;
+  number: string;
+  total: number;
+  due_date: string;
+  paid_at: string | null;
+  status: InvoiceStatus;
+  share_token: string | null;
+  clients: { name: string } | null;
+  client_id: string | null;
+  fields: Record<string, unknown>;
+  _source: 'document';
+}
 export type LeadStage = 'prospect' | 'contacted' | 'replied' | 'meeting_scheduled' | 'proposal_sent' | 'negotiating' | 'closed_won' | 'closed_lost';
 export type TransactionType = 'income' | 'expense';
 export type BillingCycle = 'monthly' | 'annual';
@@ -117,8 +135,19 @@ export interface Document {
   share_token: string | null;
   signed_at: string | null;
   signer_name: string | null;
+  // Added in migration 008
+  access_code: string | null;
+  access_code_expires_at: string | null;
+  // Added in migration 013
+  edit_count: number;
+  last_edited_at: string | null;
   created_at: string;
   updated_at: string;
+}
+
+/** Document row with the clients join — used in paperwork and finance pages. */
+export interface DocumentWithClient extends Document {
+  clients: { name: string; company: string | null } | null;
 }
 
 export interface Signature {
@@ -270,6 +299,11 @@ export interface SupportPeriod {
   updated_at: string;
 }
 
+/** SupportPeriod with the clients join — used in the support page. */
+export interface SupportPeriodWithClient extends SupportPeriod {
+  clients: { name: string; contact_email: string | null; contact_phone: string | null } | null;
+}
+
 export interface Testimonial {
   id: string;
   user_id: string;
@@ -281,6 +315,11 @@ export interface Testimonial {
   received_at: string;
   created_at: string;
   updated_at: string;
+}
+
+/** Testimonial with the clients join — used in the feedback page. */
+export interface TestimonialWithClient extends Testimonial {
+  clients: { name: string } | null;
 }
 
 /**

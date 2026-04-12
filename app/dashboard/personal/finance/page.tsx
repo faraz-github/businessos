@@ -14,7 +14,7 @@ import {
   CheckCircle2, Trash2, Pause, Play, Receipt, CreditCard,
   Search, ExternalLink, Pencil, AlertTriangle,
 } from 'lucide-react';
-import type { Transaction, Subscription } from '@/types';
+import type { Transaction, Subscription, NormalizedInvoice } from '@/types';
 
 /* ── constants ─────────────────────────────────────────────── */
 const INCOME_CATS = [
@@ -75,7 +75,7 @@ export default function PersonalFinancePage() {
   const supabase    = supabaseRef.current;
 
   const [activeTab, setActiveTab] = useState<'overview' | 'invoices' | 'transactions' | 'subscriptions'>('overview');
-  const [invoices, setInvoices]           = useState<any[]>([]);
+  const [invoices, setInvoices]           = useState<NormalizedInvoice[]>([]);
   const [transactions, setTransactions]   = useState<Transaction[]>([]);
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [loading, setLoading]             = useState(true);
@@ -100,12 +100,17 @@ export default function PersonalFinancePage() {
     ]);
     const today = new Date().toISOString().split('T')[0];
     // Normalise documents into invoice shape
+    const nowOverdueIds: string[] = [];
     const rawInvoices = (invDocs.data || []).map((doc: any) => {
       const f = doc.fields || {};
       const dueDate = f.due_date || '';
       let status = doc.status;
-      // Compute overdue: not paid and past due date
-      if (status !== 'paid' && status !== 'signed' && dueDate && dueDate < today) status = 'overdue';
+      // Compute overdue: not paid/signed and past due date
+      if (status !== 'paid' && status !== 'signed' && dueDate && dueDate < today) {
+        // Track IDs that need their DB status updated from sent/viewed → overdue
+        if (status !== 'overdue') nowOverdueIds.push(doc.id);
+        status = 'overdue';
+      }
       return {
         id:          doc.id,
         number:      f.invoice_number || doc.title || '—',
@@ -124,6 +129,16 @@ export default function PersonalFinancePage() {
     setTransactions((tx.data as Transaction[]) || []);
     setSubscriptions((subs.data as Subscription[]) || []);
     setLoading(false);
+
+    // Persist overdue status to DB for any invoices that just became overdue.
+    // Fire-and-forget — UI is already correct, this just keeps the DB consistent
+    // so the attention feed and server-side queries return accurate statuses.
+    if (nowOverdueIds.length > 0) {
+      supabase.from('documents')
+        .update({ status: 'overdue' })
+        .in('id', nowOverdueIds)
+        .then(() => {});
+    }
   }, [currentUser, mode, supabase]);
 
   useEffect(() => { loadData(); }, [loadData]);

@@ -123,7 +123,14 @@ export default function AgencyBDPipelinePage() {
   useEffect(() => {
     loadLeads();
     const channel = supabase.channel(`bd-leads-${mode}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'leads' }, payload => {
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'leads',
+        // Scope to this owner's rows — without this filter, the subscription
+        // receives change events for every user in the database.
+        filter: `user_id=eq.${currentUser.ownerId}`,
+      }, payload => {
         if (payload.eventType === 'INSERT') setLeads(prev => [payload.new as Lead, ...prev]);
         if (payload.eventType === 'UPDATE') {
           setLeads(prev => prev.map(l => l.id === payload.new.id ? payload.new as Lead : l));

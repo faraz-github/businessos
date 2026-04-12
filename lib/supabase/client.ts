@@ -11,6 +11,7 @@
 //
 // Components hold a stable reference via: useRef(createClient())
 // ============================================================
+import 'client-only'; // prevents accidental server-side import of this singleton
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 
 let _client: ReturnType<typeof createSupabaseClient> | null = null;

@@ -10,7 +10,9 @@ import type { Document, BrandProfile } from '@/types';
 const FONTS = `https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700;800&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap`;
 
 interface DocumentViewProps {
-  document: Document & { access_code?: string; access_code_expires_at?: string };
+  // access_code and access_code_expires_at are stripped server-side.
+  // has_access_code tells us whether to show the gate UI.
+  document: Document & { has_access_code?: boolean };
   brand: BrandProfile | null;
 }
 
@@ -19,8 +21,9 @@ export function DocumentView({ document: doc, brand }: DocumentViewProps) {
   const supabaseRef = useRef(createClient());
   const supabase    = supabaseRef.current;
 
-  // If doc has no access_code set, it's open to view directly
-  const [unlocked, setUnlocked]       = useState(!doc.access_code);
+  // If doc has no access_code set, it's open to view directly.
+  // has_access_code is a boolean set server-side — the actual code never reaches the browser.
+  const [unlocked, setUnlocked]       = useState(!doc.has_access_code);
   const [showSignModal, setShowSignModal] = useState(false);
   const [signed, setSigned]           = useState(!!doc.signed_at);
   const [signerName, setSignerName]   = useState(doc.signer_name || '');
@@ -37,13 +40,22 @@ export function DocumentView({ document: doc, brand }: DocumentViewProps) {
   // Only contracts, SOWs, requirements docs, and delivery docs get client signatures.
   const canSign = ['contract', 'sow', 'requirements', 'delivery'].includes(doc.type) && !signed;
 
+  // Access code is verified server-side via POST /api/doc/verify-code.
+  // The actual code value is never sent to the browser.
   async function handleUnlock(code: string): Promise<string | null> {
-    const isExpired = doc.access_code_expires_at && new Date(doc.access_code_expires_at) < new Date();
-    if (isExpired) return 'This access code has expired. Ask the sender to regenerate it.';
-    if (code !== doc.access_code) return 'Incorrect code. Please check and try again.';
-    await supabase.from('documents').update({ status: 'viewed' }).eq('id', doc.id);
-    setUnlocked(true);
-    return null; // null = success
+    try {
+      const res = await fetch('/api/doc/verify-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: doc.share_token, code }),
+      });
+      const data = await res.json();
+      if (!res.ok) return data.error ?? 'Incorrect code. Please check and try again.';
+      setUnlocked(true);
+      return null; // null = success
+    } catch {
+      return 'Something went wrong. Please try again.';
+    }
   }
 
   async function handleSign(type: string, data: string, date: string) {

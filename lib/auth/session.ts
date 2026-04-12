@@ -45,6 +45,27 @@ export function canAccess(
 }
 
 /**
- * List of all sections per mode — used for access control UI and checks.
- * Add new sections here as the app grows.
+ * Get the owner's user_id from a session.
+ *
+ * For superadmin: ownerId === session.sub (they own their own data).
+ * For admin: ownerId === the superadmin who created them.
+ *
+ * The silent `session.ownerId ?? session.sub` fallback masked broken
+ * sessions — old JWTs minted before ownerId was added to the schema
+ * would silently query with the wrong ID and return no data.
+ * This function surfaces that clearly instead of swallowing it.
  */
+export function getOwnerId(session: BosSession): string {
+  if (session.ownerId) return session.ownerId;
+  // ownerId missing — JWT was minted before migration 004 added it.
+  // Log a warning so it's visible in server logs, then fall back to sub.
+  // This only affects sessions older than the migration date; they will
+  // expire within 24h and re-issue correctly on next login.
+  console.warn(
+    `[auth] Session for user ${session.sub} (${session.email}) is missing ownerId. ` +
+    `This JWT predates migration 004. Falling back to sub — data may not load correctly. ` +
+    `Will resolve on next login.`,
+  );
+  return session.sub;
+}
+

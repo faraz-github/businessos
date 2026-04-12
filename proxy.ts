@@ -4,10 +4,12 @@
 // ============================================================
 import { NextResponse, type NextRequest } from 'next/server';
 import { verifyToken, COOKIE_NAME } from '@/lib/auth/jwt';
-import { ALL_SECTIONS } from '@/lib/auth/sections';
+import { canAccessSection, getDefaultRoute } from '@/lib/auth/access';
 
-// Routes that don't require auth
-const PUBLIC_PREFIXES = ['/auth', '/doc/', '/api/auth/login', '/api/auth/seed', '/setup'];
+// Routes that don't require auth.
+// NOTE: /api/auth/seed is intentionally NOT listed here.
+//       It self-protects via x-seed-secret header validation.
+const PUBLIC_PREFIXES = ['/auth', '/doc/', '/api/auth/login', '/api/doc/verify-code', '/setup'];
 
 // Map URL path segments to section keys
 function sectionFromPath(pathname: string): { mode: 'personal' | 'agency'; section: string } | null {
@@ -48,17 +50,11 @@ export async function proxy(request: NextRequest) {
   }
 
   // ── Section-level access control for non-superadmin ──
-  // NOTE: This logic mirrors userCanAccess() in lib/auth/use-auth.ts.
-  // They cannot share code because proxy.ts runs at Edge (no client imports).
-  // If you update access logic, update both places.
+  // Access logic lives in lib/auth/access.ts — shared with use-auth.ts.
   if (session.role !== 'superadmin') {
     const target = sectionFromPath(pathname);
     if (target) {
-      const allowed = target.mode === 'personal'
-        ? session.allowedPersonal
-        : session.allowedAgency;
-
-      const hasAccess = allowed !== null && allowed.includes(target.section);
+      const hasAccess = canAccessSection(session, target.mode, target.section);
 
       if (!hasAccess) {
         if (pathname.startsWith('/api/')) {
@@ -76,18 +72,6 @@ export async function proxy(request: NextRequest) {
   response.headers.set('x-bos-user-id', session.sub);
   response.headers.set('x-bos-role', session.role);
   return response;
-}
-
-function getDefaultRoute(session: { allowedPersonal: string[] | null; allowedAgency: string[] | null }) {
-  if (session.allowedPersonal?.length) {
-    const first = session.allowedPersonal[0];
-    return `/dashboard/personal/${first}`;
-  }
-  if (session.allowedAgency?.length) {
-    const first = session.allowedAgency[0];
-    return `/dashboard/agency/${first}`;
-  }
-  return '/auth/login';
 }
 
 export const config = {
