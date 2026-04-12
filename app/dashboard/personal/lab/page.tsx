@@ -565,7 +565,7 @@ function ToolForm({ currentUser, existing, onClose, onSaved }: any) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <Input label="Tool Name" value={name} onChange={e => setName(e.target.value)} placeholder="e.g., Cursor, Claude, Vercel" autoFocus />
-        <Select label="Category" value={category} onChange={e => setCategory(e.target.value)}
+        <Select label="Category" value={category} onChange={e => setCategory(e.target.value as any)}
           options={TOOL_CATEGORIES.map(c => ({ value: c, label: c }))} />
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
@@ -613,7 +613,7 @@ function SkillForm({ currentUser, existing, onClose, onSaved }: any) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <Input label="Skill / Topic" value={name} onChange={e => setName(e.target.value)} placeholder="e.g., React Server Components" autoFocus />
-        <Select label="Category" value={category} onChange={e => setCategory(e.target.value)}
+        <Select label="Category" value={category} onChange={e => setCategory(e.target.value as any)}
           options={SKILL_CATEGORIES.map(c => ({ value: c, label: c }))} />
       </div>
       <Select label="Status" value={status} onChange={e => setStatus(e.target.value as SkillStatus)}

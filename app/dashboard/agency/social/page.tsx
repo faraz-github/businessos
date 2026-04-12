@@ -296,7 +296,7 @@ function PostForm({ currentUser, mode, existing, onClose, onSaved }: {
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <Input label="Planned Date" type="date" value={date} onChange={e => setDate(e.target.value)} />
-        <Select label="Status" value={status} onChange={e => setStatus(e.target.value)}
+        <Select label="Status" value={status} onChange={e => setStatus(e.target.value as any)}
           options={[
             { value: 'idea', label: 'Idea' }, { value: 'draft', label: 'Draft' },
             { value: 'scheduled', label: 'Scheduled' }, { value: 'published', label: 'Published' },

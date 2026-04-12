@@ -660,7 +660,7 @@ function EditClientModal({ client, onClose, onSaved }: {
             { value: 'whatsapp', label: 'WhatsApp' },
             { value: 'email', label: 'Email' },
             { value: 'phone', label: 'Phone' },
-          ]} value={channel} onChange={e => setChannel(e.target.value)} />
+          ]} value={channel} onChange={e => setChannel(e.target.value as any)} />
         </div>
         <div style={{ display: 'flex', gap: 10, paddingTop: 8 }}>
           <Button variant="secondary" onClick={onClose} style={{ flex: 1 }}>Cancel</Button>
@@ -727,7 +727,7 @@ function CreateClientModal({ open, onClose, mode, currentUser, onCreated }: {
             { value: 'whatsapp', label: 'WhatsApp' },
             { value: 'email', label: 'Email' },
             { value: 'phone', label: 'Phone' },
-          ]} value={channel} onChange={e => setChannel(e.target.value)} />
+          ]} value={channel} onChange={e => setChannel(e.target.value as any)} />
         </div>
         {error && <p style={{ fontSize: 12, color: 'var(--accent-red)', fontFamily: 'var(--font-body)' }}>{error}</p>}
         <div style={{ display: 'flex', gap: 10, paddingTop: 8 }}>

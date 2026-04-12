@@ -561,7 +561,7 @@ function DocumentEditorModal({ doc, clients, onClose, onSend, onDuplicateAsContr
             onChange={e => { setClientId(e.target.value); scheduleAutoSave(); }} />
           <Select label="Status" value={status}
             options={statusOptions}
-            onChange={e => { setStatus(e.target.value); scheduleAutoSave(); }} />
+            onChange={e => { setStatus(e.target.value as any); scheduleAutoSave(); }} />
         </div>
 
         <div style={{ height: 1, background: 'var(--border-subtle)' }} />

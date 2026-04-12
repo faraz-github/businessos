@@ -765,7 +765,7 @@ function AddTransactionModal({ open, onClose, mode, currentUser, onCreated }: an
           <Input label="Amount (₹)" type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0" autoFocus />
           <Input label="Date" type="date" value={date} onChange={e => setDate(e.target.value)} />
         </div>
-        <Select label="Category" options={cats} value={category} onChange={e => setCategory(e.target.value)} />
+        <Select label="Category" options={cats} value={category} onChange={e => setCategory(e.target.value as any)} />
         <Input label="Description" value={description} onChange={e => setDescription(e.target.value)} placeholder="Optional note (e.g., client name, project)" />
         <div style={{ display: 'flex', gap: 10, paddingTop: 4 }}>
           <Button variant="secondary" onClick={onClose} style={{ flex: 1 }}>Cancel</Button>
@@ -812,7 +812,7 @@ function AddSubscriptionModal({ open, onClose, mode, currentUser, onCreated }: a
           <Select label="Billing Cycle" options={[{ value: 'monthly', label: 'Monthly' }, { value: 'annual', label: 'Annual' }]} value={cycle} onChange={e => setCycle(e.target.value)} />
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-          <Select label="Category" options={SUB_CATS} value={category} onChange={e => setCategory(e.target.value)} />
+          <Select label="Category" options={SUB_CATS} value={category} onChange={e => setCategory(e.target.value as any)} />
           <Input label="Next Renewal" type="date" value={renewalDate} onChange={e => setRenewalDate(e.target.value)} />
         </div>
         <div style={{ display: 'flex', gap: 10, paddingTop: 4 }}>
@@ -852,7 +852,7 @@ function EditSubscriptionModal({ sub, onClose, onSaved }: { sub: Subscription; o
           <Select label="Billing Cycle" options={[{ value: 'monthly', label: 'Monthly' }, { value: 'annual', label: 'Annual' }]} value={cycle} onChange={e => setCycle(e.target.value)} />
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-          <Select label="Category" options={SUB_CATS} value={category} onChange={e => setCategory(e.target.value)} />
+          <Select label="Category" options={SUB_CATS} value={category} onChange={e => setCategory(e.target.value as any)} />
           <Input label="Next Renewal" type="date" value={renewalDate} onChange={e => setRenewalDate(e.target.value)} />
         </div>
         <div style={{ display: 'flex', gap: 10, paddingTop: 4 }}>
