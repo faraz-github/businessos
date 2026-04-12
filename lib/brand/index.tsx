@@ -1,6 +1,6 @@
 'use client';
 
-import {
+import React, {
   createContext, useContext, useState, useEffect, useCallback, type ReactNode,
 } from 'react';
 import { usePathname } from 'next/navigation';
@@ -31,7 +31,7 @@ const defaultValue: BrandContextValue = {
 
 const BrandContext = createContext<BrandContextValue>(defaultValue);
 
-export function BrandProvider({ children }: { children: ReactNode }) {
+export const BrandProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const pathname = usePathname();
   const initialMode: Mode = pathname.includes('/agency') ? 'agency' : 'personal';
 
