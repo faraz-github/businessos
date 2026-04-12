@@ -1,6 +1,6 @@
 'use client';
 
-import React, {
+import {
   createContext, useContext, useState, useEffect, useCallback, type ReactNode,
 } from 'react';
 import { usePathname } from 'next/navigation';
@@ -31,7 +31,7 @@ const defaultValue: BrandContextValue = {
 
 const BrandContext = createContext<BrandContextValue>(defaultValue);
 
-export function BrandProvider({ children }: { children: ReactNode }): ReactNode {
+export function BrandProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const initialMode: Mode = pathname.includes('/agency') ? 'agency' : 'personal';
 
@@ -70,7 +70,7 @@ export function BrandProvider({ children }: { children: ReactNode }): ReactNode 
     <BrandContext.Provider value={{ mode, setMode, brand, personalBrand, agencyBrand, loading, refreshBrand: fetchBrands }}>
       {children}
     </BrandContext.Provider>
-  ) as React.ReactNode;
+  );
 }
 
 export function useBrand() {
