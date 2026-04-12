@@ -13,7 +13,10 @@
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { env } from '@/lib/env';
 
-export async function createClient() {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type SupabaseClient = ReturnType<typeof createSupabaseClient<any>>;
+
+export async function createClient(): Promise<SupabaseClient> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return createSupabaseClient<any>(env.supabaseUrl, env.supabaseServiceRole, {
     auth: { autoRefreshToken: false, persistSession: false },

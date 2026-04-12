@@ -14,9 +14,12 @@
 import 'client-only'; // prevents accidental server-side import of this singleton
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 
-let _client: ReturnType<typeof createSupabaseClient> | null = null;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type SupabaseClient = ReturnType<typeof createSupabaseClient<any>>;
 
-export function createClient() {
+let _client: SupabaseClient | null = null;
+
+export function createClient(): SupabaseClient {
   if (!_client) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     _client = createSupabaseClient<any>(
@@ -24,5 +27,5 @@ export function createClient() {
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     );
   }
-  return _client;
+  return _client!;
 }
