@@ -122,6 +122,7 @@ export default function AgencyBDPipelinePage() {
 
   useEffect(() => {
     loadLeads();
+    if (!currentUser) return; // wait for user to load before subscribing
     const channel = supabase.channel(`bd-leads-${mode}`)
       .on('postgres_changes', {
         event: '*',
@@ -142,7 +143,7 @@ export default function AgencyBDPipelinePage() {
         }
       }).subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [loadLeads, mode, supabase]);
+  }, [loadLeads, mode, supabase, currentUser]);
 
   async function moveStage(leadId: string, newStage: LeadStage) {
     const { error } = await supabase.from('leads').update({ stage: newStage, last_activity_at: new Date().toISOString() }).eq('id', leadId);
