@@ -18,7 +18,8 @@ let _client: ReturnType<typeof createSupabaseClient> | null = null;
 
 export function createClient() {
   if (!_client) {
-    _client = createSupabaseClient(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    _client = createSupabaseClient<any>(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     );

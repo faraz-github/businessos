@@ -3,19 +3,27 @@ import 'server-only';
 // Business OS — Supabase Admin Client (service role)
 // Used ONLY in server-side API routes and Server Components.
 // Never import this in client components.
+//
+// We use createClient<any> because bos_users is a custom auth
+// table not present in Supabase's generated types. Without this,
+// TypeScript infers every mutation on bos_users as type 'never'.
 // ============================================================
-import { createClient } from '@supabase/supabase-js';
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 
-let adminClient: ReturnType<typeof createClient> | null = null;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let adminClient: ReturnType<typeof createSupabaseClient<any>> | null = null;
 
-export function getSupabaseAdmin() {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function getSupabaseAdmin(): ReturnType<typeof createSupabaseClient<any>> {
   if (!adminClient) {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
     if (!url || !key) {
       throw new Error('NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set');
     }
-    adminClient = createClient(url, key, {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    adminClient = createSupabaseClient<any>(url, key, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
   }
