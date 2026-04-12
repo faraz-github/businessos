@@ -8,7 +8,7 @@ import { ModeSwitch } from './ModeSwitch';
 import {
   Home, Linkedin, Users, FileText, MessageSquare, MessageCircle,
   Shield, IndianRupee, Settings, Kanban, LogOut,
-  UserCog, FlaskConical, Share2, Calendar,
+  FlaskConical, Share2, Calendar,
 } from 'lucide-react';
 
 interface NavItem { label: string; href: string; icon: React.ReactNode; section: string; }
@@ -176,20 +176,12 @@ export function Sidebar() {
       {/* Footer */}
       <div style={{ padding: '12px 12px 16px', borderTop: '1px solid var(--border-subtle)' }}>
         {isSuperAdmin && (
-          <>
-            <Link href={`/dashboard/${mode}/settings`}
-              style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', marginBottom: 2, borderRadius: 'var(--radius-sm)', fontSize: 12, color: 'var(--text-secondary)', textDecoration: 'none', fontFamily: 'var(--font-body)', transition: 'background 150ms, color 150ms' }}
-              onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.background = 'var(--bg-hover)'; (e.currentTarget as HTMLAnchorElement).style.color = 'var(--text-primary)'; }}
-              onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.background = 'transparent'; (e.currentTarget as HTMLAnchorElement).style.color = 'var(--text-secondary)'; }}>
-              <Settings size={14} /> Brand Settings
-            </Link>
-            <Link href={`/dashboard/${mode}/settings?tab=team`}
-              style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', marginBottom: 8, borderRadius: 'var(--radius-sm)', fontSize: 12, color: 'var(--text-secondary)', textDecoration: 'none', fontFamily: 'var(--font-body)', transition: 'background 150ms, color 150ms' }}
-              onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.background = 'var(--bg-hover)'; (e.currentTarget as HTMLAnchorElement).style.color = 'var(--text-primary)'; }}
-              onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.background = 'transparent'; (e.currentTarget as HTMLAnchorElement).style.color = 'var(--text-secondary)'; }}>
-              <UserCog size={14} /> Team & Access
-            </Link>
-          </>
+          <Link href={`/dashboard/${mode}/settings`}
+            style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', marginBottom: 8, borderRadius: 'var(--radius-sm)', fontSize: 12, color: 'var(--text-secondary)', textDecoration: 'none', fontFamily: 'var(--font-body)', transition: 'background 150ms, color 150ms' }}
+            onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.background = 'var(--bg-hover)'; (e.currentTarget as HTMLAnchorElement).style.color = 'var(--text-primary)'; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.background = 'transparent'; (e.currentTarget as HTMLAnchorElement).style.color = 'var(--text-secondary)'; }}>
+            <Settings size={14} /> Settings
+          </Link>
         )}
         {user && (
           <div className="flex items-center gap-2.5" style={{ padding: '6px 10px', marginBottom: 4 }}>

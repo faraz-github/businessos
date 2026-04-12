@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -11,7 +11,7 @@ import { ALL_SECTIONS, SECTION_LABELS, AGENCY_SECTION_LABELS } from '@/lib/auth/
 import { PageTransition } from '@/components/dashboard/PageTransition';
 import { Button, Input, Select } from '@/components/ui';
 import { ColorPicker } from '@/components/ui/ColorPicker';
-import { Save, Check, Plus, UserCog, Shield, Pencil, X, Power, Trash2 } from 'lucide-react';
+import { Save, Check, Plus, UserCog, Shield, Pencil, X, Power, Trash2, Download, Upload, AlertTriangle, Database, RotateCcw, HardDriveDownload } from 'lucide-react';
 import type { Mode } from '@/types';
 
 interface TeamMember {
@@ -559,7 +559,12 @@ function BrandTab() {
 // ─── MAIN PAGE ───
 export default function SettingsPage() {
   const searchParams = useSearchParams();
-  const [activeTab, setActiveTab] = useState(() => searchParams.get('tab') === 'team' ? 'team' : 'brand');
+  const [activeTab, setActiveTab] = useState(() => {
+    const t = searchParams.get('tab');
+    if (t === 'team') return 'team';
+    if (t === 'backup') return 'backup';
+    return 'brand';
+  });
   const { user } = useCurrentUser();
 
   useEffect(() => {
@@ -585,6 +590,7 @@ export default function SettingsPage() {
           {[
             { value: 'brand', label: 'Brand Settings' },
             ...(user.role === 'superadmin' ? [{ value: 'team', label: 'Team & Access' }] : []),
+            ...(user.role === 'superadmin' ? [{ value: 'backup', label: 'Backup & Restore' }] : []),
           ].map(tab => (
             <button
               key={tab.value}
@@ -614,9 +620,340 @@ export default function SettingsPage() {
         <div className="card">
           {activeTab === 'brand' && <BrandTab />}
           {activeTab === 'team' && user.role === 'superadmin' && <TeamTab />}
+          {activeTab === 'backup' && user.role === 'superadmin' && <BackupTab />}
         </div>
 
       </div>
     </PageTransition>
+  );
+}
+
+// ─── BACKUP TAB ───────────────────────────────────────────────
+interface BackupListItem {
+  filename: string; name: string; size_bytes: number; created_at: string;
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+}
+
+type BackupStep = 'idle' | 'confirm_password' | 'loading' | 'done' | 'error';
+
+function PasswordGate({ title, description, danger, onConfirm, onCancel, loading, error }: {
+  title: string; description: string; danger?: boolean;
+  onConfirm: (password: string) => void; onCancel: () => void;
+  loading: boolean; error: string | null;
+}) {
+  const [pw, setPw] = useState('');
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div style={{ padding: '12px 14px', background: danger ? 'var(--accent-red-dim)' : 'var(--bg-hover)', borderRadius: 'var(--radius-md)', border: `1px solid ${danger ? 'rgba(240,82,82,0.2)' : 'var(--border-subtle)'}` }}>
+        <p style={{ fontSize: 13, fontWeight: 600, color: danger ? 'var(--accent-red)' : 'var(--text-primary)', fontFamily: 'var(--font-body)', marginBottom: 4 }}>{title}</p>
+        <p style={{ fontSize: 12, color: danger ? 'var(--accent-red)' : 'var(--text-secondary)', fontFamily: 'var(--font-body)', opacity: 0.85 }}>{description}</p>
+      </div>
+      <div>
+        <label style={{ fontSize: 11, fontWeight: 500, textTransform: 'uppercase' as const, letterSpacing: '0.06em', color: 'var(--text-tertiary)', fontFamily: 'var(--font-body)', display: 'block', marginBottom: 6 }}>
+          Superadmin Password
+        </label>
+        <input
+          type="password" value={pw} onChange={e => setPw(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter' && pw.trim()) onConfirm(pw); }}
+          placeholder="Enter your password to confirm"
+          autoFocus
+          style={{ width: '100%', padding: '9px 12px', background: 'var(--bg-surface)', border: '1px solid var(--border-default)', borderRadius: 'var(--radius-md)', fontSize: 13, fontFamily: 'var(--font-body)', color: 'var(--text-primary)', outline: 'none', boxSizing: 'border-box' as const }}
+        />
+      </div>
+      {error && <p style={{ fontSize: 12, color: 'var(--accent-red)', fontFamily: 'var(--font-body)' }}>{error}</p>}
+      <div style={{ display: 'flex', gap: 10 }}>
+        <button onClick={onCancel} style={{ flex: 1, padding: '8px 14px', background: 'var(--bg-elevated)', color: 'var(--text-secondary)', border: '1px solid var(--border-default)', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, fontFamily: 'var(--font-body)', cursor: 'pointer' }}>Cancel</button>
+        <button onClick={() => pw.trim() && onConfirm(pw)} disabled={loading || !pw.trim()}
+          style={{ flex: 1, padding: '8px 14px', background: danger ? 'var(--accent-red)' : 'var(--accent-blue)', color: '#fff', border: 'none', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 600, fontFamily: 'var(--font-body)', cursor: loading || !pw.trim() ? 'not-allowed' : 'pointer', opacity: loading || !pw.trim() ? 0.6 : 1 }}>
+          {loading ? 'Working…' : 'Confirm'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function BackupTab() {
+  const [backups, setBackups]       = useState<BackupListItem[]>([]);
+  const [loadingList, setLoadingList] = useState(true);
+
+  // Backup state
+  const [backupStep, setBackupStep]   = useState<BackupStep>('idle');
+  const [backupError, setBackupError] = useState<string | null>(null);
+
+  // Restore state
+  const [restoreStep, setRestoreStep]   = useState<BackupStep>('idle');
+  const [restoreError, setRestoreError] = useState<string | null>(null);
+  const [restoreSource, setRestoreSource] = useState<{ type: 'file'; file: File } | { type: 'stored'; filename: string } | null>(null);
+  const [restoreMode, setRestoreMode]   = useState<'replace' | 'merge'>('replace');
+  const [restoreResult, setRestoreResult] = useState<Record<string, number> | null>(null);
+
+  // Nuke state
+  const [nukeStep, setNukeStep]   = useState<BackupStep>('idle');
+  const [nukeError, setNukeError] = useState<string | null>(null);
+  const [nukeResult, setNukeResult] = useState<string | null>(null);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const loadBackups = useCallback(async () => {
+    setLoadingList(true);
+    try {
+      const res = await fetch('/api/backup/list');
+      if (res.ok) { const data = await res.json(); setBackups(data); }
+    } finally { setLoadingList(false); }
+  }, []);
+
+  useEffect(() => { loadBackups(); }, [loadBackups]);
+
+  // ── Create backup ────────────────────────────────────────────
+  async function handleCreateBackup(password: string) {
+    setBackupStep('loading'); setBackupError(null);
+    try {
+      const res = await fetch('/api/backup/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        setBackupError(err.error || 'Backup failed'); setBackupStep('error'); return;
+      }
+      // Trigger browser download
+      const blob = await res.blob();
+      const disposition = res.headers.get('Content-Disposition') || '';
+      const nameMatch = disposition.match(/filename="([^"]+)"/);
+      const filename = nameMatch?.[1] || 'bos-backup.json';
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = filename; a.click();
+      URL.revokeObjectURL(url);
+      setBackupStep('done');
+      loadBackups();
+    } catch { setBackupError('Network error'); setBackupStep('error'); }
+  }
+
+  // ── Restore ──────────────────────────────────────────────────
+  async function handleRestore(password: string) {
+    if (!restoreSource) return;
+    setRestoreStep('loading'); setRestoreError(null);
+    try {
+      const form = new FormData();
+      form.append('password', password);
+      form.append('mode', restoreMode);
+      if (restoreSource.type === 'file') form.append('file', restoreSource.file);
+      else form.append('filename', restoreSource.filename);
+
+      const res = await fetch('/api/backup/restore', { method: 'POST', body: form });
+      const data = await res.json();
+      if (!res.ok) { setRestoreError(data.error || 'Restore failed'); setRestoreStep('error'); return; }
+      setRestoreResult(data.restored);
+      setRestoreStep('done');
+      loadBackups();
+    } catch { setRestoreError('Network error'); setRestoreStep('error'); }
+  }
+
+  // ── Nuke ─────────────────────────────────────────────────────
+  async function handleNuke(password: string) {
+    setNukeStep('loading'); setNukeError(null);
+    try {
+      const res = await fetch('/api/backup/nuke', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setNukeError(data.error || 'Nuke failed'); setNukeStep('error'); return; }
+      setNukeResult(data.message); setNukeStep('done');
+      setBackups([]);
+    } catch { setNukeError('Network error'); setNukeStep('error'); }
+  }
+
+  const sectionStyle = { display: 'flex', flexDirection: 'column' as const, gap: 16, paddingBottom: 24, marginBottom: 24, borderBottom: '1px solid var(--border-subtle)' };
+  const labelStyle   = { fontSize: 10, fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: '0.08em', color: 'var(--text-tertiary)', fontFamily: 'var(--font-body)', marginBottom: 4 };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+
+      {/* ── Create Backup ─────────────────────────────────── */}
+      <div style={sectionStyle}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
+          <div>
+            <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', fontFamily: 'var(--font-body)', marginBottom: 4 }}>Create Backup</p>
+            <p style={{ fontSize: 13, color: 'var(--text-secondary)', fontFamily: 'var(--font-body)', lineHeight: 1.5 }}>
+              Exports all your data (clients, documents, transactions, social posts, and more) to a JSON file. Brand logos are embedded as base64 — portable to any Supabase project. Backup is also stored in your private bucket.
+            </p>
+          </div>
+          {backupStep === 'idle' && (
+            <button onClick={() => { setBackupStep('confirm_password'); setBackupError(null); }}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', background: 'var(--accent-blue)', color: '#fff', border: 'none', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 600, fontFamily: 'var(--font-body)', cursor: 'pointer', flexShrink: 0 }}>
+              <HardDriveDownload size={14} /> Create Backup
+            </button>
+          )}
+          {backupStep === 'done' && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--accent-green)', fontSize: 13, fontWeight: 500, fontFamily: 'var(--font-body)', flexShrink: 0 }}>
+              <Check size={14} /> Downloaded
+              <button onClick={() => setBackupStep('idle')} style={{ marginLeft: 8, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: 11, fontFamily: 'var(--font-body)' }}>New backup</button>
+            </div>
+          )}
+        </div>
+        {backupStep === 'confirm_password' && (
+          <PasswordGate
+            title="Create backup" description="Downloads a full JSON backup and saves a copy to your private bucket."
+            onConfirm={handleCreateBackup} onCancel={() => setBackupStep('idle')}
+            loading={backupStep === 'loading'} error={backupError}
+          />
+        )}
+        {backupStep === 'error' && backupError && (
+          <div style={{ padding: '10px 14px', background: 'var(--accent-red-dim)', borderRadius: 'var(--radius-md)', fontSize: 13, color: 'var(--accent-red)', fontFamily: 'var(--font-body)' }}>
+            {backupError} — <button onClick={() => setBackupStep('idle')} style={{ background: 'none', border: 'none', color: 'var(--accent-red)', cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: 13, textDecoration: 'underline' }}>Try again</button>
+          </div>
+        )}
+      </div>
+
+      {/* ── Backup history ───────────────────────────────── */}
+      <div style={sectionStyle}>
+        <p style={labelStyle}>Stored Backups</p>
+        {loadingList ? (
+          <p style={{ fontSize: 13, color: 'var(--text-tertiary)', fontFamily: 'var(--font-body)' }}>Loading...</p>
+        ) : backups.length === 0 ? (
+          <p style={{ fontSize: 13, color: 'var(--text-tertiary)', fontFamily: 'var(--font-body)' }}>No backups stored yet. Create your first backup above.</p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 0, border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
+            {backups.map((b, i) => (
+              <div key={b.filename} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: 'var(--bg-card)', borderBottom: i < backups.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}>
+                <Database size={14} style={{ color: 'var(--text-tertiary)', flexShrink: 0 }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>{b.name}</p>
+                  <p style={{ fontSize: 11, color: 'var(--text-tertiary)', fontFamily: 'var(--font-body)' }}>{formatBytes(b.size_bytes)}</p>
+                </div>
+                <button
+                  onClick={() => { setRestoreSource({ type: 'stored', filename: b.filename }); setRestoreStep('confirm_password'); setRestoreError(null); }}
+                  style={{ padding: '4px 10px', background: 'var(--bg-elevated)', border: '1px solid var(--border-default)', borderRadius: 'var(--radius-sm)', fontSize: 11, fontWeight: 500, fontFamily: 'var(--font-body)', color: 'var(--text-secondary)', cursor: 'pointer' }}>
+                  Restore
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ── Restore from file ────────────────────────────── */}
+      <div style={sectionStyle}>
+        <div>
+          <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', fontFamily: 'var(--font-body)', marginBottom: 4 }}>Restore from File</p>
+          <p style={{ fontSize: 13, color: 'var(--text-secondary)', fontFamily: 'var(--font-body)', lineHeight: 1.5 }}>
+            Upload a backup JSON file from your computer. Choose Replace to clear existing data first, or Merge to only add rows that don't already exist.
+          </p>
+        </div>
+
+        {(restoreStep === 'idle' || restoreStep === 'error') && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{ display: 'flex', gap: 8 }}>
+              {(['replace', 'merge'] as const).map(m => (
+                <button key={m} onClick={() => setRestoreMode(m)}
+                  style={{ padding: '6px 14px', borderRadius: 'var(--radius-md)', fontSize: 12, fontWeight: 500, fontFamily: 'var(--font-body)', cursor: 'pointer', border: `1px solid ${restoreMode === m ? 'var(--accent-blue)' : 'var(--border-default)'}`, background: restoreMode === m ? 'var(--accent-blue-dim)' : 'var(--bg-elevated)', color: restoreMode === m ? 'var(--accent-blue)' : 'var(--text-secondary)' }}>
+                  {m === 'replace' ? 'Replace (clear first)' : 'Merge (add missing)'}
+                </button>
+              ))}
+            </div>
+            {restoreMode === 'replace' && (
+              <p style={{ fontSize: 11, color: 'var(--accent-amber)', fontFamily: 'var(--font-body)' }}>⚠ Replace deletes all current data before restoring. Irreversible — take a backup first.</p>
+            )}
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+              <input ref={fileInputRef} type="file" accept=".json" style={{ display: 'none' }}
+                onChange={e => {
+                  const f = e.target.files?.[0];
+                  if (f) { setRestoreSource({ type: 'file', file: f }); setRestoreStep('confirm_password'); setRestoreError(null); }
+                }}
+              />
+              <button onClick={() => fileInputRef.current?.click()}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', background: 'var(--bg-elevated)', border: '1px solid var(--border-default)', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, fontFamily: 'var(--font-body)', color: 'var(--text-secondary)', cursor: 'pointer' }}>
+                <Upload size={13} /> Choose backup file
+              </button>
+              {restoreSource?.type === 'file' && (
+                <p style={{ fontSize: 12, color: 'var(--text-secondary)', fontFamily: 'var(--font-body)' }}>{restoreSource.file.name}</p>
+              )}
+            </div>
+            {restoreStep === 'error' && restoreError && (
+              <p style={{ fontSize: 12, color: 'var(--accent-red)', fontFamily: 'var(--font-body)' }}>{restoreError}</p>
+            )}
+          </div>
+        )}
+
+        {restoreStep === 'confirm_password' && (
+          <PasswordGate
+            title={`Restore (${restoreMode} mode)`}
+            description={restoreMode === 'replace'
+              ? 'This will DELETE all current data then insert from the backup. This cannot be undone.'
+              : 'This will insert rows from the backup that don\'t already exist. Current data is kept.'}
+            danger={restoreMode === 'replace'}
+            onConfirm={handleRestore}
+            onCancel={() => { setRestoreStep('idle'); setRestoreSource(null); }}
+            loading={restoreStep === 'loading'} error={restoreError}
+          />
+        )}
+
+        {restoreStep === 'done' && restoreResult && (
+          <div style={{ padding: '12px 14px', background: 'var(--accent-green-dim)', borderRadius: 'var(--radius-md)', border: '1px solid rgba(52,201,136,0.2)' }}>
+            <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent-green)', fontFamily: 'var(--font-body)', marginBottom: 8 }}>✓ Restore complete</p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {Object.entries(restoreResult).filter(([, c]) => c > 0).map(([t, c]) => (
+                <span key={t} style={{ fontSize: 11, padding: '2px 8px', background: 'rgba(52,201,136,0.15)', borderRadius: 100, color: 'var(--accent-green)', fontFamily: 'var(--font-mono)' }}>
+                  {t}: {c}
+                </span>
+              ))}
+            </div>
+            <button onClick={() => { setRestoreStep('idle'); setRestoreSource(null); setRestoreResult(null); }}
+              style={{ marginTop: 10, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--accent-green)', fontSize: 12, fontFamily: 'var(--font-body)', textDecoration: 'underline' }}>
+              Done
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* ── Danger zone: Nuke ────────────────────────────── */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={{ padding: '14px 16px', background: 'var(--accent-red-dim)', borderRadius: 'var(--radius-md)', border: '1px solid rgba(240,82,82,0.2)' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
+            <div>
+              <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--accent-red)', fontFamily: 'var(--font-body)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <AlertTriangle size={15} /> Nuke All Data
+              </p>
+              <p style={{ fontSize: 12, color: 'var(--accent-red)', fontFamily: 'var(--font-body)', lineHeight: 1.5, opacity: 0.85 }}>
+                Permanently deletes all clients, documents, transactions, leads, and every other data table. Your account is preserved — you stay logged in. <strong>There is no undo.</strong> Take a backup first.
+              </p>
+            </div>
+            {nukeStep === 'idle' && (
+              <button onClick={() => { setNukeStep('confirm_password'); setNukeError(null); }}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: 'var(--accent-red)', color: '#fff', border: 'none', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 600, fontFamily: 'var(--font-body)', cursor: 'pointer', flexShrink: 0 }}>
+                <Trash2 size={13} /> Nuke All Data
+              </button>
+            )}
+          </div>
+          {nukeStep === 'confirm_password' && (
+            <div style={{ marginTop: 14 }}>
+              <PasswordGate
+                title="Nuke all data — this cannot be undone"
+                description="Deletes everything except your account. Your login is preserved."
+                danger
+                onConfirm={handleNuke}
+                onCancel={() => setNukeStep('idle')}
+                loading={nukeStep === 'loading'} error={nukeError}
+              />
+            </div>
+          )}
+          {nukeStep === 'done' && nukeResult && (
+            <p style={{ marginTop: 10, fontSize: 13, color: 'var(--accent-green)', fontFamily: 'var(--font-body)', fontWeight: 500 }}>✓ {nukeResult}</p>
+          )}
+          {nukeStep === 'error' && nukeError && (
+            <p style={{ marginTop: 10, fontSize: 12, color: 'var(--accent-red)', fontFamily: 'var(--font-body)' }}>{nukeError}</p>
+          )}
+        </div>
+      </div>
+
+    </div>
   );
 }
