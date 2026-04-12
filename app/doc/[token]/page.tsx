@@ -10,18 +10,14 @@ export default async function PublicDocumentPage(props: PageProps) {
   const params = await props.params;
   const supabase = await createClient();
 
-  // Fetch document by share token (public access via RLS policy)
   const { data: document, error } = await supabase
     .from('documents')
     .select('*')
     .eq('share_token', params.token)
     .single();
 
-  if (error || !document) {
-    notFound();
-  }
+  if (error || !document) notFound();
 
-  // Fetch brand profile for the document owner
   const { data: brand } = await supabase
     .from('brand_profiles')
     .select('*')
@@ -29,13 +25,7 @@ export default async function PublicDocumentPage(props: PageProps) {
     .eq('mode', document.mode)
     .single();
 
-  // Mark as viewed if status is 'sent'
-  if (document.status === 'sent') {
-    await supabase
-      .from('documents')
-      .update({ status: 'viewed' })
-      .eq('id', document.id);
-  }
-
+  // Pass document — access code check happens client-side
+  // (we never mark viewed until code is verified)
   return <DocumentView document={document} brand={brand} />;
 }

@@ -6,9 +6,9 @@ import { useBrand } from '@/lib/brand';
 import { useCurrentUser, userCanAccess, clearUserCache } from '@/lib/auth/use-auth';
 import { ModeSwitch } from './ModeSwitch';
 import {
-  Home, Linkedin, Users, FileText, MessageSquare,
+  Home, Linkedin, Users, FileText, MessageSquare, MessageCircle,
   Shield, IndianRupee, Settings, Kanban, LogOut,
-  UserCog, FlaskConical,
+  UserCog, FlaskConical, Share2, Calendar,
 } from 'lucide-react';
 
 interface NavItem { label: string; href: string; icon: React.ReactNode; section: string; }
@@ -43,7 +43,7 @@ function getPersonalNav(): NavSection[] {
       title: 'Retention',
       items: [
         { label: 'Support',  href: `${b}/support`,  icon: <Shield size={15} />,      section: 'support' },
-        { label: 'Feedback', href: `${b}/feedback`, icon: <MessageSquare size={15} />, section: 'feedback' },
+        { label: 'Feedback', href: `${b}/feedback`, icon: <MessageCircle size={15} />, section: 'feedback' },
       ],
     },
   ];
@@ -57,6 +57,7 @@ function getAgencyNav(): NavSection[] {
       items: [
         { label: 'Home',        href: `${b}/home`,        icon: <Home size={15} />,   section: 'home' },
         { label: 'BD Pipeline', href: `${b}/bd-pipeline`, icon: <Kanban size={15} />, section: 'bd-pipeline' },
+        { label: 'Content',     href: `${b}/social`,      icon: <Calendar size={15} />, section: 'social' },
       ],
     },
     {
@@ -71,7 +72,7 @@ function getAgencyNav(): NavSection[] {
       title: 'Retention',
       items: [
         { label: 'Support',  href: `${b}/support`,  icon: <Shield size={15} />,        section: 'support' },
-        { label: 'Feedback', href: `${b}/feedback`, icon: <MessageSquare size={15} />, section: 'feedback' },
+        { label: 'Feedback', href: `${b}/feedback`, icon: <MessageCircle size={15} />, section: 'feedback' },
       ],
     },
     {
@@ -150,11 +151,20 @@ export function Sidebar() {
               const active = pathname === item.href || pathname.startsWith(item.href + '/');
               return (
                 <Link key={item.href} href={item.href}
-                  className={['flex items-center gap-2.5 radius-sm interactive no-underline',
-                    active ? 'bg-accent-blue-dim text-accent-blue' : 'text-secondary hover-bg-hover hover-text-primary',
-                  ].join(' ')}
-                  style={{ padding: '8px 10px', fontSize: 13, fontFamily: 'var(--font-body)', fontWeight: active ? 500 : 400, marginBottom: 2 }}>
-                  <span className="shrink-0">{item.icon}</span>
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 8,
+                    padding: '7px 10px', borderRadius: 'var(--radius-sm)',
+                    fontSize: 12, fontFamily: 'var(--font-body)',
+                    fontWeight: active ? 500 : 400, marginBottom: 2,
+                    textDecoration: 'none',
+                    background: active ? 'var(--accent-blue-dim)' : 'transparent',
+                    color: active ? 'var(--accent-blue)' : 'var(--text-secondary)',
+                    transition: 'background 150ms, color 150ms',
+                  }}
+                  onMouseEnter={e => { if (!active) { (e.currentTarget as HTMLAnchorElement).style.background = 'var(--bg-hover)'; (e.currentTarget as HTMLAnchorElement).style.color = 'var(--text-primary)'; } }}
+                  onMouseLeave={e => { if (!active) { (e.currentTarget as HTMLAnchorElement).style.background = 'transparent'; (e.currentTarget as HTMLAnchorElement).style.color = 'var(--text-secondary)'; } }}
+                >
+                  <span style={{ flexShrink: 0 }}>{item.icon}</span>
                   {item.label}
                 </Link>
               );
@@ -167,14 +177,16 @@ export function Sidebar() {
       <div style={{ padding: '12px 12px 16px', borderTop: '1px solid var(--border-subtle)' }}>
         {isSuperAdmin && (
           <>
-            <Link href="/dashboard/personal/settings"
-              className="flex items-center gap-2.5 radius-sm t-xs text-secondary interactive no-underline hover-bg-hover hover-text-primary"
-              style={{ padding: '8px 10px', marginBottom: 2 }}>
+            <Link href={`/dashboard/${mode}/settings`}
+              style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', marginBottom: 2, borderRadius: 'var(--radius-sm)', fontSize: 12, color: 'var(--text-secondary)', textDecoration: 'none', fontFamily: 'var(--font-body)', transition: 'background 150ms, color 150ms' }}
+              onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.background = 'var(--bg-hover)'; (e.currentTarget as HTMLAnchorElement).style.color = 'var(--text-primary)'; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.background = 'transparent'; (e.currentTarget as HTMLAnchorElement).style.color = 'var(--text-secondary)'; }}>
               <Settings size={14} /> Brand Settings
             </Link>
-            <Link href="/dashboard/personal/settings?tab=team"
-              className="flex items-center gap-2.5 radius-sm t-xs text-secondary interactive no-underline hover-bg-hover hover-text-primary"
-              style={{ padding: '8px 10px', marginBottom: 8 }}>
+            <Link href={`/dashboard/${mode}/settings?tab=team`}
+              style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', marginBottom: 8, borderRadius: 'var(--radius-sm)', fontSize: 12, color: 'var(--text-secondary)', textDecoration: 'none', fontFamily: 'var(--font-body)', transition: 'background 150ms, color 150ms' }}
+              onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.background = 'var(--bg-hover)'; (e.currentTarget as HTMLAnchorElement).style.color = 'var(--text-primary)'; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.background = 'transparent'; (e.currentTarget as HTMLAnchorElement).style.color = 'var(--text-secondary)'; }}>
               <UserCog size={14} /> Team & Access
             </Link>
           </>
@@ -192,8 +204,9 @@ export function Sidebar() {
           </div>
         )}
         <button onClick={handleSignOut}
-          className="flex items-center gap-2.5 w-full radius-sm t-xs text-secondary interactive hover-bg-hover hover-text-red"
-          style={{ padding: '8px 10px', background: 'none', border: 'none', cursor: 'pointer' }}>
+          style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '7px 10px', borderRadius: 'var(--radius-sm)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--text-secondary)', fontFamily: 'var(--font-body)', transition: 'background 150ms, color 150ms' }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; (e.currentTarget as HTMLElement).style.color = 'var(--accent-red)'; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none'; (e.currentTarget as HTMLElement).style.color = 'var(--text-secondary)'; }}>
           <LogOut size={14} /> Sign out
         </button>
       </div>

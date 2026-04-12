@@ -1,40 +1,30 @@
-interface SkeletonProps { className?: string; }
+// ============================================================
+// Business OS — Skeleton component
+// Uses design system tokens only — no Tailwind classes.
+// Animation uses ds-pulse from globals.css.
+// ============================================================
 
-export function Skeleton({ className = '' }: SkeletonProps) {
-  return <div className={`bg-hover radius-md animate-pulse ${className}`} />;
+interface SkeletonProps {
+  style?: React.CSSProperties;
+  rounded?: 'sm' | 'md' | 'lg' | 'full';
 }
 
-export function SkeletonCard() {
+// A single skeleton bar. All sizing via inline style — keeps
+// the skeleton output pixel-accurate to the real content.
+export function Skeleton({ style, rounded = 'md' }: SkeletonProps) {
+  const radii = {
+    sm:   'var(--radius-sm)',
+    md:   'var(--radius-md)',
+    lg:   'var(--radius-lg)',
+    full: '100px',
+  };
   return (
-    <div className="card">
-      <Skeleton className="h-3 w-20 mb-3" />
-      <Skeleton className="h-7 w-32 mb-2" />
-      <Skeleton className="h-3 w-24" />
-    </div>
-  );
-}
-
-export function SkeletonMetricRow() {
-  return (
-    <div className="grid grid-cols-4 gap-3">
-      {Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)}
-    </div>
-  );
-}
-
-export function SkeletonTable({ rows = 5 }: { rows?: number }) {
-  return (
-    <div className="flex flex-col gap-2">
-      <div className="flex gap-4 py-2">
-        <Skeleton className="h-3 w-24" /><Skeleton className="h-3 w-32" />
-        <Skeleton className="h-3 w-20" /><Skeleton className="h-3 w-16" />
-      </div>
-      {Array.from({ length: rows }).map((_, i) => (
-        <div key={i} className="flex gap-4 py-3 border-t-subtle">
-          <Skeleton className="h-4 w-28" /><Skeleton className="h-4 w-36" />
-          <Skeleton className="h-4 w-20" /><Skeleton className="h-4 w-16" />
-        </div>
-      ))}
-    </div>
+    <div style={{
+      background:   'var(--bg-hover)',
+      borderRadius: radii[rounded],
+      animation:    'ds-pulse 1.6s ease-in-out infinite',
+      flexShrink:   0,
+      ...style,
+    }} />
   );
 }

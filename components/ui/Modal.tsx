@@ -54,22 +54,41 @@ export function Modal({ open, onClose, title, description, children, size = 'md'
             >
               {/* Header */}
               {(title || description) && (
-                <div className="flex items-start justify-between px-6 pt-5 pb-4 border-b-subtle shrink-0">
+                <div className="flex items-center justify-between shrink-0"
+                  style={{ padding: '20px 24px 16px' }}>
                   <div>
                     {title && <h2 className="t-h2">{title}</h2>}
                     {description && <p className="t-xs mt-1">{description}</p>}
                   </div>
                   <button
                     onClick={onClose}
-                    className="flex items-center justify-center w-7 h-7 radius-sm bg-hover transition-colors text-tertiary hover-text-primary ml-3 shrink-0"
-                    style={{ border: 'none', cursor: 'pointer' }}
+                    style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      width: 28, height: 28, borderRadius: 'var(--radius-sm)',
+                      border: '1px solid var(--border-default)',
+                      background: 'transparent', cursor: 'pointer',
+                      color: 'var(--text-tertiary)', flexShrink: 0, marginLeft: 12,
+                      transition: 'background 150ms, color 150ms',
+                    }}
+                    onMouseEnter={e => {
+                      (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)';
+                      (e.currentTarget as HTMLElement).style.color = 'var(--text-primary)';
+                    }}
+                    onMouseLeave={e => {
+                      (e.currentTarget as HTMLElement).style.background = 'transparent';
+                      (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)';
+                    }}
                   >
-                    <X size={15} />
+                    <X size={14} />
                   </button>
                 </div>
               )}
+              {/* Divider */}
+              {(title || description) && (
+                <div style={{ height: 1, background: 'var(--border-subtle)', flexShrink: 0 }} />
+              )}
               {/* Body */}
-              <div className="flex-1 overflow-y-auto p-6">{children}</div>
+              <div className="flex-1 overflow-y-auto" style={{ padding: '20px 24px 24px' }}>{children}</div>
             </motion.div>
           </div>
         </>

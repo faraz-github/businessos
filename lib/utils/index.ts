@@ -120,12 +120,18 @@ export function generateInvoiceNumber(mode: 'personal' | 'agency', count: number
 
 // ─── SHARE TOKEN ───
 export function generateShareToken(): string {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  let result = '';
-  for (let i = 0; i < 24; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  // Use crypto.randomBytes — Math.random() is NOT cryptographically secure.
+  // Share tokens gate access to client documents (contracts, invoices).
+  if (typeof globalThis.crypto !== 'undefined' && globalThis.crypto.getRandomValues) {
+    const bytes = new Uint8Array(18); // 18 bytes → 24 base64url chars
+    globalThis.crypto.getRandomValues(bytes);
+    return btoa(String.fromCharCode(...bytes))
+      .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '').slice(0, 24);
   }
-  return result;
+  // Node.js fallback (server-side)
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { randomBytes } = require('crypto');
+  return randomBytes(18).toString('base64url').slice(0, 24);
 }
 
 // ─── DEEP LINK BUILDERS ───
@@ -136,4 +142,9 @@ export function buildMailtoLink(email: string, subject: string, body: string): s
 export function buildWhatsAppLink(phone: string, message: string): string {
   const cleanPhone = phone.replace(/[^0-9+]/g, '');
   return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
+}
+
+export function generateAccessCode(): string {
+  // 7-digit numeric code — easy to type, hard enough to guess
+  return Math.floor(1000000 + Math.random() * 9000000).toString();
 }

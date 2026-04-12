@@ -1,6 +1,7 @@
 import { BrandProvider } from '@/lib/brand';
 import { Sidebar } from '@/components/dashboard/Sidebar';
 import { TopBar } from '@/components/dashboard/TopBar';
+import { ToastContainer } from '@/components/ui/Toast';
 import type { ReactNode } from 'react';
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
@@ -14,15 +15,15 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
             className="flex-1 w-full mx-auto"
             style={{
               maxWidth: 'var(--content-max-w)',
-              /* top: 36px breathing after topbar, sides: 40px, bottom: 48px */
-              /* Top: 6px — heading top aligns with ModeSwitch top (sidebar: 18+30+16=64px, topbar=58px, 64-58=6px) */
-              padding: '6px 40px 48px',
+              padding: '28px 40px 48px',
             }}
           >
             {children}
           </main>
         </div>
       </div>
+      {/* Global toast notifications — rendered outside main content flow */}
+      <ToastContainer />
     </BrandProvider>
   );
 }

@@ -38,8 +38,8 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // ── Authenticated: redirect away from login ──
-  if (pathname === '/auth/login' || pathname === '/auth') {
+  // ── Authenticated: redirect root and login page to correct home ──
+  if (pathname === '/' || pathname === '/auth/login' || pathname === '/auth') {
     const url = request.nextUrl.clone();
     url.pathname = session.role === 'superadmin'
       ? '/dashboard/personal/home'

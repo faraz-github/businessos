@@ -41,17 +41,17 @@ export type ClientStage =
   | 'completed';         // Fully closed
 
 export type DocumentType = 'proposal' | 'contract' | 'sow' | 'requirements' | 'invoice' | 'delivery';
-export type DocumentStatus = 'draft' | 'final' | 'sent' | 'viewed' | 'signed';
+export type DocumentStatus = 'draft' | 'final' | 'sent' | 'viewed' | 'signed' | 'paid';
 export type InvoiceStatus = 'draft' | 'sent' | 'viewed' | 'overdue' | 'paid';
 export type LeadStage = 'prospect' | 'contacted' | 'replied' | 'meeting_scheduled' | 'proposal_sent' | 'negotiating' | 'closed_won' | 'closed_lost';
 export type TransactionType = 'income' | 'expense';
 export type BillingCycle = 'monthly' | 'annual';
 export type SubscriptionStatus = 'active' | 'paused' | 'cancelled';
-export type SocialPlatform = 'linkedin' | 'github' | 'twitter' | 'other';
+export type SocialPlatform = 'linkedin' | 'instagram' | 'other'; // github + twitter removed: no pages create posts for these platforms
 export type SocialPostStatus = 'idea' | 'draft' | 'scheduled' | 'published';
 export type TimeBlockType = 'deep' | 'outreach' | 'admin' | 'personal';
 export type QuickLogType = 'lead' | 'call' | 'client_note' | 'payment' | 'task' | 'other';
-export type AccessRole = 'bd' | 'viewer';
+// AccessRole type removed — access is controlled by bos_users.allowed_personal/allowed_agency string arrays
 export type TestimonialSource = 'direct' | 'linkedin' | 'email' | 'form';
 
 // ─── Database Row Types ───
@@ -99,6 +99,8 @@ export interface Client {
   notes: string;
   current_stage: ClientStage;
   stage_history: StageHistoryEntry[];
+  service_type: string | null;
+  credentials: { service: string; detail: string }[];
   created_at: string;
   updated_at: string;
 }
@@ -136,6 +138,9 @@ export interface Lead {
   contact_email: string | null;
   contact_phone: string | null;
   source: string | null;
+  channel: string | null;
+  profile_url: string | null;
+  context: string | null;
   stage: LeadStage;
   notes: LeadNote[];
   last_activity_at: string;
@@ -152,6 +157,10 @@ export interface LeadNote {
   author?: string;
 }
 
+/**
+ * @deprecated Invoice data lives in Document (type='invoice', fields contain amounts).
+ * The invoices table was dropped in migration 012. This type is kept for reference only.
+ */
 export interface Invoice {
   id: string;
   user_id: string;
@@ -274,6 +283,10 @@ export interface Testimonial {
   updated_at: string;
 }
 
+/**
+ * @deprecated Superseded by bos_users.allowed_personal / allowed_agency arrays.
+ * The access_roles table was dropped in migration 012.
+ */
 export interface AccessRoleRow {
   id: string;
   user_id: string;

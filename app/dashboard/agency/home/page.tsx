@@ -1,7 +1,7 @@
 import { getSession } from '@/lib/auth';
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
-import { getAttentionFeed, getHomeStats, getTodaysPriorities, getTodaysTimeBlocks } from '@/app/dashboard/actions/home';
+import { getAttentionFeed, getHomeStats, getTodaysPriorities, getTodaysTimeBlocks, getRecentLogs } from '@/app/dashboard/actions/home';
 import { AgencyHomeClient } from './client';
 
 export default async function AgencyHomePage() {
@@ -10,11 +10,12 @@ export default async function AgencyHomePage() {
 
   const supabase = await createClient();
 
-  const [attentionItems, stats, priorities, timeBlocks] = await Promise.all([
+  const [attentionItems, stats, priorities, timeBlocks, recentLogs] = await Promise.all([
     getAttentionFeed('agency'),
     getHomeStats('agency'),
     getTodaysPriorities('agency'),
     getTodaysTimeBlocks('agency'),
+    getRecentLogs('agency'),
   ]);
 
   // BD-specific stats
@@ -39,6 +40,7 @@ export default async function AgencyHomePage() {
       stats={stats}
       priorities={priorities}
       timeBlocks={timeBlocks}
+      recentLogs={recentLogs}
       bdStats={bdStats}
     />
   );

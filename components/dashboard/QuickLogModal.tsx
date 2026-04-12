@@ -1,57 +1,42 @@
 'use client';
 
-import { useState } from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { quickLogSchema, type QuickLogFormData } from '@/types/schemas';
+import { useState, useEffect, useRef } from 'react';
 import { useBrand } from '@/lib/brand';
-import { useCurrentUser } from '@/lib/auth/use-auth';
-import { createClient } from '@/lib/supabase/client';
-import { Modal } from '@/components/ui/Modal';
-import { Button } from '@/components/ui/Button';
-import { Textarea } from '@/components/ui/Textarea';
-import { UserPlus, Phone, StickyNote, IndianRupee, CheckSquare, MoreHorizontal } from 'lucide-react';
-import type { QuickLogType } from '@/types';
+import { AnimatePresence, motion } from 'framer-motion';
+import { X } from 'lucide-react';
 
-interface QuickLogModalProps { open: boolean; onClose: () => void; }
+interface QuickLogModalProps {
+  open: boolean;
+  onClose: () => void;
+  onLogged?: () => void;
+}
 
-const logTypes: { value: QuickLogType; label: string; icon: React.ReactNode; color: string }[] = [
-  { value: 'lead',        label: 'Lead',        icon: <UserPlus size={16} />,    color: 'var(--accent-blue)' },
-  { value: 'call',        label: 'Call',        icon: <Phone size={16} />,       color: 'var(--accent-green)' },
-  { value: 'client_note', label: 'Client Note', icon: <StickyNote size={16} />,  color: 'var(--accent-amber)' },
-  { value: 'payment',     label: 'Payment',     icon: <IndianRupee size={16} />, color: 'var(--accent-violet)' },
-  { value: 'task',        label: 'Task',        icon: <CheckSquare size={16} />, color: 'var(--accent-blue)' },
-  { value: 'other',       label: 'Other',       icon: <MoreHorizontal size={16} />, color: 'var(--text-secondary)' },
-];
-
-export function QuickLogModal({ open, onClose }: QuickLogModalProps) {
+export function QuickLogModal({ open, onClose, onLogged }: QuickLogModalProps) {
   const { mode } = useBrand();
-  const { user } = useCurrentUser();   // ← fixed: was supabase.auth.getUser()
+  const [content, setContent] = useState('');
   const [saving, setSaving] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const { register, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm<QuickLogFormData>({
-    resolver: zodResolver(quickLogSchema),
-    defaultValues: { mode, type: 'lead', content: '' },
-  });
+  useEffect(() => {
+    if (open) {
+      setContent('');
+      setTimeout(() => textareaRef.current?.focus(), 80);
+    }
+  }, [open]);
 
-  const selectedType = watch('type');
-
-  function handleTypeSelect(type: QuickLogType) {
-    setValue('type', type, { shouldValidate: true });
-  }
-
-  async function onSubmit(data: QuickLogFormData) {
-    if (!user) return;
+  async function handleSubmit() {
+    const text = content.trim();
+    if (!text || saving) return;
     setSaving(true);
     try {
-      const supabase = createClient();
-      await supabase.from('quick_logs').insert({
-        user_id: user.id,
-        mode: data.mode,
-        type: data.type,
-        content: data.content,
+      const res = await fetch('/api/logs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode, content: text }),
       });
-      reset({ mode, type: 'lead', content: '' });
+      if (!res.ok) throw new Error('Failed to save log');
+      onLogged?.();
+      window.dispatchEvent(new CustomEvent('quicklog:saved', { detail: { mode } }));
       onClose();
     } catch (err) {
       console.error('Quick log failed:', err);
@@ -60,45 +45,123 @@ export function QuickLogModal({ open, onClose }: QuickLogModalProps) {
     }
   }
 
+  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+      e.preventDefault();
+      handleSubmit();
+    }
+  }
+
+  const isPersonal = mode === 'personal';
+
   return (
-    <Modal open={open} onClose={onClose} title="Quick Log" description="Log something in under 10 seconds." size="sm">
-      <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
-        <input type="hidden" {...register('mode')} value={mode} />
-        <input type="hidden" {...register('type')} />
+    <AnimatePresence>
+      {open && (
+        <>
+          {/* Backdrop */}
+          <motion.div
+            className="fixed inset-0 z-[100] bg-black/55 backdrop-blur-[6px]"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            transition={{ duration: 0.18 }}
+            onClick={onClose}
+          />
 
-        {/* Type selector */}
-        <div className="grid grid-cols-3 gap-2">
-          {logTypes.map((lt) => (
-            <button
-              key={lt.value}
-              type="button"
-              onClick={() => handleTypeSelect(lt.value)}
-              className="flex flex-col items-center gap-1.5 py-3 radius-md border interactive"
+          {/* Modal */}
+          <div className="fixed inset-0 z-[101] flex items-center justify-center p-5">
+            <motion.div
               style={{
-                border: `1px solid ${selectedType === lt.value ? 'var(--accent-blue)' : 'var(--border-subtle)'}`,
-                background: selectedType === lt.value ? 'var(--accent-blue-dim)' : 'transparent',
-                cursor: 'pointer',
+                width: '100%', maxWidth: 380,
+                background: 'var(--bg-elevated)',
+                border: '1px solid var(--border-default)',
+                borderRadius: 'var(--radius-xl)',
+                boxShadow: 'var(--shadow-modal)',
+                overflow: 'hidden',
               }}
+              initial={{ opacity: 0, scale: 0.96, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 10 }}
+              transition={{ duration: 0.2, ease: [0, 0, 0.2, 1] }}
+              onClick={e => e.stopPropagation()}
             >
-              <span style={{ color: lt.color }}>{lt.icon}</span>
-              <span className="t-2xs text-secondary">{lt.label}</span>
-            </button>
-          ))}
-        </div>
+              <div style={{ padding: '20px 20px 20px' }}>
 
-        <Textarea
-          {...register('content')}
-          placeholder="What happened? Keep it brief..."
-          error={errors.content?.message}
-          style={{ minHeight: 60 }}
-          autoFocus
-        />
+                {/* Top row: mode pill + close button */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+                  <div style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 6,
+                    padding: '3px 10px', borderRadius: 100,
+                    background: isPersonal ? 'var(--accent-blue-dim)' : 'var(--accent-violet-dim)',
+                    color: isPersonal ? 'var(--accent-blue)' : 'var(--accent-violet)',
+                    fontSize: 10, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.06em',
+                  }}>
+                    <span style={{ width: 5, height: 5, borderRadius: '50%', background: 'currentColor', flexShrink: 0 }} />
+                    {isPersonal ? 'Personal' : 'Agency'}
+                  </div>
 
-        <div className="flex gap-2 pt-1 border-t-subtle">
-          <Button variant="secondary" type="button" onClick={onClose} style={{ flex: 1 }}>Cancel</Button>
-          <Button type="submit" loading={saving} style={{ flex: 1 }}>Log it</Button>
-        </div>
-      </form>
-    </Modal>
+                  <button
+                    onClick={onClose}
+                    style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      width: 26, height: 26, borderRadius: 'var(--radius-sm)',
+                      background: 'transparent', border: 'none', cursor: 'pointer',
+                      color: 'var(--text-tertiary)', transition: 'background 150ms, color 150ms',
+                    }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; (e.currentTarget as HTMLElement).style.color = 'var(--text-primary)'; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)'; }}
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+
+                {/* Textarea */}
+                <textarea
+                  ref={textareaRef}
+                  value={content}
+                  onChange={e => setContent(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder="What happened? Just type it..."
+                  style={{
+                    width: '100%', minHeight: 96, resize: 'none', outline: 'none',
+                    background: 'var(--bg-hover)',
+                    border: '1px solid var(--border-subtle)',
+                    borderRadius: 'var(--radius-md)',
+                    padding: '12px 14px',
+                    fontSize: 13, fontFamily: 'var(--font-body)',
+                    color: 'var(--text-primary)', lineHeight: 1.6,
+                    transition: 'border-color 150ms',
+                    display: 'block',
+                  }}
+                  onFocus={e => { e.target.style.borderColor = 'var(--accent-blue)'; }}
+                  onBlur={e => { e.target.style.borderColor = 'var(--border-subtle)'; }}
+                />
+
+                {/* Footer: hint left, button right */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 12 }}>
+                  <span style={{ fontSize: 11, color: 'var(--text-tertiary)', fontFamily: 'var(--font-body)' }}>
+                    ⌘ Enter to save
+                  </span>
+                  <button
+                    onClick={handleSubmit}
+                    disabled={!content.trim() || saving}
+                    style={{
+                      padding: '7px 18px',
+                      background: content.trim() ? 'var(--accent-blue)' : 'var(--bg-hover)',
+                      color: content.trim() ? '#fff' : 'var(--text-tertiary)',
+                      border: 'none', borderRadius: 'var(--radius-md)',
+                      fontSize: 12, fontWeight: 600, fontFamily: 'var(--font-body)',
+                      cursor: content.trim() ? 'pointer' : 'default',
+                      transition: 'background 150ms, color 150ms',
+                    }}
+                  >
+                    {saving ? 'Saving…' : 'Log it'}
+                  </button>
+                </div>
+
+              </div>
+            </motion.div>
+          </div>
+        </>
+      )}
+    </AnimatePresence>
   );
 }

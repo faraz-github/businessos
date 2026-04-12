@@ -84,13 +84,20 @@ export async function DELETE(
   const { id } = await params;
 
   if (id === session!.sub) {
-    return NextResponse.json({ error: 'Cannot deactivate yourself' }, { status: 400 });
+    return NextResponse.json({ error: 'Cannot delete yourself' }, { status: 400 });
   }
 
   const admin = getSupabaseAdmin();
+
+  // Prevent deleting another superadmin
+  const { data: target } = await admin.from('bos_users').select('role').eq('id', id).single();
+  if (target?.role === 'superadmin') {
+    return NextResponse.json({ error: 'Cannot delete a superadmin account' }, { status: 403 });
+  }
+
   const { error } = await admin
     .from('bos_users')
-    .update({ is_active: false })
+    .delete()
     .eq('id', id);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

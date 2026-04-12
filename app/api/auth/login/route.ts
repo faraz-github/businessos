@@ -56,9 +56,28 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 });
     }
 
+    // Resolve ownerId — the superadmin's user_id that owns all the data.
+    // For superadmin: ownerId = their own id.
+    // For admin: ownerId = the superadmin who created them (created_by field).
+    let ownerId = user.id;
+    if (user.role !== 'superadmin' && user.created_by) {
+      ownerId = user.created_by;
+    } else if (user.role !== 'superadmin') {
+      // Fallback: find the superadmin if created_by not set
+      const { data: sa } = await admin
+        .from('bos_users')
+        .select('id')
+        .eq('role', 'superadmin')
+        .eq('is_active', true)
+        .limit(1)
+        .single();
+      if (sa) ownerId = sa.id;
+    }
+
     // Sign JWT
     const token = await signToken({
       sub: user.id,
+      ownerId,
       email: user.email,
       name: user.name,
       role: user.role,
@@ -77,9 +96,12 @@ export async function POST(request: NextRequest) {
       ok: true,
       user: {
         id: user.id,
+        ownerId,
         name: user.name,
         email: user.email,
         role: user.role,
+        allowedPersonal: user.allowed_personal,
+        allowedAgency:   user.allowed_agency,
       },
     });
 

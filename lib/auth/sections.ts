@@ -23,3 +23,9 @@ export const SECTION_LABELS: Record<string, string> = {
   'bd-pipeline': 'BD Pipeline',
   lab: 'Lab',
 };
+
+// Agency-specific label overrides — used in AccessSelector
+export const AGENCY_SECTION_LABELS: Record<string, string> = {
+  ...Object.fromEntries(Object.entries(SECTION_LABELS)),
+  social: 'Content',  // In agency context /social is the Content calendar
+};

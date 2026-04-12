@@ -4,7 +4,6 @@ import {
   createContext, useContext, useState, useEffect, useCallback, type ReactNode,
 } from 'react';
 import { usePathname } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
 import type { BrandProfile, Mode } from '@/types';
 
 interface BrandContextValue {
@@ -17,44 +16,51 @@ interface BrandContextValue {
   refreshBrand: () => Promise<void>;
 }
 
-const BrandContext = createContext<BrandContextValue | undefined>(undefined);
+// Safe default — prevents throws during SSR hydration if context is read
+// before the provider has mounted. Components should check `loading` before
+// relying on brand data.
+const defaultValue: BrandContextValue = {
+  mode: 'personal',
+  setMode: () => {},
+  brand: null,
+  personalBrand: null,
+  agencyBrand: null,
+  loading: true,
+  refreshBrand: async () => {},
+};
+
+const BrandContext = createContext<BrandContextValue>(defaultValue);
 
 export function BrandProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const initialMode: Mode = pathname.includes('/agency') ? 'agency' : 'personal';
 
-  const [mode, setMode] = useState<Mode>(initialMode);
+  const [mode, setMode]                 = useState<Mode>(initialMode);
   const [personalBrand, setPersonalBrand] = useState<BrandProfile | null>(null);
-  const [agencyBrand, setAgencyBrand] = useState<BrandProfile | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [agencyBrand, setAgencyBrand]   = useState<BrandProfile | null>(null);
+  const [loading, setLoading]           = useState(true);
 
-  const supabase = createClient();
+  // Update mode when URL changes (e.g. navigating personal ↔ agency)
+  useEffect(() => {
+    const derived: Mode = pathname.includes('/agency') ? 'agency' : 'personal';
+    setMode(derived);
+  }, [pathname]);
 
   const fetchBrands = useCallback(async () => {
     setLoading(true);
     try {
-      // Use our custom JWT auth — NOT supabase.auth.getUser() which requires Supabase Auth
-      const meRes = await fetch('/api/auth/me');
-      if (!meRes.ok) return;
-      const me = await meRes.json() as { id: string };
-
-      const { data } = await supabase
-        .from('brand_profiles')
-        .select('*')
-        .eq('user_id', me.id);
-
-      if (data) {
-        const personal = data.find((b) => b.mode === 'personal') as BrandProfile | undefined;
-        const agency   = data.find((b) => b.mode === 'agency')   as BrandProfile | undefined;
-        setPersonalBrand(personal ?? null);
-        setAgencyBrand(agency   ?? null);
-      }
+      // Use API route — browser supabase client can't pass RLS with custom JWT auth
+      const res = await fetch('/api/brand');
+      if (!res.ok) return;
+      const data: BrandProfile[] = await res.json();
+      setPersonalBrand(data.find(b => b.mode === 'personal') ?? null);
+      setAgencyBrand  (data.find(b => b.mode === 'agency')   ?? null);
     } catch (err) {
       console.error('Failed to fetch brand profiles:', err);
     } finally {
       setLoading(false);
     }
-  }, [supabase]);
+  }, []);
 
   useEffect(() => { fetchBrands(); }, [fetchBrands]);
 
@@ -68,9 +74,8 @@ export function BrandProvider({ children }: { children: ReactNode }) {
 }
 
 export function useBrand() {
-  const ctx = useContext(BrandContext);
-  if (!ctx) throw new Error('useBrand must be used within a BrandProvider');
-  return ctx;
+  return useContext(BrandContext);
+  // No throw — safe default is provided. Components handle loading state themselves.
 }
 
 export function useMode(): [Mode, (mode: Mode) => void] {

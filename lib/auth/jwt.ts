@@ -9,6 +9,10 @@ export type UserRole = 'superadmin' | 'admin';
 
 export interface BosSession {
   sub: string;          // bos_user id (uuid)
+  ownerId: string;      // superadmin's user_id — the data owner.
+                        // For superadmin: ownerId === sub.
+                        // For admin: ownerId === the superadmin who created them.
+                        // ALL data queries use ownerId, never sub.
   email: string;
   name: string;
   role: UserRole;

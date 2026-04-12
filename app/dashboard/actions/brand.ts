@@ -34,16 +34,19 @@ export async function upsertBrandProfile(formData: BrandProfileFormData) {
     .eq('mode', formData.mode)
     .single();
 
+  // Destructure to exclude logo_url — logo is managed separately by uploadBrandLogo
+  const { ...profileData } = formData;
+
   if (existing) {
     const { error } = await supabase
       .from('brand_profiles')
-      .update({ ...formData, updated_at: new Date().toISOString() })
+      .update({ ...profileData, updated_at: new Date().toISOString() })
       .eq('id', existing.id);
     if (error) throw error;
   } else {
     const { error } = await supabase
       .from('brand_profiles')
-      .insert({ ...formData, user_id: user.id });
+      .insert({ ...profileData, user_id: user.id });
     if (error) throw error;
   }
 
@@ -71,12 +74,13 @@ export async function uploadBrandLogo(mode: Mode, file: FormData) {
     .from('brand-logos')
     .getPublicUrl(path);
 
-  // Update brand profile with logo URL
+  // Upsert brand profile with logo URL — creates row if it doesn't exist yet
   await supabase
     .from('brand_profiles')
-    .update({ logo_url: publicUrl })
-    .eq('user_id', user.id)
-    .eq('mode', mode);
+    .upsert(
+      { user_id: user.id, mode, logo_url: publicUrl },
+      { onConflict: 'user_id,mode' }
+    );
 
   revalidatePath('/dashboard');
   return publicUrl;

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 
 export interface CurrentUser {
   id: string;
+  ownerId: string;  // superadmin's user_id — use this for ALL data queries
   name: string;
   email: string;
   role: 'superadmin' | 'admin';

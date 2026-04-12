@@ -9,6 +9,7 @@ export async function GET() {
   }
   return NextResponse.json({
     id: session.sub,
+    ownerId: session.ownerId ?? session.sub, // fallback for existing sessions
     name: session.name,
     email: session.email,
     role: session.role,
