@@ -11,7 +11,7 @@ interface ThemeContextValue {
 
 const ThemeContext = createContext<ThemeContextValue>({ theme: 'dark', toggleTheme: () => {} });
 
-export function ThemeProvider({ children }: { children: ReactNode }) {
+export function ThemeProvider({ children }: { children: ReactNode }): JSX.Element {
   const [theme, setTheme] = useState<Theme>('dark');
 
   useEffect(() => {

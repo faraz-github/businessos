@@ -5,7 +5,7 @@ interface ProgressProps {
   label?: string;
 }
 
-export function Progress({ value, color = 'var(--accent-blue)', className = '', label }: ProgressProps) {
+export function Progress({ value, color = 'var(--accent-blue)', className = '', label }: ProgressProps)): JSX.Element {
   const clamped = Math.min(100, Math.max(0, value));
   return (
     <div className={className}>

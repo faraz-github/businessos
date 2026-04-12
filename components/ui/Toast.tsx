@@ -24,7 +24,7 @@ interface ToastItem {
 // ── Singleton event bus ──
 const listeners = new Set<(item: ToastItem) => void>();
 
-function emit(item: ToastItem) {
+function emit(item: ToastItem)): JSX.Element {
   listeners.forEach(fn => fn(item));
 }
 
@@ -59,7 +59,7 @@ const TOAST_CONFIG: Record<ToastType, { icon: React.ReactNode; bg: string; borde
 const AUTO_DISMISS_MS = 3500;
 
 // ── Container component (rendered once in layout) ──
-export function ToastContainer() {
+export function ToastContainer()): JSX.Element {
   const [items, setItems] = useState<ToastItem[]>([]);
   const timers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 

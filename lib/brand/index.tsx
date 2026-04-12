@@ -31,7 +31,7 @@ const defaultValue: BrandContextValue = {
 
 const BrandContext = createContext<BrandContextValue>(defaultValue);
 
-export function BrandProvider({ children }: { children: ReactNode }) {
+export function BrandProvider({ children }: { children: ReactNode }): JSX.Element {
   const pathname = usePathname();
   const initialMode: Mode = pathname.includes('/agency') ? 'agency' : 'personal';
 

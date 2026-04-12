@@ -5,7 +5,7 @@ import { User, Building2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 
-export function ModeSwitch() {
+export function ModeSwitch()): JSX.Element {
   const { mode, setMode } = useBrand();
   const router = useRouter();
 

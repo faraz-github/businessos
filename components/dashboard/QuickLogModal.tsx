@@ -11,7 +11,7 @@ interface QuickLogModalProps {
   onLogged?: () => void;
 }
 
-export function QuickLogModal({ open, onClose, onLogged }: QuickLogModalProps) {
+export function QuickLogModal({ open, onClose, onLogged }: QuickLogModalProps)): JSX.Element {
   const { mode } = useBrand();
   const [content, setContent] = useState('');
   const [saving, setSaving] = useState(false);

@@ -30,7 +30,7 @@ const TYPE_COLOR: Record<string, string> = {
   lead:     'var(--accent-green)',
 };
 
-export function TopBar() {
+export function TopBar()): JSX.Element {
   const [quickLogOpen, setQuickLogOpen] = useState(false);
   const [query, setQuery]               = useState('');
   const [results, setResults]           = useState<SearchResult[]>([]);

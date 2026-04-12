@@ -13,7 +13,7 @@ const DEFAULT_PRESETS = [
   '#0EA5E9', '#A855F7', '#10B981', '#F97316', '#EC4899',
 ];
 
-export function ColorPicker({ label, value, onChange, presets = DEFAULT_PRESETS }: ColorPickerProps) {
+export function ColorPicker({ label, value, onChange, presets = DEFAULT_PRESETS }: ColorPickerProps)): JSX.Element {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       {label && <label className="t-label">{label}</label>}

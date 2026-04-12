@@ -13,7 +13,7 @@ interface DocumentEditorProps {
   onSaved?: () => void;
 }
 
-export function DocumentEditor({ document: doc, brand, onSaved }: DocumentEditorProps) {
+export function DocumentEditor({ document: doc, brand, onSaved }: DocumentEditorProps)): JSX.Element {
   const [fields, setFields] = useState<Record<string, any>>(doc.fields as Record<string, any>);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -53,7 +53,7 @@ export function DocumentEditor({ document: doc, brand, onSaved }: DocumentEditor
 // ─── LIST HELPERS ───
 function ListEditor({ label, items, onChange, placeholder }: {
   label: string; items: string[]; onChange: (items: string[]) => void; placeholder?: string;
-}) {
+}): JSX.Element {
   return (
     <div>
       <label className="text-[11px] font-medium uppercase tracking-[0.06em] text-[var(--text-tertiary)] block mb-1.5">{label}</label>
@@ -80,7 +80,7 @@ function ListEditor({ label, items, onChange, placeholder }: {
 }
 
 // ─── PROPOSAL FORM ───
-function ProposalForm({ fields, onChange }: { fields: any; onChange: (k: string, v: any) => void }) {
+function ProposalForm({ fields, onChange }: { fields: any; onChange: (k: string, v: any) => void })): JSX.Element {
   return (
     <div className="flex flex-col gap-4">
       <Input label="Client Name" value={fields.client_name || ''} onChange={(e) => onChange('client_name', e.target.value)} />
@@ -100,7 +100,7 @@ function ProposalForm({ fields, onChange }: { fields: any; onChange: (k: string,
 }
 
 // ─── CONTRACT FORM ───
-function ContractForm({ fields, onChange }: { fields: any; onChange: (k: string, v: any) => void }) {
+function ContractForm({ fields, onChange }: { fields: any; onChange: (k: string, v: any) => void })): JSX.Element {
   const schedule = fields.payment_schedule || [];
 
   return (
@@ -137,7 +137,7 @@ function ContractForm({ fields, onChange }: { fields: any; onChange: (k: string,
 }
 
 // ─── SOW FORM ───
-function SOWForm({ fields, onChange }: { fields: any; onChange: (k: string, v: any) => void }) {
+function SOWForm({ fields, onChange }: { fields: any; onChange: (k: string, v: any) => void })): JSX.Element {
   const deliverables = fields.deliverables || [];
   const milestones = fields.milestone_schedule || [];
 
@@ -181,7 +181,7 @@ function SOWForm({ fields, onChange }: { fields: any; onChange: (k: string, v: a
 }
 
 // ─── REQUIREMENTS FORM ───
-function RequirementsForm({ fields, onChange }: { fields: any; onChange: (k: string, v: any) => void }) {
+function RequirementsForm({ fields, onChange }: { fields: any; onChange: (k: string, v: any) => void })): JSX.Element {
   const requirements = fields.functional_requirements || [];
 
   return (
@@ -219,7 +219,7 @@ function RequirementsForm({ fields, onChange }: { fields: any; onChange: (k: str
 }
 
 // ─── INVOICE FORM ───
-function InvoiceForm({ fields, onChange, brand }: { fields: any; onChange: (k: string, v: any) => void; brand: BrandProfile | null }) {
+function InvoiceForm({ fields, onChange, brand }: { fields: any; onChange: (k: string, v: any) => void; brand: BrandProfile | null })): JSX.Element {
   const lineItems = fields.line_items || [];
   const gstEnabled = fields.gst_enabled !== false;
   const gstRate = fields.gst_rate || 18;
@@ -308,7 +308,7 @@ function InvoiceForm({ fields, onChange, brand }: { fields: any; onChange: (k: s
 }
 
 // ─── DELIVERY FORM ───
-function DeliveryForm({ fields, onChange }: { fields: any; onChange: (k: string, v: any) => void }) {
+function DeliveryForm({ fields, onChange }: { fields: any; onChange: (k: string, v: any) => void })): JSX.Element {
   const deliverables = fields.deliverables || [];
   const credentials = fields.credentials || [];
 

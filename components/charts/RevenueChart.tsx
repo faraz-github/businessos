@@ -10,7 +10,7 @@ interface RevenueChartProps {
   height?: number;
 }
 
-function CustomTooltip({ active, payload, label }: any) {
+function CustomTooltip({ active, payload, label }: any)): JSX.Element {
   if (!active || !payload?.length) return null;
   return (
     <div className="bg-[var(--bg-elevated)] border border-[var(--border-default)] rounded-[var(--radius-md)] px-3 py-2 shadow-[var(--shadow-elevated)]">
@@ -25,7 +25,7 @@ function CustomTooltip({ active, payload, label }: any) {
   );
 }
 
-export function RevenueChart({ data, height = 220 }: RevenueChartProps) {
+export function RevenueChart({ data, height = 220 }: RevenueChartProps)): JSX.Element {
   return (
     <ResponsiveContainer width="100%" height={height}>
       <BarChart data={data} margin={{ top: 4, right: 0, left: -20, bottom: 0 }} barGap={2}>

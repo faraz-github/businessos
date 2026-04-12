@@ -18,7 +18,7 @@ const variantClass: Record<BadgeVariant, string> = {
   outline: 'badge border-default text-secondary',
 };
 
-export function Badge({ variant = 'blue', dot = false, children, className }: BadgeProps) {
+export function Badge({ variant = 'blue', dot = false, children, className }: BadgeProps)): JSX.Element {
   return (
     <span className={`${variantClass[variant]}${className ? ' ' + className : ''}`}>
       {dot && <span className="block w-[5px] h-[5px] rounded-full bg-current shrink-0 mr-1" />}
