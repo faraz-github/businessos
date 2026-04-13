@@ -2,22 +2,22 @@ import type { ClientStage, LeadStage, IncomeCategory, ExpenseCategory } from '@/
 
 // ─── CLIENT STAGES ───
 export const CLIENT_STAGES: { value: ClientStage; label: string; group: string }[] = [
-  { value: 'interested', label: 'Interested', group: 'lead' },
+  { value: 'lead', label: 'Lead', group: 'lead' },
   { value: 'proposal_sent', label: 'Proposal Sent', group: 'lead' },
   { value: 'contract_sent', label: 'Contract Sent', group: 'lead' },
   { value: 'contract_signed', label: 'Contract Signed', group: 'onboarding' },
   { value: 'requirements_sent', label: 'Requirements Sent', group: 'onboarding' },
   { value: 'requirements_received', label: 'Requirements Received', group: 'onboarding' },
-  { value: 'initial_payment_received', label: 'Initial Payment Received', group: 'onboarding' },
-  { value: 'work_in_progress', label: 'Work In Progress', group: 'active' },
-  { value: 'phase_1_complete', label: 'Phase 1 Complete', group: 'active' },
-  { value: 'phase_2_complete', label: 'Phase 2 Complete', group: 'active' },
-  { value: 'review_and_feedback', label: 'Review & Feedback', group: 'active' },
-  { value: 'revisions_complete', label: 'Revisions Complete', group: 'active' },
+  { value: 'upfront_paid', label: 'Initial Payment Received', group: 'onboarding' },
+  { value: 'in_progress', label: 'Work In Progress', group: 'active' },
+  { value: 'milestone_review', label: 'Phase 1 Complete', group: 'active' },
+  { value: 'revision', label: 'Phase 2 Complete', group: 'active' },
+  { value: 'final_review', label: 'Review & Feedback', group: 'active' },
+  { value: 'handover', label: 'Revisions Complete', group: 'active' },
   { value: 'final_payment_received', label: 'Final Payment Received', group: 'closing' },
-  { value: 'delivered', label: 'Delivered', group: 'closing' },
+  { value: 'final_payment_received', label: 'Delivered', group: 'closing' },
   { value: 'deployed', label: 'Deployed', group: 'closing' },
-  { value: 'support_period_active', label: 'Support Period Active', group: 'support' },
+  { value: 'support_active', label: 'Support Period Active', group: 'support' },
   { value: 'completed', label: 'Completed', group: 'done' },
 ];
 

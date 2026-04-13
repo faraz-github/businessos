@@ -42,7 +42,7 @@ export default async function PublicDocumentPage(props: PageProps) {
   const documentForClient = {
     ...safeDocument,
     has_access_code: Boolean(_code),
-  };
+  } as Document & { has_access_code: boolean };
 
   return (
     <DocumentView

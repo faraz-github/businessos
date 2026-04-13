@@ -987,7 +987,7 @@ function InvoiceView({ fields, color, brand }: { fields: any; color: string; bra
             <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: brand?.bank_upi ? 8 : 0 }}>
               <p style={{ fontSize: 13, color: '#374151', fontWeight: 600, margin: 0 }}>{brand.bank_name}</p>
               {brand.bank_account_number && (
-                <p style={{ fontSize: 13, color: '#6b7280', margin: 0, fontFamily: 'DM Mono, monospace', fontSize: 12 } as React.CSSProperties}>
+                <p style={{ fontSize: 12, color: '#6b7280', margin: 0, fontFamily: 'DM Mono, monospace' } as React.CSSProperties}>
                   A/C: {brand.bank_account_number}{brand.bank_ifsc ? ` · IFSC: ${brand.bank_ifsc}` : ''}
                 </p>
               )}
@@ -996,7 +996,7 @@ function InvoiceView({ fields, color, brand }: { fields: any; color: string; bra
           {brand?.bank_upi && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ fontSize: 11, fontWeight: 600, color: '#9ca3af', textTransform: 'uppercase' as const }}>UPI</span>
-              <span style={{ fontSize: 13, color: '#374151', fontFamily: 'DM Mono, monospace', fontSize: 12 } as React.CSSProperties}>{brand.bank_upi}</span>
+              <span style={{ fontSize: 12, color: '#374151', fontFamily: 'DM Mono, monospace' } as React.CSSProperties}>{brand.bank_upi}</span>
             </div>
           )}
         </div>

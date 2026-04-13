@@ -70,6 +70,7 @@ export type SocialPostStatus = 'idea' | 'draft' | 'scheduled' | 'published';
 export type TimeBlockType = 'deep' | 'outreach' | 'admin' | 'personal';
 export type QuickLogType = 'lead' | 'call' | 'client_note' | 'payment' | 'task' | 'other';
 // AccessRole type removed — access is controlled by bos_users.allowed_personal/allowed_agency string arrays
+export type AccessRole = string; // kept for backward compat with AccessRoleRow
 export type TestimonialSource = 'direct' | 'linkedin' | 'email' | 'form';
 
 // ─── Database Row Types ───

@@ -1599,7 +1599,7 @@ function InvoiceEditor({ fields, setField }: { fields: any; setField: (k: string
     if (!newItem.description.trim()) return;
     if (qty < 1 || !Number.isFinite(qty)) return;   // reject invalid qty
     if (rate <= 0 || !Number.isFinite(rate)) return; // reject zero/negative rate
-    const item = { description: newItem.description.trim(), quantity: qty, rate };
+    const item: LineItem = { description: newItem.description.trim(), quantity: String(qty), rate: String(rate) };
     recalculate([...lineItems, item], fields.gst_enabled || false, fields.gst_rate || 18);
     setNewItem({ description: '', quantity: '', rate: '' });
   }
