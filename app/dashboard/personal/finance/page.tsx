@@ -122,7 +122,7 @@ export default function PersonalFinancePage() {
         clients:     doc.clients,
         client_id:   doc.client_id,
         fields:      f,
-        _source:     'document', // for markInvoicePaid to know which table
+        _source:     'document' as const, // for markInvoicePaid to know which table
       };
     });
     setInvoices(rawInvoices);
