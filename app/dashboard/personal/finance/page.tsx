@@ -122,7 +122,7 @@ export default function PersonalFinancePage() {
         clients:     doc.clients,
         client_id:   doc.client_id,
         fields:      f,
-        _source:     'document', // for markInvoicePaid to know which table
+        _source:     'document' as const, // for markInvoicePaid to know which table
       };
     });
     setInvoices(rawInvoices);
@@ -724,7 +724,7 @@ export default function PersonalFinancePage() {
 }
 
 /* ── ADD TRANSACTION MODAL ──────────────────────────────────── */
-function AddTransactionModal({ open, onClose, mode, currentUser, onCreated }: any) {
+function AddTransactionModal({ open, onClose, mode, currentUser, onCreated }: { open: boolean; onClose: () => void; mode: string; currentUser: { ownerId: string } | null | undefined; onCreated: (tx: Transaction) => void }) {
   const supabase = useRef(createClient()).current!;
   const [type, setType]               = useState<'income' | 'expense'>('income');
   const [category, setCategory]       = useState('project_payment');
@@ -777,7 +777,7 @@ function AddTransactionModal({ open, onClose, mode, currentUser, onCreated }: an
 }
 
 /* ── ADD SUBSCRIPTION MODAL ─────────────────────────────────── */
-function AddSubscriptionModal({ open, onClose, mode, currentUser, onCreated }: any) {
+function AddSubscriptionModal({ open, onClose, mode, currentUser, onCreated }: { open: boolean; onClose: () => void; mode: string; currentUser: { ownerId: string } | null | undefined; onCreated: (sub: Subscription) => void }) {
   const supabase = useRef(createClient()).current!;
   const [name, setName]             = useState('');
   const [cost, setCost]             = useState('');

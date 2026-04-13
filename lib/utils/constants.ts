@@ -15,7 +15,7 @@ export const CLIENT_STAGES: { value: ClientStage; label: string; group: string }
   { value: 'final_review', label: 'Review & Feedback', group: 'active' },
   { value: 'handover', label: 'Revisions Complete', group: 'active' },
   { value: 'final_payment_received', label: 'Final Payment Received', group: 'closing' },
-  { value: 'final_payment_received', label: 'Delivered', group: 'closing' },
+  { value: 'handover', label: 'Delivered', group: 'closing' },
   { value: 'deployed', label: 'Deployed', group: 'closing' },
   { value: 'support_active', label: 'Support Period Active', group: 'support' },
   { value: 'completed', label: 'Completed', group: 'done' },
