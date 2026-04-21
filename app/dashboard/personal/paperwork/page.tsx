@@ -5,25 +5,52 @@ import { useBrand } from '@/lib/brand';
 import { useCurrentUser } from '@/lib/auth/use-auth';
 import { createClient } from '@/lib/supabase/client';
 import { PageTransition } from '@/components/dashboard/PageTransition';
-import { Button, Input, Modal, Select, Textarea } from '@/components/ui';
+import { Button, Input, Modal, Select, Textarea, SignaturePad } from '@/components/ui';
+import type { SignaturePadHandle } from '@/components/ui';
 import { toast } from '@/components/ui/Toast';
-import { formatDate, generateShareToken, generateAccessCode } from '@/lib/utils';
+import { formatDate } from '@/lib/utils';
 import {
   Plus, FileText, Link2, Pencil, Trash2,
   Send, Check, ExternalLink, Copy, Pen, ArrowRight,
   AlertCircle, X,
 } from 'lucide-react';
-import type { Client, DocumentWithClient } from '@/types';
+import type { Client, DocumentStatus } from '@/types';
+import type { Database } from '@/types/database';
 import {
-  proposalFieldsSchema,
-  contractFieldsSchema,
-  sowFieldsSchema,
-  requirementsFieldsSchema,
-  invoiceFieldsSchema,
-  deliveryFieldsSchema,
-} from '@/types/schemas';
+  createDocument,
+  duplicateProposalAsContract,
+  updateDocument,
+  deleteDocument,
+  shareDocument,
+  regenerateAccessCode,
+} from '@/app/dashboard/actions/documents';
 
 type DocType = 'proposal' | 'contract' | 'sow' | 'requirements' | 'invoice' | 'delivery';
+
+/**
+ * Insert a new section into the active_sections array, keeping any
+ * "always-last" sections (signatures / sign-off blocks) pinned to the
+ * end. Without this, "Add Section" appended after signatures and broke
+ * document hierarchy. Bug fix in v3.5 step 6.
+ *
+ * Generic over the section type so each doc-type's addSection can
+ * declare its own pinned-last keys without losing type safety.
+ */
+function insertSectionBefore<T extends string>(
+  current: T[],
+  newSection: T,
+  pinnedLast: readonly T[],
+): T[] {
+  const tailStart = current.findIndex((s) => pinnedLast.includes(s));
+  if (tailStart === -1) {
+    return [...current, newSection];
+  }
+  return [
+    ...current.slice(0, tailStart),
+    newSection,
+    ...current.slice(tailStart),
+  ];
+}
 
 const DOC_TYPES: { value: DocType; label: string; description: string }[] = [
   { value: 'proposal',     label: 'Proposal',         description: 'Project overview, scope, and pricing' },
@@ -88,15 +115,15 @@ export default function PersonalPaperworkPage() {
   const { mode } = useBrand();
   const { user: currentUser } = useCurrentUser();
   const supabaseRef = useRef(createClient());
-  const supabase = supabaseRef.current!;
+  const supabase = supabaseRef.current;
 
   const [activeType, setActiveType]   = useState<DocType | 'all'>('all');
-  const [documents, setDocuments]     = useState<DocumentWithClient[]>([]);
+  const [documents, setDocuments]     = useState<any[]>([]);
   const [clients, setClients]         = useState<Client[]>([]);
   const [loading, setLoading]         = useState(true);
   const [showCreate, setShowCreate]   = useState(false);
-  const [editingDoc, setEditingDoc]   = useState<DocumentWithClient | null>(null);
-  const [sendingDoc, setSendingDoc]   = useState<DocumentWithClient | null>(null);
+  const [editingDoc, setEditingDoc]   = useState<any | null>(null);
+  const [sendingDoc, setSendingDoc]   = useState<any | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [search, setSearch]           = useState('');
   const [page, setPage]               = useState(0);
@@ -122,43 +149,31 @@ export default function PersonalPaperworkPage() {
   useEffect(() => { loadData(); }, [loadData]);
 
   async function handleDelete(docId: string) {
-    const { error } = await supabase.from('documents').delete().eq('id', docId);
-    if (error) { toast.error('Failed to delete document'); return; }
-    setDocuments(prev => prev.filter(d => d.id !== docId));
+    const prev = documents;
+    setDocuments(p => p.filter(d => d.id !== docId));
     setConfirmDelete(null);
+    const res = await deleteDocument(docId);
+    if (!res.ok) {
+      setDocuments(prev);
+      toast.error(res.error || 'Failed to delete document');
+      return;
+    }
     toast.success('Document deleted');
   }
 
-  // Duplicate a proposal as a contract, pre-filling matching fields
+  // Duplicate a proposal as a contract — the server action handles all
+  // field mapping (see actions/documents.ts). The page just passes the
+  // source proposal id and wires the result into state.
   async function handleDuplicateAsContract(doc: any) {
     if (!currentUser) return;
-    const proposalFields = doc.fields as Record<string, any>;
-    const contractFields = {
-      project_description: proposalFields.overview || '',
-      payment_schedule: proposalFields.payment_terms
-        ? [{ trigger: 'As per proposal', amount: proposalFields.investment_amount || 0 }]
-        : [],
-      parties: { client: doc.clients?.name || '', freelancer: '' },
-      revision_policy: '',
-      ip_clause: '',
-      confidentiality_clause: '',
-      governing_law: 'India',
-      termination_clause: '',
-    };
-    const { data } = await supabase.from('documents')
-      .insert({
-        user_id: currentUser.ownerId, mode,
-        type: 'contract',
-        title: doc.title.replace(/^Proposal/i, 'Contract'),
-        client_id: doc.client_id || null,
-        fields: contractFields,
-        status: 'draft',
-      }).select('*, clients(name, company)').single();
-    if (data) {
-      setDocuments(prev => [data, ...prev]);
-      setEditingDoc(data);
-      toast.success('Contract created from proposal');
+    const res = await duplicateProposalAsContract(doc.id);
+    if (!res.ok) {
+      toast.error(res.error || 'Failed to duplicate proposal');
+      return;
     }
+    setDocuments(prev => [res.data, ...prev]);
+    setEditingDoc(res.data);
+    toast.success('Contract created from proposal');
   }
 
   return (
@@ -257,12 +272,6 @@ export default function PersonalPaperworkPage() {
                         Updated {formatDate(doc.updated_at)}
                         {doc.signed_at && ` · ${doc.type === 'proposal' ? 'Accepted' : 'Signed'} by ${doc.signer_name}`}
                       </p>
-                      {/* Edit count badge — shown only on sent/viewed/signed docs that were edited post-send */}
-                      {doc.edit_count > 0 && (
-                        <span style={{ fontSize: 10, fontWeight: 500, fontFamily: 'var(--font-body)', color: 'var(--accent-amber)', background: 'var(--accent-amber-dim)', padding: '1px 6px', borderRadius: 100 }}>
-                          {doc.edit_count} edit{doc.edit_count !== 1 ? 's' : ''} after send
-                        </span>
-                      )}
                       {/* "Create Contract" shortcut on accepted proposals */}
                       {isProposalAccepted && (
                         <button onClick={() => handleDuplicateAsContract(doc)}
@@ -365,10 +374,10 @@ export default function PersonalPaperworkPage() {
 
 // ─── CREATE MODAL ─────────────────────────────────────────────
 function CreateDocumentModal({ open, onClose, mode, clients, currentUser, onCreated }: {
-  open: boolean; onClose: () => void; mode: string;
+  open: boolean; onClose: () => void; mode: 'personal' | 'agency';
   clients: Client[]; currentUser: any; onCreated: (doc: any) => void;
 }) {
-  const supabase = useRef(createClient()).current!;
+  const supabase = useRef(createClient()).current;
   const [docType, setDocType]   = useState<DocType>('proposal');
   const [title, setTitle]       = useState('');
   const [clientId, setClientId] = useState('');
@@ -379,11 +388,20 @@ function CreateDocumentModal({ open, onClose, mode, clients, currentUser, onCrea
   async function handleCreate() {
     if (!currentUser || !title.trim()) return;
     setSaving(true);
-    const { data } = await supabase.from('documents')
-      .insert({ user_id: currentUser.ownerId, mode, type: docType, title: title.trim(), client_id: clientId || null, fields: {}, status: 'draft' })
-      .select('*, clients(name, company)').single();
-    if (data) onCreated(data);
+    const res = await createDocument({
+      mode,
+      type:      docType,
+      title:     title.trim(),
+      client_id: clientId || null,
+      fields:    {},
+      status:    'draft',
+    });
     setSaving(false);
+    if (!res.ok) {
+      toast.error(res.error || 'Failed to create document');
+      return;
+    }
+    onCreated(res.data);
   }
 
   const selected = DOC_TYPES.find(d => d.value === docType);
@@ -419,34 +437,6 @@ function CreateDocumentModal({ open, onClose, mode, clients, currentUser, onCrea
   );
 }
 
-// ─── FIELD VALIDATION ─────────────────────────────────────────
-// Validates document fields against the per-type Zod schema before any DB write.
-// Returns null on success, or a human-readable error string on failure.
-// Uses safeParse so we never throw — validation failures surface as toasts.
-interface FieldSchema {
-  safeParse: (data: unknown) => { success: boolean; error?: { issues: { path: (string | number)[]; message: string }[] } };
-}
-
-const FIELD_SCHEMAS: Record<string, FieldSchema> = {
-  proposal:     proposalFieldsSchema,
-  contract:     contractFieldsSchema,
-  sow:          sowFieldsSchema,
-  requirements: requirementsFieldsSchema,
-  invoice:      invoiceFieldsSchema,
-  delivery:     deliveryFieldsSchema,
-};
-
-function validateDocumentFields(type: string, fields: Record<string, unknown>): string | null {
-  const schema = FIELD_SCHEMAS[type];
-  if (!schema) return null; // unknown type — pass through
-  const result = schema.safeParse(fields);
-  if (result.success) return null;
-  // Return the first meaningful error message
-  const firstIssue = result.error.issues[0];
-  const fieldPath = firstIssue.path.join(' → ') || 'field';
-  return `${fieldPath}: ${firstIssue.message}`;
-}
-
 // ─── DOCUMENT EDITOR MODAL ────────────────────────────────────
 function DocumentEditorModal({ doc, clients, onClose, onSend, onDuplicateAsContract, onSaved }: {
   doc: any; clients: Client[];
@@ -455,12 +445,12 @@ function DocumentEditorModal({ doc, clients, onClose, onSend, onDuplicateAsContr
   onDuplicateAsContract: (doc: any) => void;
   onSaved: (doc: any) => void;
 }) {
-  const supabase       = useRef(createClient()).current!;
+  const supabase       = useRef(createClient()).current;
   const autoSaveTimer  = useRef<ReturnType<typeof setTimeout> | null>(null);
   const latestFields   = useRef<Record<string, any>>(doc.fields || {});
   const latestTitle    = useRef<string>(doc.title || '');
   const latestClientId = useRef<string>(doc.client_id || '');
-  const latestStatus   = useRef<string>(doc.status || 'draft');
+  const latestStatus   = useRef<DocumentStatus>(doc.status as DocumentStatus || 'draft');
 
   const [fields, setFields]       = useState<Record<string, any>>(doc.fields || {});
   const [title, setTitle]         = useState(doc.title || '');
@@ -483,11 +473,22 @@ function DocumentEditorModal({ doc, clients, onClose, onSend, onDuplicateAsContr
   function scheduleAutoSave() {
     if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
     autoSaveTimer.current = setTimeout(async () => {
-      const { data } = await supabase.from('documents')
-        .update({ title: latestTitle.current.trim(), client_id: latestClientId.current || null, fields: latestFields.current, status: latestStatus.current, updated_at: new Date().toISOString() })
-        .eq('id', doc.id).select('*, clients(name, company)').single();
-      if (data) { onSaved(data); setAutoSaved(true); setTimeout(() => setAutoSaved(false), 2000); }
-      // Note: auto-save does NOT increment edit_count — only explicit Save does
+      // Autosave: do NOT bump edit_count (only explicit Save does).
+      // Server derives "is sent?" from share_token in the DB.
+      const res = await updateDocument(doc.id, {
+        title:     latestTitle.current.trim(),
+        client_id: latestClientId.current || null,
+        fields:    latestFields.current,
+        status:    latestStatus.current as DocumentStatus,
+      }, { bumpEditCount: false });
+      if (res.ok) {
+        onSaved(res.data);
+        setAutoSaved(true);
+        setTimeout(() => setAutoSaved(false), 2000);
+      }
+      // Note: autosave failures are silent — the next successful save
+      // will reconcile. Surfacing a toast on every autosave failure
+      // would be noisy for transient network blips.
     }, 2000);
   }
 
@@ -503,40 +504,28 @@ function DocumentEditorModal({ doc, clients, onClose, onSend, onDuplicateAsContr
 
   async function handleSave() {
     if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
-
-    // Validate fields against the per-type schema before writing to DB.
-    // Auto-save skips validation (drafts-in-progress are intentionally incomplete).
-    // Only explicit Save triggers validation.
-    const validationError = validateDocumentFields(doc.type, fields);
-    if (validationError) {
-      toast.error(`Validation: ${validationError}`);
+    setSaving(true);
+    // The server action handles the edit_count bump logic — it reads
+    // share_token from the DB to determine "is sent?" and only bumps
+    // when the doc is already sent AND bumpEditCount is true.
+    const res = await updateDocument(doc.id, {
+      title:     title.trim(),
+      client_id: clientId || null,
+      fields,
+      status:    status as DocumentStatus,
+    }, { bumpEditCount: true });
+    setSaving(false);
+    if (!res.ok) {
+      toast.error(res.error || 'Failed to save document');
       return;
     }
-
-    setSaving(true);
-    const now = new Date().toISOString();
-    // Only count as an edit revision if the document has already been sent to a client.
-    // Pre-send saves (drafting) do not count — they're not edits from the client's perspective.
-    const isSent = !!doc.share_token;
-    const newEditCount = isSent ? editCountRef.current + 1 : editCountRef.current;
-    const updatePayload: Record<string, unknown> = {
-      title: title.trim(), client_id: clientId || null, fields, status,
-      updated_at: now,
-      edit_count: newEditCount,
-      ...(isSent ? { last_edited_at: now } : {}),
-    };
-    const { data, error } = await supabase.from('documents')
-      .update(updatePayload)
-      .eq('id', doc.id).select('*, clients(name, company)').single();
-    if (error) { toast.error('Failed to save document'); setSaving(false); return; }
-    if (data) {
-      // Update the ref so subsequent saves in this session use the new count
-      editCountRef.current = newEditCount;
-      onSaved(data);
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
-    }
-    setSaving(false);
+    // Sync the ref so subsequent saves in this session reflect the
+    // new count. Server returns the authoritative value.
+    const returnedCount = (res.data.edit_count as number | null) ?? editCountRef.current;
+    editCountRef.current = returnedCount;
+    onSaved(res.data);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
   }
 
   const typeLabel = DOC_TYPES.find(d => d.value === doc.type)?.label || 'Document';
@@ -561,18 +550,18 @@ function DocumentEditorModal({ doc, clients, onClose, onSend, onDuplicateAsContr
             onChange={e => { setClientId(e.target.value); scheduleAutoSave(); }} />
           <Select label="Status" value={status}
             options={statusOptions}
-            onChange={e => { setStatus(e.target.value as any); scheduleAutoSave(); }} />
+            onChange={e => { setStatus(e.target.value); scheduleAutoSave(); }} />
         </div>
 
         <div style={{ height: 1, background: 'var(--border-subtle)' }} />
 
         {/* Type-specific editor */}
         {doc.type === 'proposal'     && <ProposalEditor     fields={fields} setField={setField} />}
-        {doc.type === 'contract'     && <ContractEditor     fields={fields} setField={setField} />}
+        {doc.type === 'contract'     && <ContractEditor     fields={fields} setField={setField} docId={doc.id} />}
         {doc.type === 'sow'          && <SOWEditor          fields={fields} setField={setField} />}
         {doc.type === 'requirements' && <RequirementsEditor fields={fields} setField={setField} />}
         {doc.type === 'invoice'      && <InvoiceEditor      fields={fields} setField={setField} />}
-        {doc.type === 'delivery'     && <DeliveryEditor     fields={fields} setField={setField} />}
+        {doc.type === 'delivery'     && <DeliveryEditor     fields={fields} setField={setField} docId={doc.id} />}
 
         {/* Footer */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 8, borderTop: '1px solid var(--border-subtle)', gap: 10 }}>
@@ -666,68 +655,115 @@ function ListEditor({ label, items, onChange, placeholder }: {
 // ─── SENDER SIGNATURE FIELD ───────────────────────────────────
 // Used in Contract and Delivery editors — the sender signs these.
 // Proposals are NOT signed by the sender; they're accepted by the client.
-function SenderSignatureField({ value, onChange }: {
+function SenderSignatureField({ value, onChange, docId }: {
   value: { type: string; data: string; date: string; name: string } | null;
   onChange: (v: { type: string; data: string; date: string; name: string } | null) => void;
+  docId: string;
 }) {
-  const [open, setOpen]         = useState(false);
-  const [tab, setTab]           = useState<'typed' | 'drawn'>('typed');
-  const [name, setName]         = useState(value?.type === 'typed' ? value.data : '');
-  const [date, setDate]         = useState(value?.date || new Date().toISOString().split('T')[0]);
-  const canvasRef               = useRef<HTMLCanvasElement>(null);
-  const drawing                 = useRef(false);
+  const { brand } = useBrand();
+  const hasSaved  = !!brand?.signature_url;
+
+  type Tab = 'saved' | 'typed' | 'drawn';
+  const initialTab: Tab = hasSaved ? 'saved' : 'typed';
+
+  const [open, setOpen] = useState(false);
+  const [tab, setTab]   = useState<Tab>(initialTab);
+  const [name, setName] = useState(value?.type === 'typed' ? value.data : '');
+  const [date, setDate] = useState(value?.date || new Date().toISOString().split('T')[0]);
   const [hasDrawn, setHasDrawn] = useState(false);
+  const [saving, setSaving]     = useState(false);
+  const padRef = useRef<SignaturePadHandle>(null);
 
-  function startDraw(e: React.MouseEvent<HTMLCanvasElement>) {
-    drawing.current = true;
-    const canvas = canvasRef.current;
-    const ctx = canvas?.getContext('2d');
-    if (!ctx || !canvas) return;
-    const rect = canvas.getBoundingClientRect();
-    // Scale mouse position from CSS pixels to canvas internal resolution
-    const scaleX = canvas.width  / rect.width;
-    const scaleY = canvas.height / rect.height;
-    ctx.beginPath();
-    ctx.moveTo((e.clientX - rect.left) * scaleX, (e.clientY - rect.top) * scaleY);
-  }
-  function draw(e: React.MouseEvent<HTMLCanvasElement>) {
-    if (!drawing.current || !canvasRef.current) return;
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    const rect = canvas.getBoundingClientRect();
-    const scaleX = canvas.width  / rect.width;
-    const scaleY = canvas.height / rect.height;
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = '#1a1a2e'; // fixed dark colour — visible on any background
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    ctx.lineTo((e.clientX - rect.left) * scaleX, (e.clientY - rect.top) * scaleY);
-    ctx.stroke();
-    setHasDrawn(true);
-  }
-  function clearCanvas() {
-    canvasRef.current?.getContext('2d')?.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
-    setHasDrawn(false);
-  }
-  function handleSave() {
-    if (tab === 'typed' && !name.trim()) return;
-    if (tab === 'drawn' && !hasDrawn) return;
-    const data = tab === 'drawn' ? (canvasRef.current?.toDataURL('image/png') || '') : name.trim();
-    onChange({ type: tab, data, date, name: tab === 'typed' ? name.trim() : '(drawn)' });
-    setOpen(false);
-  }
-  const canSave = (tab === 'typed' && name.trim().length > 1) || (tab === 'drawn' && hasDrawn);
+  // If the user opens the picker and no saved signature exists, jump
+  // straight to the Type tab (Saved tab would be disabled).
+  useEffect(() => {
+    if (open && !hasSaved && tab === 'saved') setTab('typed');
+  }, [open, hasSaved, tab]);
 
+  async function handleSave() {
+    // Saved — use the brand's persisted signature as the creator_signature.
+    // Critical: this is a user-initiated PICK, never an auto-apply. Per the
+    // product decision documented in docs/v3.5-signatures.md, the saved
+    // signature is a convenience option alongside Type / Draw — the editor
+    // does not silently substitute it when sending or finalizing.
+    if (tab === 'saved') {
+      if (!brand?.signature_url || !brand?.signature_type) return;
+      onChange({
+        type: brand.signature_type,
+        data: brand.signature_url,
+        date,
+        name: brand.business_name || '',
+      });
+      setOpen(false);
+      return;
+    }
+
+    if (tab === 'typed') {
+      if (!name.trim()) return;
+      onChange({ type: 'typed', data: name.trim(), date, name: name.trim() });
+      setOpen(false);
+      return;
+    }
+
+    // Drawn: export canvas as PNG Blob → upload → store the STORAGE PATH.
+    // The public /doc/[token] page mints a fresh signed URL per render
+    // so document-media stays private. This is the second of two sites
+    // where v3.5 stops base64 signatures from leaking into the DB; the
+    // other is the public signing flow (POST /api/doc/sign).
+    if (!hasDrawn) return;
+    const blob = await padRef.current?.getPngBlob();
+    if (!blob) return;
+
+    setSaving(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', new File([blob], 'signature.png', { type: 'image/png' }));
+      const { uploadCreatorSignature } = await import('@/app/dashboard/actions/documents');
+      const res = await uploadCreatorSignature(docId, formData);
+      if (!res.ok) {
+        toast.error(`Could not save signature: ${res.error}`);
+        return;
+      }
+      onChange({ type: 'drawn', data: res.data.path, date, name: '(drawn)' });
+      setOpen(false);
+    } catch (err) {
+      console.error('Signature save failed:', err);
+      toast.error(err instanceof Error ? err.message : 'Could not save signature');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const canSave =
+       (tab === 'saved' && hasSaved)
+    || (tab === 'typed' && name.trim().length > 1)
+    || (tab === 'drawn' && hasDrawn);
+
+  // ── Value present: show preview + Remove ──
   if (value) {
+    // `value.data` can be one of three shapes at this point:
+    //   - Typed: the plain text (render as display text)
+    //   - Drawn: a document-media storage PATH (cannot render in the editor
+    //     without signing a URL; we render a placeholder and rely on the
+    //     public view for the actual preview)
+    //   - Saved pick: a brand-assets HTTPS URL (render directly)
+    const isTyped = value.type === 'typed';
+    const isHttps = typeof value.data === 'string' && /^https?:\/\//.test(value.data);
+
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         <label className="t-label">Sender Signature</label>
         <div style={{ padding: '14px 16px', background: 'var(--bg-hover)', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16 }}>
           <div>
-            {value.type === 'drawn'
-              ? <img src={value.data} alt="Signature" style={{ maxHeight: 48, maxWidth: 200 }} />
-              : <span style={{ fontSize: 18, fontFamily: 'var(--font-display)', fontWeight: 800, color: 'var(--text-primary)' }}>{value.data}</span>}
+            {isTyped ? (
+              <span style={{ fontSize: 18, fontFamily: 'var(--font-display)', fontWeight: 800, color: 'var(--text-primary)' }}>{value.data}</span>
+            ) : isHttps ? (
+              <img src={value.data} alt="Signature" style={{ maxHeight: 48, maxWidth: 200 }} />
+            ) : (
+              <span style={{ fontSize: 12, color: 'var(--text-tertiary)', fontStyle: 'italic' }}>
+                Signature captured · preview after send
+              </span>
+            )}
             <p className="t-2xs text-tertiary" style={{ marginTop: 4 }}>{value.date}</p>
           </div>
           <button onClick={() => onChange(null)}
@@ -739,6 +775,7 @@ function SenderSignatureField({ value, onChange }: {
     );
   }
 
+  // ── No value: show "Add your signature" trigger + picker ──
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       <label className="t-label">Sender Signature</label>
@@ -751,15 +788,32 @@ function SenderSignatureField({ value, onChange }: {
         </button>
       ) : (
         <div style={{ padding: '14px 16px', background: 'var(--bg-hover)', borderRadius: 'var(--radius-md)', display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {/* Tab picker. Saved appears first if available — otherwise
+              it's hidden (not just disabled) because an empty-state
+              "Nothing saved" tab is noise. The user picks a method
+              every time; the Saved tab is a convenience, not default. */}
           <div style={{ display: 'flex', background: 'var(--bg-surface)', borderRadius: 'var(--radius-sm)', padding: 2, gap: 2, width: 'fit-content' }}>
-            {(['typed', 'drawn'] as const).map(t => (
+            {(hasSaved ? (['saved', 'typed', 'drawn'] as const) : (['typed', 'drawn'] as const)).map(t => (
               <button key={t} onClick={() => setTab(t)}
                 style={{ padding: '5px 14px', borderRadius: 'calc(var(--radius-sm) - 2px)', border: 'none', background: tab === t ? 'var(--bg-elevated)' : 'transparent', color: tab === t ? 'var(--text-primary)' : 'var(--text-tertiary)', fontSize: 11, fontWeight: 600, fontFamily: 'var(--font-body)', cursor: 'pointer', boxShadow: tab === t ? 'var(--shadow-card)' : 'none', transition: 'all 150ms', textTransform: 'capitalize' as const }}>
-                {t}
+                {t === 'saved' ? 'Use saved' : t}
               </button>
             ))}
           </div>
-          {tab === 'typed' ? (
+
+          {tab === 'saved' && hasSaved && brand?.signature_url && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: 'var(--bg-surface)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-default)' }}>
+              <div style={{ width: 100, height: 44, background: '#ffffff', borderRadius: 'var(--radius-sm)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
+                <img src={brand.signature_url} alt="Saved signature"
+                  style={{ maxWidth: '90%', maxHeight: '80%', objectFit: 'contain' }} />
+              </div>
+              <p className="t-2xs text-tertiary" style={{ margin: 0 }}>
+                Your saved {brand.signature_type === 'drawn' ? 'drawn signature' : 'uploaded stamp'} from settings
+              </p>
+            </div>
+          )}
+
+          {tab === 'typed' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               <input value={name} onChange={e => setName(e.target.value)} placeholder="Type your full name"
                 style={{ background: 'var(--bg-input)', border: '1px solid var(--border-default)', borderRadius: 'var(--radius-sm)', padding: '8px 12px', fontSize: 13, fontFamily: 'var(--font-body)', color: 'var(--text-primary)', outline: 'none', transition: 'border-color 150ms' }}
@@ -771,26 +825,31 @@ function SenderSignatureField({ value, onChange }: {
                 </div>
               )}
             </div>
-          ) : (
+          )}
+
+          {tab === 'drawn' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                <button onClick={clearCanvas} style={{ fontSize: 11, color: 'var(--text-tertiary)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-body)' }}>Clear</button>
+                <button onClick={() => { padRef.current?.clear(); }}
+                  disabled={!hasDrawn}
+                  style={{ fontSize: 11, color: hasDrawn ? 'var(--text-tertiary)' : 'var(--text-tertiary)', opacity: hasDrawn ? 1 : 0.5, background: 'none', border: 'none', cursor: hasDrawn ? 'pointer' : 'not-allowed', fontFamily: 'var(--font-body)' }}>
+                  Clear
+                </button>
               </div>
-              <canvas ref={canvasRef} width={400} height={90}
-                style={{ width: '100%', height: 90, borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-default)', background: '#ffffff', cursor: 'crosshair', display: 'block', borderBottom: '2px solid var(--accent-blue)' }}
-                onMouseDown={startDraw} onMouseMove={draw}
-                onMouseUp={() => { drawing.current = false; }}
-                onMouseLeave={() => { drawing.current = false; }} />
+              <SignaturePad ref={padRef} width={400} height={90} onDrawChange={setHasDrawn} />
             </div>
           )}
+
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <input type="date" value={date} onChange={e => setDate(e.target.value)}
               style={{ padding: '6px 10px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-default)', fontSize: 12, fontFamily: 'var(--font-body)', color: 'var(--text-primary)', background: 'var(--bg-input)', outline: 'none' }}
               onFocus={e => { e.target.style.borderColor = 'var(--accent-blue)'; }}
               onBlur={e => { e.target.style.borderColor = 'var(--border-default)'; }} />
             <div style={{ display: 'flex', gap: 6, marginLeft: 'auto' }}>
-              <Button variant="secondary" size="sm" onClick={() => setOpen(false)}>Cancel</Button>
-              <Button size="sm" onClick={handleSave} disabled={!canSave}>Save Signature</Button>
+              <Button variant="secondary" size="sm" onClick={() => setOpen(false)} disabled={saving}>Cancel</Button>
+              <Button size="sm" onClick={handleSave} disabled={!canSave || saving}>
+                {saving ? 'Saving...' : (tab === 'saved' ? 'Use this' : 'Save Signature')}
+              </Button>
             </div>
           </div>
         </div>
@@ -1006,7 +1065,7 @@ const DEFAULT_CONTRACT_SECTIONS: ContractSectionType[] = [
   'parties', 'project', 'payment', 'ip', 'signatures',
 ];
 
-function ContractEditor({ fields, setField }: { fields: any; setField: (k: string, v: any) => void }) {
+function ContractEditor({ fields, setField, docId }: { fields: any; setField: (k: string, v: any) => void; docId: string }) {
   const activeSections: ContractSectionType[] = fields.active_sections_contract?.length
     ? fields.active_sections_contract
     : DEFAULT_CONTRACT_SECTIONS;
@@ -1015,7 +1074,7 @@ function ContractEditor({ fields, setField }: { fields: any; setField: (k: strin
 
   function addSection(type: ContractSectionType) {
     if (activeSections.includes(type)) return;
-    setField('active_sections_contract', [...activeSections, type]);
+    setField('active_sections_contract', insertSectionBefore(activeSections, type, ['signatures'] as const));
     setShowAddSection(false);
   }
   function removeSection(type: ContractSectionType) {
@@ -1032,6 +1091,7 @@ function ContractEditor({ fields, setField }: { fields: any; setField: (k: strin
           type={section}
           fields={fields}
           setField={setField}
+          docId={docId}
           onRemove={() => removeSection(section)}
         />
       ))}
@@ -1073,14 +1133,31 @@ function ContractEditor({ fields, setField }: { fields: any; setField: (k: strin
   );
 }
 
-function ContractSection({ type, fields, setField, onRemove }: {
+function ContractSection({ type, fields, setField, docId, onRemove }: {
   type: ContractSectionType; fields: any;
-  setField: (k: string, v: any) => void; onRemove: () => void;
+  setField: (k: string, v: any) => void;
+  docId: string;
+  onRemove: () => void;
 }) {
   const [collapsed, setCollapsed] = useState(false);
   const [newPayment, setNewPayment] = useState({ trigger: '', amount: '' });
   const schedule = fields.payment_schedule || [];
   const cfg = CONTRACT_SECTIONS.find(s => s.type === type);
+
+  /**
+   * Append a payment milestone to fields.payment_schedule. Coerces
+   * the amount from the input's string value to a number; skips if
+   * the trigger is blank or the amount is not a positive number.
+   * Matches InvoiceEditor.addItem's defensive posture.
+   */
+  function addPayment() {
+    const trigger = newPayment.trigger.trim();
+    const amount  = Number(newPayment.amount);
+    if (!trigger) return;
+    if (!Number.isFinite(amount) || amount <= 0) return;
+    setField('payment_schedule', [...schedule, { trigger, amount }]);
+    setNewPayment({ trigger: '', amount: '' });
+  }
 
   return (
     <div style={{ border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
@@ -1132,12 +1209,18 @@ function ContractSection({ type, fields, setField, onRemove }: {
                 </div>
               ))}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 8 }}>
+                {/* addPayment coerces amount: string → number at the
+                    write boundary, matching how invoice line-items
+                    handle quantity/rate. Keeps fields.payment_schedule
+                    numerically well-typed so downstream consumers
+                    (validators, totals, PDF renderers) don't need
+                    defensive Number() casts. */}
                 <input value={newPayment.trigger} onChange={e => setNewPayment(p => ({ ...p, trigger: e.target.value }))}
-                  onKeyDown={e => { if (e.key === 'Enter' && newPayment.trigger && newPayment.amount) { setField('payment_schedule', [...schedule, newPayment]); setNewPayment({ trigger: '', amount: '' }); } }}
+                  onKeyDown={e => { if (e.key === 'Enter') addPayment(); }}
                   placeholder="Trigger (e.g., On signing)" className="input" style={{ fontSize: 12 }} />
                 <input value={newPayment.amount} onChange={e => setNewPayment(p => ({ ...p, amount: e.target.value }))}
                   placeholder="₹ Amount" type="number" className="input" style={{ fontSize: 12, width: 120 }} />
-                <button onClick={() => { if (newPayment.trigger && newPayment.amount) { setField('payment_schedule', [...schedule, newPayment]); setNewPayment({ trigger: '', amount: '' }); } }}
+                <button onClick={addPayment}
                   style={{ padding: '7px 12px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-default)', background: 'transparent', fontSize: 12, color: 'var(--text-secondary)', cursor: 'pointer', fontFamily: 'var(--font-body)', whiteSpace: 'nowrap' as const }}>
                   + Add
                 </button>
@@ -1172,7 +1255,7 @@ function ContractSection({ type, fields, setField, onRemove }: {
           )}
           {type === 'signatures' && (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
-              <SenderSignatureField value={fields.creator_signature || null} onChange={v => setField('creator_signature', v)} />
+              <SenderSignatureField value={fields.creator_signature || null} onChange={v => setField('creator_signature', v)} docId={docId} />
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <label className="t-label">Client Signature</label>
                 <div style={{ padding: '10px 14px', background: 'var(--bg-hover)', borderRadius: 'var(--radius-md)', fontSize: 12, color: 'var(--text-tertiary)', fontFamily: 'var(--font-body)', fontStyle: 'italic' }}>
@@ -1222,7 +1305,7 @@ function SOWEditor({ fields, setField }: { fields: any; setField: (k: string, v:
 
   function addSection(type: SOWSectionType) {
     if (activeSections.includes(type)) return;
-    setField('active_sections_sow', [...activeSections, type]);
+    setField('active_sections_sow', insertSectionBefore(activeSections, type, ['signoff'] as const));
     setShowAddSection(false);
   }
   function removeSection(type: SOWSectionType) {
@@ -1425,7 +1508,7 @@ function RequirementsEditor({ fields, setField }: { fields: any; setField: (k: s
 
   function addSection(type: ReqSectionType) {
     if (activeSections.includes(type)) return;
-    setField('active_sections_req', [...activeSections, type]);
+    setField('active_sections_req', insertSectionBefore(activeSections, type, ['signoff'] as const));
     setShowAddSection(false);
   }
   function removeSection(type: ReqSectionType) {
@@ -1574,15 +1657,13 @@ function ReqSection({ type, fields, setField, onRemove }: {
 // 3. Line items with quantity < 1 or rate <= 0 are rejected before adding.
 // 4. GST rate is validated: must be a positive number ≤ 100.
 
-interface LineItem { description: string; quantity: string; rate: string; }
-
 function InvoiceEditor({ fields, setField }: { fields: any; setField: (k: string, v: any) => void }) {
   const [newItem, setNewItem] = useState({ description: '', quantity: '', rate: '' });
-  const lineItems: LineItem[] = fields.line_items || [];
+  const lineItems: any[] = fields.line_items || [];
 
   // Single source of truth for all totals.
   // Always called with the full items array and current rates — never stale.
-  function recalculate(items: LineItem[], gstEnabled: boolean, gstRate: number) {
+  function recalculate(items: any[], gstEnabled: boolean, gstRate: number) {
     const rate    = Math.max(0, Math.min(100, gstRate || 18));
     const subtotal = items.reduce((s, item) => s + (Number(item.quantity) * Number(item.rate)), 0);
     const gstAmount = gstEnabled ? Math.round(subtotal * rate / 100) : 0;
@@ -1599,7 +1680,7 @@ function InvoiceEditor({ fields, setField }: { fields: any; setField: (k: string
     if (!newItem.description.trim()) return;
     if (qty < 1 || !Number.isFinite(qty)) return;   // reject invalid qty
     if (rate <= 0 || !Number.isFinite(rate)) return; // reject zero/negative rate
-    const item: LineItem = { description: newItem.description.trim(), quantity: String(qty), rate: String(rate) };
+    const item = { description: newItem.description.trim(), quantity: qty, rate };
     recalculate([...lineItems, item], fields.gst_enabled || false, fields.gst_rate || 18);
     setNewItem({ description: '', quantity: '', rate: '' });
   }
@@ -1771,7 +1852,7 @@ const DEFAULT_DELIVERY_SECTIONS: DeliverySectionType[] = [
   'summary', 'deliverables', 'maintenance', 'support', 'signatures',
 ];
 
-function DeliveryEditor({ fields, setField }: { fields: any; setField: (k: string, v: any) => void }) {
+function DeliveryEditor({ fields, setField, docId }: { fields: any; setField: (k: string, v: any) => void; docId: string }) {
   const activeSections: DeliverySectionType[] = fields.active_sections_delivery?.length
     ? fields.active_sections_delivery
     : DEFAULT_DELIVERY_SECTIONS;
@@ -1780,7 +1861,7 @@ function DeliveryEditor({ fields, setField }: { fields: any; setField: (k: strin
 
   function addSection(type: DeliverySectionType) {
     if (activeSections.includes(type)) return;
-    setField('active_sections_delivery', [...activeSections, type]);
+    setField('active_sections_delivery', insertSectionBefore(activeSections, type, ['signatures'] as const));
     setShowAddSection(false);
   }
   function removeSection(type: DeliverySectionType) {
@@ -1795,6 +1876,7 @@ function DeliveryEditor({ fields, setField }: { fields: any; setField: (k: strin
         <DeliverySection
           key={section} type={section}
           fields={fields} setField={setField}
+          docId={docId}
           onRemove={() => removeSection(section)}
         />
       ))}
@@ -1836,9 +1918,11 @@ function DeliveryEditor({ fields, setField }: { fields: any; setField: (k: strin
   );
 }
 
-function DeliverySection({ type, fields, setField, onRemove }: {
+function DeliverySection({ type, fields, setField, docId, onRemove }: {
   type: DeliverySectionType; fields: any;
-  setField: (k: string, v: any) => void; onRemove: () => void;
+  setField: (k: string, v: any) => void;
+  docId: string;
+  onRemove: () => void;
 }) {
   const [collapsed, setCollapsed] = useState(false);
   const [newDel, setNewDel]       = useState({ title: '', link: '', description: '' });
@@ -1989,7 +2073,7 @@ function DeliverySection({ type, fields, setField, onRemove }: {
 
           {type === 'signatures' && (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
-              <SenderSignatureField value={fields.creator_signature || null} onChange={v => setField('creator_signature', v)} />
+              <SenderSignatureField value={fields.creator_signature || null} onChange={v => setField('creator_signature', v)} docId={docId} />
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <label className="t-label">Client Acceptance</label>
                 <div style={{ padding: '10px 14px', background: 'var(--bg-hover)', borderRadius: 'var(--radius-md)', fontSize: 12, color: 'var(--text-tertiary)', fontFamily: 'var(--font-body)', fontStyle: 'italic' }}>
@@ -2009,7 +2093,7 @@ function DeliverySection({ type, fields, setField, onRemove }: {
 function SendDocumentDialog({ doc, onClose, onSent }: {
   doc: any; onClose: () => void; onSent: (updated: any) => void;
 }) {
-  const supabase = useRef(createClient()).current!;
+  const supabase = useRef(createClient()).current;
   const [sending, setSending]         = useState(false);
   const [sent, setSent]               = useState(doc.status === 'sent' || doc.status === 'viewed' || doc.status === 'signed');
   const [code, setCode]               = useState<string>(doc.access_code || '');
@@ -2023,47 +2107,33 @@ function SendDocumentDialog({ doc, onClose, onSent }: {
 
   async function handleGenerate() {
     setSending(true);
-    const token   = doc.share_token || generateShareToken();
-    const newCode = generateAccessCode();
-    const expires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
-
-    // Snapshot the current fields before marking as sent.
-    // This preserves what the client received, even if the document
-    // is edited afterwards. Version numbers are per-document, starting at 1.
-    const { data: latestVersion } = await supabase
-      .from('document_versions')
-      .select('version_number')
-      .eq('document_id', doc.id)
-      .order('version_number', { ascending: false })
-      .limit(1)
-      .single();
-    const nextVersion = (latestVersion?.version_number ?? 0) + 1;
-    // Fire-and-forget: don't block the send if version insert fails
-    supabase.from('document_versions').insert({
-      document_id:    doc.id,
-      user_id:        doc.user_id,
-      version_number: nextVersion,
-      fields:         doc.fields,
-      title:          doc.title,
-      status:         'sent',
-    }).then(() => {});
-
-    const { data } = await supabase.from('documents')
-      .update({ status: 'sent', share_token: token, access_code: newCode, access_code_expires_at: expires, updated_at: new Date().toISOString() })
-      .eq('id', doc.id).select().single();
-    if (data) { onSent(data); setCode(newCode); setExpiresAt(expires); setSent(true); }
+    // Server action generates token (96-bit hex, secure random) and
+    // code (6-digit numeric), rotates status → 'sent', and returns the
+    // code so the UI can display it. If the doc already has a token,
+    // the server preserves it and only rotates the code.
+    const res = await shareDocument(doc.id);
     setSending(false);
+    if (!res.ok) {
+      toast.error(res.error || 'Failed to generate share link');
+      return;
+    }
+    onSent(res.data as unknown as typeof doc);
+    setCode(res.data.access_code);
+    setExpiresAt(res.data.access_code_expires_at);
+    setSent(true);
   }
 
   async function handleRegenerate() {
     setRegenerating(true);
-    const newCode = generateAccessCode();
-    const expires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
-    const { data } = await supabase.from('documents')
-      .update({ access_code: newCode, access_code_expires_at: expires })
-      .eq('id', doc.id).select().single();
-    if (data) { onSent(data); setCode(newCode); setExpiresAt(expires); }
+    const res = await regenerateAccessCode(doc.id);
     setRegenerating(false);
+    if (!res.ok) {
+      toast.error(res.error || 'Failed to regenerate code');
+      return;
+    }
+    onSent(res.data as unknown as typeof doc);
+    setCode(res.data.access_code);
+    setExpiresAt(res.data.access_code_expires_at);
   }
 
   function copyText(text: string, type: 'link' | 'code') {
@@ -2094,7 +2164,7 @@ function SendDocumentDialog({ doc, onClose, onSent }: {
         {!sent ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <p className="t-xs text-secondary">
-              Sending generates a secure link and a 7-digit access code. Share the link via email and the code separately — e.g., via WhatsApp.
+              Sending generates a secure link and a numeric access code. Share the link via email and the code separately — e.g., via WhatsApp.
             </p>
             <div style={{ display: 'flex', gap: 10 }}>
               <Button variant="secondary" onClick={onClose} style={{ flex: 1 }}>Cancel</Button>

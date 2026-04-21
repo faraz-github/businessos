@@ -1,28 +1,23 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { createClient } from '@/lib/supabase/client';
 import { formatDate, formatINR } from '@/lib/utils';
 import { motion } from 'framer-motion';
 import { Check, Shield, Lock, Pen, Type, Calendar, Printer } from 'lucide-react';
 import type { Document, BrandProfile } from '@/types';
+import { ACCESS_CODE_LENGTH } from '@/types';
 
 const FONTS = `https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700;800&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap`;
 
 interface DocumentViewProps {
-  // access_code and access_code_expires_at are stripped server-side.
-  // has_access_code tells us whether to show the gate UI.
-  document: Document & { has_access_code?: boolean };
+  document: Document & { has_access_code: boolean };
   brand: BrandProfile | null;
 }
 
 // ─── MAIN EXPORT ─────────────────────────────────────────────
 export function DocumentView({ document: doc, brand }: DocumentViewProps) {
-  const supabaseRef = useRef(createClient());
-  const supabase    = supabaseRef.current;
-
   // If doc has no access_code set, it's open to view directly.
-  // has_access_code is a boolean set server-side — the actual code never reaches the browser.
+  // The access_code value itself is NOT in this component — only the boolean.
   const [unlocked, setUnlocked]       = useState(!doc.has_access_code);
   const [showSignModal, setShowSignModal] = useState(false);
   const [signed, setSigned]           = useState(!!doc.signed_at);
@@ -33,6 +28,12 @@ export function DocumentView({ document: doc, brand }: DocumentViewProps) {
   const [liveFields, setLiveFields]   = useState<Record<string, any>>(
     (doc.fields as Record<string, any>) || {}
   );
+  // The access code, captured when the recipient unlocks. We hold it
+  // in memory (not cookie, not localStorage) so we can re-submit it
+  // on the signing request — the /api/doc/sign route re-verifies the
+  // code server-side, matching /api/doc/verify-code's posture.
+  // Empty string if the document had no access_code set.
+  const [codeInMemory, setCodeInMemory] = useState('');
 
   const primary = brand?.primary_colour || '#4F8EF7';
   const bizName = brand?.business_name  || 'Business';
@@ -40,52 +41,87 @@ export function DocumentView({ document: doc, brand }: DocumentViewProps) {
   // Only contracts, SOWs, requirements docs, and delivery docs get client signatures.
   const canSign = ['contract', 'sow', 'requirements', 'delivery'].includes(doc.type) && !signed;
 
-  // Access code is verified server-side via POST /api/doc/verify-code.
-  // The actual code value is never sent to the browser.
   async function handleUnlock(code: string): Promise<string | null> {
+    // Server-side verification. The actual access_code value is not in the
+    // browser — we POST the submitted code and the server decides.
+    // The server also marks the document as viewed on success, so we no
+    // longer call supabase.from('documents').update(...) from the client.
     try {
       const res = await fetch('/api/doc/verify-code', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token: doc.share_token, code }),
       });
-      const data = await res.json();
-      if (!res.ok) return data.error ?? 'Incorrect code. Please check and try again.';
+      const body = await res.json() as { ok?: boolean; error?: string };
+      if (!res.ok || !body.ok) {
+        return body.error || 'Incorrect code. Please check and try again.';
+      }
       setUnlocked(true);
-      return null; // null = success
+      setCodeInMemory(code);  // remember for signing re-verification
+      return null;
     } catch {
-      return 'Something went wrong. Please try again.';
+      return 'Network error — please try again.';
     }
   }
 
-  async function handleSign(type: string, data: string, date: string) {
+  async function handleSign(type: 'typed' | 'drawn', data: string, date: string) {
+    // All the DB work has moved to /api/doc/sign:
+    //   - Re-verifies share_token + access_code on the server.
+    //   - Uploads drawn-signature PNG bytes to document-media.
+    //   - Inserts the signatures row and updates documents.fields.
+    // The browser never touches the DB directly any more, so base64
+    // image blobs stop at the edge — document-media stores bytes,
+    // and the signatures table stores the storage path.
     try {
       const resolvedName = type === 'typed' ? data : '(drawn signature)';
-      const clientSig    = { type, data, date, name: resolvedName };
-      const updatedFields = { ...liveFields, client_signature: clientSig };
-
-      await supabase.from('signatures').insert({
-        document_id: doc.id,
-        signer_name: resolvedName,
-        signature_type: type,
-        signature_data: data,
-        signed_date: date,
+      const res = await fetch('/api/doc/sign', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token:          doc.share_token,
+          code:           codeInMemory,
+          signature_type: type,
+          signer_name:    resolvedName,
+          signed_date:    date,
+          signature_data: data,
+        }),
       });
-      await supabase.from('documents').update({
-        status: 'signed',
-        signed_at: new Date().toISOString(),
-        signer_name: resolvedName,
-        fields: updatedFields,
-      }).eq('id', doc.id);
+      const body = await res.json() as {
+        ok?: boolean;
+        error?: string;
+        client_signature?: { type: string; data: string; date: string; name: string };
+      };
 
-      // Update local state immediately — no page reload needed.
-      // The signature renders as soon as the DB write completes.
+      if (!res.ok || !body.ok || !body.client_signature) {
+        console.error('Signing failed:', body.error);
+        alert(body.error || 'Could not save signature. Please try again.');
+        return;
+      }
+
+      // The server returns the signature with `data` = storage path.
+      // That's not directly displayable — the image <img src> needs a
+      // URL. We construct a short-term optimistic view by keeping the
+      // original (client-side) data URL the user just submitted, so
+      // the signature renders immediately. A page reload would switch
+      // to the server-resolved signed URL. This is a tiny UX shortcut;
+      // the canonical data is whatever the server stored.
+      const sigForDisplay = {
+        type: body.client_signature.type,
+        data: type === 'drawn' ? data : body.client_signature.data,  // keep the data URL for instant render
+        date: body.client_signature.date,
+        name: body.client_signature.name,
+      };
+      const updatedFields = { ...liveFields, client_signature: sigForDisplay };
+
       setLiveFields(updatedFields);
       setSigned(true);
       setSignerName(resolvedName);
       setSignedDate(new Date().toISOString());
       setShowSignModal(false);
-    } catch (err) { console.error('Signing failed:', err); }
+    } catch (err) {
+      console.error('Signing failed:', err);
+      alert('Network error — please try again.');
+    }
   }
 
   if (!unlocked) {
@@ -126,7 +162,7 @@ function AccessGate({ bizName, primary, onUnlock }: {
   useEffect(() => { setTimeout(() => inputRef.current?.focus(), 100); }, []);
 
   async function handleSubmit() {
-    if (code.length < 7) return;
+    if (code.length < ACCESS_CODE_LENGTH) return;
     setChecking(true);
     setError('');
     const err = await onUnlock(code);
@@ -161,10 +197,10 @@ function AccessGate({ bizName, primary, onUnlock }: {
             <input
               ref={inputRef}
               value={code}
-              onChange={e => { setCode(e.target.value.replace(/\D/g, '').slice(0, 7)); setError(''); }}
+              onChange={e => { setCode(e.target.value.replace(/\D/g, '').slice(0, ACCESS_CODE_LENGTH)); setError(''); }}
               onKeyDown={e => { if (e.key === 'Enter') handleSubmit(); }}
-              placeholder="0000000"
-              maxLength={7}
+              placeholder={'0'.repeat(ACCESS_CODE_LENGTH)}
+              maxLength={ACCESS_CODE_LENGTH}
               style={{
                 width: '100%', padding: '13px 16px', borderRadius: 12,
                 border: `2px solid ${error ? '#ef4444' : '#e5e7eb'}`,
@@ -182,13 +218,13 @@ function AccessGate({ bizName, primary, onUnlock }: {
           </div>
           <button
             onClick={handleSubmit}
-            disabled={code.length < 7 || checking}
+            disabled={code.length < ACCESS_CODE_LENGTH || checking}
             style={{
               width: '100%', padding: '13px', borderRadius: 12, border: 'none',
-              background: code.length === 7 && !checking ? primary : '#e5e7eb',
-              color: code.length === 7 && !checking ? '#fff' : '#9ca3af',
+              background: code.length === ACCESS_CODE_LENGTH && !checking ? primary : '#e5e7eb',
+              color: code.length === ACCESS_CODE_LENGTH && !checking ? '#fff' : '#9ca3af',
               fontSize: 14, fontWeight: 700, fontFamily: 'DM Sans, sans-serif',
-              cursor: code.length === 7 && !checking ? 'pointer' : 'default',
+              cursor: code.length === ACCESS_CODE_LENGTH && !checking ? 'pointer' : 'default',
               transition: 'background 150ms',
             }}>
             {checking ? 'Checking...' : 'View Document'}
@@ -201,7 +237,7 @@ function AccessGate({ bizName, primary, onUnlock }: {
 
 // ─── SIGN MODAL ─────────────────────────────────────────────
 function SignModal({ onSign, onClose, primary }: {
-  onSign: (type: string, data: string, date: string) => void;
+  onSign: (type: 'typed' | 'drawn', data: string, date: string) => void;
   onClose: () => void;
   primary: string;
 }) {
@@ -362,22 +398,37 @@ function DocumentBody({ doc, liveFields, brand, primary, bizName, signed, signer
     <div style={{ background: '#F2F4F8', minHeight: '100vh', padding: '40px 16px', fontFamily: 'DM Sans, sans-serif' }}>
       <link href={FONTS} rel="stylesheet" />
 
-      {/* Print button */}
+      {/* Print button — awaits fonts before invoking window.print()
+          so the PDF never renders with fallback fonts (otherwise
+          Chrome can race to the dialog before Syne/DM Sans arrive). */}
       <div style={{ maxWidth: 794, margin: '0 auto 16px', display: 'flex', justifyContent: 'flex-end' }} className="no-print">
-        <button onClick={() => window.print()}
+        <button onClick={async () => {
+          try { await (document as any).fonts?.ready; } catch {}
+          window.print();
+        }}
           style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 10, border: '1px solid #d1d5db', background: '#fff', color: '#374151', fontSize: 13, fontWeight: 500, fontFamily: 'DM Sans, sans-serif', cursor: 'pointer', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
           <Printer size={14} /> Save as PDF
         </button>
       </div>
 
-      {/* A4 sheet — 794px = 210mm at 96dpi */}
+      {/* A4 sheet — 794px = 210mm at 96dpi on screen; in print @page controls the size. */}
       <motion.div
         initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}
         className="doc-page"
         style={{ width: 794, margin: '0 auto', background: '#fff', borderRadius: 12, boxShadow: '0 4px 40px rgba(0,0,0,0.10)' }}>
 
+        {/* Running print footer only. A running header on page 1
+            creates a visible strip on top of the hero in Chromium
+            (z-index is flattened in print context), and the hero
+            is the branded header anyway. Pages 2+ get the footer
+            + natural white space above the content — clean. */}
+        <div className="print-running-footer" aria-hidden="true">
+          <span>{bizName}{brand?.email ? ` · ${brand.email}` : ''}</span>
+          <span>{brand?.phone || brand?.website || ''}</span>
+        </div>
+
         {/* Header */}
-        <div style={{ padding: '36px 56px 28px', background: `linear-gradient(135deg, ${primary}0F 0%, ${primary}06 100%)`, borderBottom: `1px solid ${primary}18` }}>
+        <div className="doc-hero" style={{ padding: '36px 56px 28px', background: `linear-gradient(135deg, ${primary}0F 0%, ${primary}06 100%)`, borderBottom: `1px solid ${primary}18` }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
               {brand?.logo_url ? (
@@ -406,7 +457,7 @@ function DocumentBody({ doc, liveFields, brand, primary, bizName, signed, signer
         </div>
 
         {/* Title */}
-        <div style={{ padding: '28px 56px 0' }}>
+        <div className="doc-title" style={{ padding: '28px 56px 0' }}>
           <h1 style={{ fontSize: 26, fontWeight: 800, color: '#111318', margin: 0, fontFamily: 'Space Grotesk, sans-serif', letterSpacing: '-0.5px', lineHeight: 1.15 }}>
             {doc.title || docTypeLabel}
           </h1>
@@ -423,7 +474,7 @@ function DocumentBody({ doc, liveFields, brand, primary, bizName, signed, signer
         </div>
 
         {/* Content */}
-        <div style={{ padding: '24px 56px', display: 'flex', flexDirection: 'column', gap: 28 }}>
+        <div className="doc-content" style={{ padding: '24px 56px', display: 'flex', flexDirection: 'column', gap: 28 }}>
           {Object.keys(fields).length === 0 ? (
             <p style={{ fontSize: 14, color: '#9ca3af', fontStyle: 'italic' }}>This document is being prepared.</p>
           ) : (
@@ -464,7 +515,7 @@ function DocumentBody({ doc, liveFields, brand, primary, bizName, signed, signer
 
         {/* Signed confirmation */}
         {signed && (
-          <div style={{ margin: '0 56px 32px', padding: '14px 18px', background: '#f0fdf4', borderRadius: 10, border: '1px solid #bbf7d0', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div className="signed-banner" style={{ margin: '0 56px 32px', padding: '14px 18px', background: '#f0fdf4', borderRadius: 10, border: '1px solid #bbf7d0', display: 'flex', alignItems: 'center', gap: 8 }}>
             <Check size={15} style={{ color: '#16a34a', flexShrink: 0 }} />
             <span style={{ fontSize: 13, fontWeight: 600, color: '#15803d' }}>
               {doc.type === 'proposal' ? 'Accepted' : 'Signed'} by {signerName} on {signedDate ? formatDate(signedDate) : 'today'}
@@ -473,7 +524,7 @@ function DocumentBody({ doc, liveFields, brand, primary, bizName, signed, signer
         )}
 
         {/* Footer */}
-        <div style={{ padding: '14px 56px', borderTop: `1px solid ${primary}12`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div className="doc-footer" style={{ padding: '14px 56px', borderTop: `1px solid ${primary}12`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <span style={{ fontSize: 11, color: '#9ca3af' }}>{bizName}{brand?.email ? ` · ${brand.email}` : ''}{brand?.website ? ` · ${brand.website}` : ''}</span>
           <span style={{ fontSize: 11, color: '#9ca3af' }}>{brand?.phone || ''}</span>
         </div>
@@ -481,16 +532,48 @@ function DocumentBody({ doc, liveFields, brand, primary, bizName, signed, signer
 
       <style>{`
         @import url('${FONTS}');
+
+        /* ── PRINT-ONLY RUNNING FOOTER ──────────────────────
+           Hidden on screen. In print, position:fixed repeats
+           on every page in Chrome/Safari/Edge. Firefox renders
+           it once — acceptable graceful degradation. */
+        .print-running-footer { display: none; }
+
         @media print {
-          /* Kill the outer wrapper background and padding */
-          body, html { background: #fff !important; margin: 0 !important; padding: 0 !important; }
-          /* Ensure brand colours print correctly */
-          * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-          /* Hide all UI chrome */
+          /* Zero @page margins. The visible horizontal gutter is
+             provided by the document's own 56px inline padding
+             (hero / title / content / footer), which matches the
+             on-screen design and keeps page-1 untouched. The
+             running header/footer sit against the true page edges
+             and handle their own inset. */
+          @page {
+            size: A4;
+            margin: 0;
+          }
+
+          /* Kill screen chrome */
+          html, body {
+            background: #fff !important;
+            margin: 0 !important;
+            padding: 0 !important;
+          }
+          body > div {
+            background: #fff !important;
+            padding: 0 !important;
+            min-height: unset !important;
+          }
           .no-print { display: none !important; }
-          /* The outer page bg wrapper — collapse it */
-          body > div { background: #fff !important; padding: 0 !important; min-height: unset !important; }
-          /* The A4 card — fill the full page */
+
+          /* Preserve brand colour gradients / accents in PDF */
+          * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+
+          /* The A4 card — strip screen chrome only. The inline
+             padding on .doc-hero, .doc-title, .doc-content, .doc-footer
+             is deliberately left alone; it's what gives the document
+             its on-screen design, and we want print to look the same. */
           .doc-page {
             width: 100% !important;
             max-width: 100% !important;
@@ -500,15 +583,84 @@ function DocumentBody({ doc, liveFields, brand, primary, bizName, signed, signer
             box-shadow: none !important;
             overflow: visible !important;
           }
-          /* Page setup */
-          @page {
-            size: A4 portrait;
-            margin: 12mm 14mm;
+
+          /* ── Running footer (pages 1+) ──
+             position:fixed here renders on every printed page
+             in Chromium and WebKit. Firefox renders once only. */
+          .print-running-footer {
+            display: flex !important;
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 12mm;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 14mm;
+            background: #fff;
+            border-top: 1px solid #f3f4f6;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 8.5pt;
+            color: #9ca3af;
+            z-index: 1;
           }
-          /* Prevent page breaks inside section blocks */
-          section, .doc-section { page-break-inside: avoid; }
-          /* Ensure signature blocks don't split across pages */
-          .signature-row { page-break-inside: avoid; }
+
+          /* Hero top-edge lives flush with the page edge. */
+          .doc-hero { margin-top: 0 !important; }
+
+          /* ── Leave room for the running footer on every page ──
+             A bottom safety margin on the last doc element keeps
+             the final paragraphs from being overwritten by the
+             fixed footer. */
+          .doc-footer-spacer,
+          .signed-banner:last-child,
+          .signature-row:last-of-type {
+            margin-bottom: 14mm !important;
+          }
+
+          /* ── Typography tuned for print ──
+             The on-screen 14px body is too light on paper — bump
+             to a paper-friendly point size with slightly tighter
+             leading. Horizontal padding is inherited from the
+             inline 56px which matches the on-screen design. */
+          .doc-content {
+            font-size: 10.5pt !important;
+            line-height: 1.55 !important;
+          }
+          .doc-content p,
+          .doc-content li,
+          .doc-content span {
+            hyphens: auto;
+            -webkit-hyphens: auto;
+          }
+          .doc-content p { orphans: 3; widows: 3; }
+
+          /* ── Section break control ─────────────────────────
+             v3.5 CSS referenced .doc-section and .signature-row
+             but no element wore those classes; the rules were
+             silent no-ops. Section() now applies .doc-section
+             and all four signature rows wear .signature-row, so
+             the protection finally works. */
+          .doc-section {
+            page-break-inside: avoid;
+            break-inside: avoid;
+          }
+          .doc-section h3 {
+            page-break-after: avoid;
+            break-after: avoid;
+          }
+          .signature-row {
+            page-break-inside: avoid;
+            break-inside: avoid;
+            margin-top: 10mm;
+          }
+
+          /* ── In-flow footer: hide on print.
+             The running footer replaces it, so we don't get a
+             doubled footer on the last page. */
+          .doc-footer { display: none !important; }
+
+          .signed-banner { margin: 0 56px 8mm !important; padding: 10px 14px !important; }
         }
       `}</style>
     </div>
@@ -517,19 +669,23 @@ function DocumentBody({ doc, liveFields, brand, primary, bizName, signed, signer
 
 
 // ─── SIGNATURE BLOCK ─────────────────────────────────────────
-// Renders a signature (typed or drawn) or a blank placeholder line.
+// Renders a signature (typed, drawn, or uploaded) or a blank placeholder.
+// - 'typed'    → renders the typed string as display text
+// - 'drawn'    → renders an <img>, src = signed document-media URL (resolved server-side in page.tsx)
+// - 'uploaded' → same as drawn but the URL points at brand-assets (saved creator stamp)
 function SignatureBlock({ label, sig, color }: {
   label: string;
   sig: { type: string; data: string; date: string; name: string } | null | undefined;
   color: string;
 }) {
+  const isImage = sig?.type === 'drawn' || sig?.type === 'uploaded';
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1 }}>
       <p style={{ fontSize: 11, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.07em', margin: 0 }}>{label}</p>
       {/* Signature area */}
       <div style={{ minHeight: 60, borderBottom: `2px solid ${sig ? color : '#d1d5db'}`, display: 'flex', alignItems: 'flex-end', paddingBottom: 6 }}>
         {sig ? (
-          sig.type === 'drawn' ? (
+          isImage ? (
             <img src={sig.data} alt={sig.name} style={{ maxHeight: 52, maxWidth: 200 }} />
           ) : (
             <span style={{ fontSize: 22, fontFamily: 'Space Grotesk, sans-serif', fontWeight: 800, color: '#111318', letterSpacing: '-0.3px' }}>{sig.data}</span>
@@ -540,7 +696,7 @@ function SignatureBlock({ label, sig, color }: {
       </div>
       {/* Name + date below the line */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span style={{ fontSize: 12, color: '#374151' }}>{sig?.type !== 'drawn' ? (sig?.name || '') : ''}</span>
+        <span style={{ fontSize: 12, color: '#374151' }}>{isImage ? (sig?.name && sig.name !== '(drawn signature)' ? sig.name : '') : (sig?.name || '')}</span>
         <span style={{ fontSize: 11, color: '#9ca3af' }}>{sig?.date || ''}</span>
       </div>
     </div>
@@ -550,7 +706,7 @@ function SignatureBlock({ label, sig, color }: {
 // ─── RENDERERS ────────────────────────────────────────────────
 function Section({ title, color, children }: { title: string; color: string; children: React.ReactNode }) {
   return (
-    <div>
+    <div className="doc-section">
       <h3 style={{ fontSize: 11, fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: '0.08em', paddingBottom: 8, marginBottom: 12, borderBottom: `2px solid ${color}20`, margin: '0 0 12px' }}>{title}</h3>
       {children}
     </div>
@@ -698,7 +854,7 @@ function ContractSectionView({ type, fields, color }: { type: string; fields: an
       ) : null;
     case 'signatures':
       return (
-        <div style={{ paddingTop: 24, borderTop: '1px solid #f3f4f6', display: 'flex', gap: 40 }}>
+        <div className="signature-row" style={{ paddingTop: 24, borderTop: '1px solid #f3f4f6', display: 'flex', gap: 40 }}>
           <SignatureBlock label="Service Provider" sig={fields.creator_signature} color={color} />
           <SignatureBlock label="Client" sig={fields.client_signature} color={color} />
         </div>
@@ -790,7 +946,7 @@ function SOWSectionView({ type, fields, color }: { type: string; fields: any; co
       ) : null;
     case 'signoff':
       return (
-        <div style={{ paddingTop: 24, borderTop: '1px solid #f3f4f6', display: 'flex', gap: 40 }}>
+        <div className="signature-row" style={{ paddingTop: 24, borderTop: '1px solid #f3f4f6', display: 'flex', gap: 40 }}>
           <SignatureBlock label="Client Acknowledgement" sig={fields.client_signature} color={color} />
         </div>
       );
@@ -869,7 +1025,7 @@ function ReqSectionView({ type, fields, color }: { type: string; fields: any; co
       ) : null;
     case 'signoff':
       return (
-        <div style={{ paddingTop: 24, borderTop: '1px solid #f3f4f6', display: 'flex', gap: 40 }}>
+        <div className="signature-row" style={{ paddingTop: 24, borderTop: '1px solid #f3f4f6', display: 'flex', gap: 40 }}>
           <SignatureBlock label="Approved by (Client)" sig={fields.client_signature} color={color} />
         </div>
       );
@@ -921,6 +1077,9 @@ function InvoiceView({ fields, color, brand }: { fields: any; color: string; bra
           )}
           {fields.due_date && (
             <p style={{ fontSize: 12, color: '#374151', fontWeight: 600, margin: '2px 0 0' }}>Due: {formatDate(fields.due_date)}</p>
+          )}
+          {fields.paid_date && (
+            <p style={{ fontSize: 12, color: '#16a34a', fontWeight: 700, margin: '2px 0 0' }}>Paid: {formatDate(fields.paid_date)}</p>
           )}
           {fields.payment_terms && (
             <p style={{ fontSize: 11, color: '#9ca3af', margin: '2px 0 0', fontStyle: 'italic' }}>{fields.payment_terms}</p>
@@ -1092,7 +1251,7 @@ function DeliverySectionView({ type, fields, color }: { type: string; fields: an
       ) : null;
     case 'signatures':
       return (
-        <div style={{ paddingTop: 24, borderTop: '1px solid #f3f4f6', display: 'flex', gap: 40 }}>
+        <div className="signature-row" style={{ paddingTop: 24, borderTop: '1px solid #f3f4f6', display: 'flex', gap: 40 }}>
           <SignatureBlock label="Delivered by" sig={fields.creator_signature} color={color} />
           <SignatureBlock label="Accepted by (Client)" sig={fields.client_signature} color={color} />
         </div>

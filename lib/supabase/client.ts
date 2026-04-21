@@ -9,23 +9,27 @@
 // Realtime channel isolation is achieved by using unique channel
 // names (e.g. `bd-leads-${mode}`) — not separate client instances.
 //
-// Components hold a stable reference via: useRef(createClient())
+// Typed with <Database>: every .insert() / .update() / .select()
+// is statically checked against the generated schema types.
+//
+// Return type is SupabaseClient<Database> (non-null). The returned
+// client is cached; a second call returns the same instance.
+// Callers can safely do `useRef(createClient()).current` without
+// dealing with `| null`.
 // ============================================================
-import 'client-only'; // prevents accidental server-side import of this singleton
-import { createClient as createSupabaseClient } from '@supabase/supabase-js';
+import { createClient as createSupabaseClient, type SupabaseClient } from '@supabase/supabase-js';
+import type { Database } from '@/types/database';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type SupabaseClient = ReturnType<typeof createSupabaseClient<any>>;
+let _client: SupabaseClient<Database> | null = null;
 
-let _client: SupabaseClient | null = null;
+export type TypedSupabaseClient = SupabaseClient<Database>;
 
-export function createClient(): SupabaseClient {
+export function createClient(): TypedSupabaseClient {
   if (!_client) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    _client = createSupabaseClient<any>(
+    _client = createSupabaseClient<Database>(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     );
   }
-  return _client!;
+  return _client;
 }

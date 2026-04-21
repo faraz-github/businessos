@@ -237,7 +237,7 @@ export default function PersonalComposePage() {
   const { mode, brand } = useBrand();
   const { user: currentUser } = useCurrentUser();
   const supabaseRef = useRef(createClient());
-  const supabase    = supabaseRef.current!;
+  const supabase    = supabaseRef.current;
 
   const [channel, setChannel]           = useState<'email' | 'whatsapp' | 'linkedin'>('email');
   const [templateKey, setTemplateKey]   = useState('li_intro');
@@ -259,7 +259,7 @@ export default function PersonalComposePage() {
     if (!currentUser) return;
     const { data } = await supabase.from('clients').select('*')
       .eq('user_id', currentUser.ownerId).eq('mode', mode);
-    setClients((data as Client[]) || []);
+    setClients((data as unknown as Client[]) || []);
   }, [currentUser, mode, supabase]);
 
   useEffect(() => { loadClients(); }, [loadClients]);

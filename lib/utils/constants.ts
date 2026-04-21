@@ -1,24 +1,40 @@
 import type { ClientStage, LeadStage, IncomeCategory, ExpenseCategory } from '@/types';
 
 // ─── CLIENT STAGES ───
+// Values MUST match the clients.current_stage CHECK constraint (migration 006)
+// and the ClientStage union in types/index.ts.
 export const CLIENT_STAGES: { value: ClientStage; label: string; group: string }[] = [
-  { value: 'lead', label: 'Lead', group: 'lead' },
-  { value: 'proposal_sent', label: 'Proposal Sent', group: 'lead' },
-  { value: 'contract_sent', label: 'Contract Sent', group: 'lead' },
-  { value: 'contract_signed', label: 'Contract Signed', group: 'onboarding' },
-  { value: 'requirements_sent', label: 'Requirements Sent', group: 'onboarding' },
-  { value: 'requirements_received', label: 'Requirements Received', group: 'onboarding' },
-  { value: 'upfront_paid', label: 'Initial Payment Received', group: 'onboarding' },
-  { value: 'in_progress', label: 'Work In Progress', group: 'active' },
-  { value: 'milestone_review', label: 'Phase 1 Complete', group: 'active' },
-  { value: 'revision', label: 'Phase 2 Complete', group: 'active' },
-  { value: 'final_review', label: 'Review & Feedback', group: 'active' },
-  { value: 'handover', label: 'Revisions Complete', group: 'active' },
+  // Discovery
+  { value: 'lead',                   label: 'Lead',                   group: 'discovery' },
+  { value: 'contacted',              label: 'Contacted',              group: 'discovery' },
+  { value: 'qualified',              label: 'Qualified',              group: 'discovery' },
+  // Proposal
+  { value: 'proposal_sent',          label: 'Proposal Sent',          group: 'proposal' },
+  { value: 'proposal_accepted',      label: 'Proposal Accepted',      group: 'proposal' },
+  // Contracting
+  { value: 'contract_sent',          label: 'Contract Sent',          group: 'contracting' },
+  { value: 'contract_signed',        label: 'Contract Signed',        group: 'contracting' },
+  // Kickoff
+  { value: 'upfront_paid',           label: 'Upfront Paid',           group: 'kickoff' },
+  { value: 'requirements_sent',      label: 'Requirements Sent',      group: 'kickoff' },
+  { value: 'requirements_received',  label: 'Requirements Received',  group: 'kickoff' },
+  { value: 'credentials_pending',    label: 'Credentials Pending',    group: 'kickoff' },
+  // Active
+  { value: 'in_progress',            label: 'In Progress',            group: 'active' },
+  { value: 'milestone_review',       label: 'Milestone Review',       group: 'active' },
+  { value: 'revision',               label: 'Revision',               group: 'active' },
+  // Closing
+  { value: 'final_review',           label: 'Final Review',           group: 'closing' },
+  { value: 'final_payment_sent',     label: 'Final Payment Sent',     group: 'closing' },
   { value: 'final_payment_received', label: 'Final Payment Received', group: 'closing' },
-  { value: 'handover', label: 'Delivered', group: 'closing' },
-  { value: 'deployed', label: 'Deployed', group: 'closing' },
-  { value: 'support_active', label: 'Support Period Active', group: 'support' },
-  { value: 'completed', label: 'Completed', group: 'done' },
+  // Handover
+  { value: 'handover',               label: 'Handover',               group: 'handover' },
+  { value: 'deployed',               label: 'Deployed',               group: 'handover' },
+  // Post-project
+  { value: 'support_active',         label: 'Support Active',         group: 'support' },
+  { value: 'feedback_sent',          label: 'Feedback Sent',          group: 'support' },
+  { value: 'retention_sent',         label: 'Retention Sent',         group: 'support' },
+  { value: 'completed',              label: 'Completed',              group: 'done' },
 ];
 
 // ─── LEAD STAGES ───

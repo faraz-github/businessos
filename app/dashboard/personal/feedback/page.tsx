@@ -12,7 +12,12 @@ import {
   Plus, Mail, MessageCircle, Quote, Copy, Check,
   Pencil, Trash2, Star, Filter, RotateCcw,
 } from 'lucide-react';
-import type { Client, TestimonialWithClient } from '@/types';
+import type { Client } from '@/types';
+import {
+  createTestimonial,
+  updateTestimonial,
+  deleteTestimonial,
+} from '@/app/dashboard/actions/engagements';
 
 // ── Stages considered "post-delivery" for feedback requests ──
 const FEEDBACK_ELIGIBLE_STAGES = [
@@ -29,12 +34,12 @@ export default function PersonalFeedbackPage() {
   const { mode, brand } = useBrand();
   const { user: currentUser } = useCurrentUser();
   const supabaseRef = useRef(createClient());
-  const supabase    = supabaseRef.current!;
+  const supabase    = supabaseRef.current;
 
-  const [testimonials, setTestimonials] = useState<TestimonialWithClient[]>([]);
+  const [testimonials, setTestimonials] = useState<any[]>([]);
   const [clients, setClients]           = useState<Client[]>([]);
   const [showAdd, setShowAdd]           = useState(false);
-  const [editingT, setEditingT]         = useState<TestimonialWithClient | null>(null);
+  const [editingT, setEditingT]         = useState<any>(null);
   const [composingFor, setComposingFor] = useState<Client | null>(null);
   const [filterMode, setFilterMode]     = useState<'all' | 'portfolio' | 'private'>('all');
   const [copied, setCopied]             = useState<string | null>(null);
@@ -55,8 +60,13 @@ export default function PersonalFeedbackPage() {
   useEffect(() => { loadData(); }, [loadData]);
 
   async function handleDelete(id: string) {
-    await supabase.from('testimonials').delete().eq('id', id);
-    setTestimonials(prev => prev.filter(t => t.id !== id));
+    const prev = testimonials;
+    setTestimonials(p => p.filter(t => t.id !== id));
+    const res = await deleteTestimonial(id);
+    if (!res.ok) {
+      setTestimonials(prev);
+      toast.error(res.error || 'Could not delete testimonial');
+    }
   }
 
   function handleCopy(content: string, id: string) {
@@ -267,10 +277,10 @@ export default function PersonalFeedbackPage() {
 
 // ── ADD / EDIT TESTIMONIAL MODAL ─────────────────────────────
 function TestimonialModal({ mode, clients, currentUser, existing, onClose, onSaved }: {
-  mode: string; clients: Client[]; currentUser: any;
+  mode: 'personal' | 'agency'; clients: Client[]; currentUser: { ownerId: string } | null;
   existing?: any; onClose: () => void; onSaved: (t: any) => void;
 }) {
-  const supabase = useRef(createClient()).current!;
+  const supabase = useRef(createClient()).current;
   const isEdit   = !!existing;
 
   const [clientId, setClientId]           = useState(existing?.client_id || '');
@@ -283,20 +293,30 @@ function TestimonialModal({ mode, clients, currentUser, existing, onClose, onSav
   async function handleSave() {
     if (!clientId || !content || !currentUser) return;
     setSaving(true);
-    const payload = { client_id: clientId, content, source, portfolio_usable: portfolioUsable, received_at: receivedAt };
 
-    if (isEdit) {
-      const { data } = await supabase.from('testimonials')
-        .update({ ...payload, updated_at: new Date().toISOString() })
-        .eq('id', existing.id).select('*, clients(name)').single();
-      if (data) onSaved(data);
-    } else {
-      const { data } = await supabase.from('testimonials')
-        .insert({ user_id: currentUser.ownerId, mode, ...payload })
-        .select('*, clients(name)').single();
-      if (data) onSaved(data);
-    }
+    const res = isEdit
+      ? await updateTestimonial(existing.id, {
+          client_id:        clientId,
+          content,
+          source,
+          portfolio_usable: portfolioUsable,
+          received_at:      receivedAt,
+        })
+      : await createTestimonial({
+          mode,
+          client_id:        clientId,
+          content,
+          source,
+          portfolio_usable: portfolioUsable,
+          received_at:      receivedAt,
+        });
+
     setSaving(false);
+    if (!res.ok) {
+      toast.error(res.error || 'Could not save testimonial');
+      return;
+    }
+    onSaved(res.data);
   }
 
   return (

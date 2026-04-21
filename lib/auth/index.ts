@@ -13,6 +13,7 @@ export { signToken, verifyToken, COOKIE_NAME, EXPIRY_SECONDS } from './jwt';
 export type { BosSession, UserRole } from './jwt';
 export { getSession, requireSession, canAccess, getOwnerId } from './session';
 export { canAccessSection, getDefaultRoute } from './access';
+export type { AccessSession } from './access';
 export { hashPassword, verifyPassword } from './password';
 export { getSupabaseAdmin } from './supabase-admin';
 export type { BosUserRow } from './supabase-admin';

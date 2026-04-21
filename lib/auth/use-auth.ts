@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { canAccessSection } from '@/lib/auth/access';
+import { canAccessSection, type AccessSession } from './access';
 
 export interface CurrentUser {
   id: string;
@@ -73,13 +73,15 @@ export function useCurrentUser() {
   return { user, loading, invalidate };
 }
 
-// Thin wrapper around the shared canAccessSection utility from lib/auth/access.ts.
-// Kept here so existing call sites (userCanAccess(user, mode, section)) don't change.
+// Utility: check if user can access a section.
+// Delegates to canAccessSection (lib/auth/access.ts) — single source of
+// truth shared with proxy.ts (Edge) and session.ts (server).
 export function userCanAccess(
   user: CurrentUser | null,
   mode: 'personal' | 'agency',
   section: string,
 ): boolean {
   if (!user) return false;
-  return canAccessSection(user, mode, section);
+  // CurrentUser structurally satisfies AccessSession.
+  return canAccessSection(user satisfies AccessSession, mode, section);
 }

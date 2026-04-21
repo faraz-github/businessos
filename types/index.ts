@@ -7,6 +7,18 @@ export type Mode = 'personal' | 'agency';
 export type Tone = 'formal' | 'conversational' | 'confident';
 export type PreferredChannel = 'email' | 'whatsapp' | 'phone';
 
+/**
+ * The number of digits in a share-link access code. Single source of
+ * truth for:
+ *   - generateAccessCode() in app/dashboard/actions/documents.ts
+ *   - AccessGate input + button logic in app/doc/[token]/document-view.tsx
+ *   - Any user-facing copy that names the length ("6-digit access code")
+ *
+ * If you change this, the three consumers above should all stay
+ * consistent because they all import this value.
+ */
+export const ACCESS_CODE_LENGTH = 6;
+
 export type ClientStage =
   // Discovery
   | 'lead'               // Found on LinkedIn, not yet contacted
@@ -41,36 +53,17 @@ export type ClientStage =
   | 'completed';         // Fully closed
 
 export type DocumentType = 'proposal' | 'contract' | 'sow' | 'requirements' | 'invoice' | 'delivery';
-export type DocumentStatus = 'draft' | 'final' | 'sent' | 'viewed' | 'signed' | 'paid';
+export type DocumentStatus = 'draft' | 'final' | 'sent' | 'viewed' | 'signed' | 'paid' | 'overdue';
 export type InvoiceStatus = 'draft' | 'sent' | 'viewed' | 'overdue' | 'paid';
-
-/**
- * Normalized invoice shape used in the finance page.
- * Built from a Document row (type='invoice') with client-side overdue computation.
- */
-export interface NormalizedInvoice {
-  id: string;
-  number: string;
-  total: number;
-  due_date: string;
-  paid_at: string | null;
-  status: InvoiceStatus;
-  share_token: string | null;
-  clients: { name: string } | null;
-  client_id: string | null;
-  fields: Record<string, unknown>;
-  _source: 'document';
-}
 export type LeadStage = 'prospect' | 'contacted' | 'replied' | 'meeting_scheduled' | 'proposal_sent' | 'negotiating' | 'closed_won' | 'closed_lost';
 export type TransactionType = 'income' | 'expense';
-export type BillingCycle = 'monthly' | 'annual';
+export type BillingCycle = 'monthly' | 'quarterly' | 'semi_annual' | 'annual';
 export type SubscriptionStatus = 'active' | 'paused' | 'cancelled';
 export type SocialPlatform = 'linkedin' | 'instagram' | 'other'; // github + twitter removed: no pages create posts for these platforms
 export type SocialPostStatus = 'idea' | 'draft' | 'scheduled' | 'published';
 export type TimeBlockType = 'deep' | 'outreach' | 'admin' | 'personal';
 export type QuickLogType = 'lead' | 'call' | 'client_note' | 'payment' | 'task' | 'other';
 // AccessRole type removed — access is controlled by bos_users.allowed_personal/allowed_agency string arrays
-export type AccessRole = string; // kept for backward compat with AccessRoleRow
 export type TestimonialSource = 'direct' | 'linkedin' | 'email' | 'form';
 
 // ─── Database Row Types ───
@@ -80,6 +73,10 @@ export interface BrandProfile {
   user_id: string;
   mode: Mode;
   logo_url: string | null;
+  /** URL of the saved signature/stamp in brand-assets. Null when unset. */
+  signature_url: string | null;
+  /** How the saved signature was captured. Null when unset. */
+  signature_type: 'drawn' | 'uploaded' | null;
   primary_colour: string;
   secondary_colour: string;
   font_choice: string;
@@ -136,19 +133,8 @@ export interface Document {
   share_token: string | null;
   signed_at: string | null;
   signer_name: string | null;
-  // Added in migration 008
-  access_code: string | null;
-  access_code_expires_at: string | null;
-  // Added in migration 013
-  edit_count: number;
-  last_edited_at: string | null;
   created_at: string;
   updated_at: string;
-}
-
-/** Document row with the clients join — used in paperwork and finance pages. */
-export interface DocumentWithClient extends Document {
-  clients: { name: string; company: string | null } | null;
 }
 
 export interface Signature {
@@ -300,11 +286,6 @@ export interface SupportPeriod {
   updated_at: string;
 }
 
-/** SupportPeriod with the clients join — used in the support page. */
-export interface SupportPeriodWithClient extends SupportPeriod {
-  clients: { name: string; contact_email: string | null; contact_phone: string | null } | null;
-}
-
 export interface Testimonial {
   id: string;
   user_id: string;
@@ -318,20 +299,16 @@ export interface Testimonial {
   updated_at: string;
 }
 
-/** Testimonial with the clients join — used in the feedback page. */
-export interface TestimonialWithClient extends Testimonial {
-  clients: { name: string } | null;
-}
-
 /**
  * @deprecated Superseded by bos_users.allowed_personal / allowed_agency arrays.
- * The access_roles table was dropped in migration 012.
+ * The access_roles table was dropped in migration 012. This interface is kept
+ * only for reference; do not use in new code.
  */
 export interface AccessRoleRow {
   id: string;
   user_id: string;
   granted_user_id: string;
-  role: AccessRole;
+  role: 'bd' | 'viewer';
   allowed_sections: string[];
   created_at: string;
   updated_at: string;

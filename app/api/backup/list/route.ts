@@ -1,25 +1,40 @@
+// ============================================================
 // GET /api/backup/list
-// Lists all backup files stored for the current owner.
-// Returns filename, size, created_at for each.
+//
+// Lists every backup file in the bos-backups bucket that belongs
+// to the current owner. Backups are stored under `{ownerId}/` so
+// listing that path is naturally scoped — no need to filter after.
+//
+// Response: BackupListItem[] sorted newest-first by filename
+// (filenames are ISO timestamps, so lexicographic sort === date sort).
+//
 // Superadmin only.
+// ============================================================
 import { NextResponse } from 'next/server';
-import { getSession } from '@/lib/auth/session';
+import { getSession, getOwnerId } from '@/lib/auth';
 import { createClient } from '@/lib/supabase/server';
 import { BACKUP_BUCKET, ensureBackupBucket } from '@/lib/backup';
 
 export interface BackupListItem {
-  filename:   string;       // storage path, used for download/delete
-  name:       string;       // display name (just the timestamp part)
+  /** Full storage path (ownerId/filename). Use this for download / delete. */
+  filename:   string;
+  /** Human-readable display name — just the timestamp part. */
+  name:       string;
   size_bytes: number;
-  created_at: string;       // ISO timestamp
+  /** ISO timestamp of when the file was uploaded to storage. */
+  created_at: string;
 }
 
 export async function GET(): Promise<NextResponse> {
   const session = await getSession();
-  if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-  if (session.role !== 'superadmin') return NextResponse.json({ error: 'Superadmin only' }, { status: 403 });
+  if (!session) {
+    return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  }
+  if (session.role !== 'superadmin') {
+    return NextResponse.json({ error: 'Superadmin only' }, { status: 403 });
+  }
 
-  const ownerId = session.ownerId ?? session.sub;
+  const ownerId  = getOwnerId(session);
   const supabase = await createClient();
 
   try {
@@ -38,12 +53,13 @@ export async function GET(): Promise<NextResponse> {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    const items: BackupListItem[] = (files || [])
-      .filter(f => f.name.endsWith('.json'))
-      .map(f => ({
+    const items: BackupListItem[] = (files ?? [])
+      .filter((f) => f.name.endsWith('.json'))
+      .map((f) => ({
         filename:   `${ownerId}/${f.name}`,
-        name:       f.name.replace('.json', '').replace(/_/g, ' '),
-        size_bytes: f.metadata?.size ?? 0,
+        // Strip .json and swap underscore back to space for display.
+        name:       f.name.replace(/\.json$/, '').replace(/_/g, ' '),
+        size_bytes: (f.metadata as { size?: number } | null)?.size ?? 0,
         created_at: f.created_at ?? f.updated_at ?? new Date().toISOString(),
       }));
 

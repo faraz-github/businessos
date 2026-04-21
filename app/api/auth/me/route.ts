@@ -1,6 +1,6 @@
 // GET /api/auth/me — returns current session user (for client components)
 import { NextResponse } from 'next/server';
-import { getSession } from '@/lib/auth';
+import { getSession, getOwnerId } from '@/lib/auth';
 
 export async function GET() {
   const session = await getSession();
@@ -9,7 +9,7 @@ export async function GET() {
   }
   return NextResponse.json({
     id: session.sub,
-    ownerId: session.ownerId ?? session.sub, // fallback for existing sessions
+    ownerId: getOwnerId(session),
     name: session.name,
     email: session.email,
     role: session.role,

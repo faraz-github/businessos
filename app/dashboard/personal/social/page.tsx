@@ -6,13 +6,24 @@ import { useCurrentUser } from '@/lib/auth/use-auth';
 import { createClient } from '@/lib/supabase/client';
 import { PageTransition } from '@/components/dashboard/PageTransition';
 import { Button, Input, Textarea, Select, Modal } from '@/components/ui';
+import { toast } from '@/components/ui/Toast';
 import { formatDate, formatRelative } from '@/lib/utils';
 import {
   Plus, Linkedin, Calendar, Lightbulb, ExternalLink,
   ChevronRight, Check, Pencil, Trash2, ArrowRight,
   MessageSquare, Phone, UserCheck, Eye,
 } from 'lucide-react';
-import type { SocialPost } from '@/types';
+import type { SocialPost, SocialPostStatus } from '@/types';
+import {
+  createSocialPost,
+  updateSocialPost,
+  updateSocialPostStatus,
+  deleteSocialPost,
+  createOutreachLead,
+  updateOutreachLead,
+  deleteOutreachLead,
+  type OutreachLeadStatus,
+} from '@/app/dashboard/actions/social';
 
 interface OutreachLead {
   id: string; name: string; profile_url: string | null;
@@ -74,7 +85,7 @@ export default function OutreachPage() {
   const { mode } = useBrand();
   const { user: currentUser } = useCurrentUser();
   const supabaseRef = useRef(createClient());
-  const supabase = supabaseRef.current!;
+  const supabase = supabaseRef.current;
 
   const [activeTab, setActiveTab] = useState<'pipeline' | 'content'>('pipeline');
   const [leads, setLeads] = useState<OutreachLead[]>([]);
@@ -108,28 +119,48 @@ export default function OutreachPage() {
     e.stopPropagation();
     const next = NEXT_STATUS[lead.status];
     if (!next) return;
-    const { data } = await supabase.from('outreach_leads')
-      .update({ status: next, updated_at: new Date().toISOString() })
-      .eq('id', lead.id).select().single();
-    if (data) setLeads(prev => prev.map(l => l.id === lead.id ? data as OutreachLead : l));
+    const prev = leads;
+    setLeads(p => p.map(l => l.id === lead.id ? { ...l, status: next } : l));
+    const res = await updateOutreachLead(lead.id, { status: next as OutreachLeadStatus });
+    if (!res.ok) {
+      setLeads(prev);
+      toast.error(res.error || 'Could not advance status');
+      return;
+    }
+    setLeads(p => p.map(l => l.id === lead.id ? res.data as unknown as OutreachLead : l));
   }
 
   async function deleteLead(id: string, e: React.MouseEvent) {
     e.stopPropagation();
-    await supabase.from('outreach_leads').delete().eq('id', id);
-    setLeads(prev => prev.filter(l => l.id !== id));
+    const prev = leads;
+    setLeads(p => p.filter(l => l.id !== id));
+    const res = await deleteOutreachLead(id);
+    if (!res.ok) {
+      setLeads(prev);
+      toast.error(res.error || 'Could not delete outreach');
+    }
   }
 
   async function deletePost(id: string) {
-    await supabase.from('social_posts').delete().eq('id', id);
-    setPosts(prev => prev.filter(p => p.id !== id));
+    const prev = posts;
+    setPosts(p => p.filter(post => post.id !== id));
+    const res = await deleteSocialPost(id);
+    if (!res.ok) {
+      setPosts(prev);
+      toast.error(res.error || 'Could not delete post');
+    }
   }
 
-  async function updatePostStatus(id: string, status: string) {
-    const { data } = await supabase.from('social_posts')
-      .update({ status, updated_at: new Date().toISOString() })
-      .eq('id', id).select().single();
-    if (data) setPosts(prev => prev.map(p => p.id === id ? data as SocialPost : p));
+  async function updatePostStatus(id: string, status: SocialPostStatus) {
+    const prev = posts;
+    setPosts(p => p.map(post => post.id === id ? { ...post, status } : post));
+    const res = await updateSocialPostStatus(id, status);
+    if (!res.ok) {
+      setPosts(prev);
+      toast.error(res.error || 'Could not update status');
+      return;
+    }
+    setPosts(p => p.map(post => post.id === id ? res.data : post));
   }
 
   // Stats
@@ -406,10 +437,17 @@ export default function OutreachPage() {
                 {/* Add idea inline */}
                 <AddIdeaInline onAdd={async (title) => {
                   if (!currentUser) return;
-                  const { data } = await supabase.from('social_posts')
-                    .insert({ user_id: currentUser.id, mode, platform: 'linkedin', title, status: 'idea' })
-                    .select().single();
-                  if (data) setPosts(prev => [...prev, data as SocialPost]);
+                  const res = await createSocialPost({
+                    mode,
+                    platform: 'linkedin',
+                    title,
+                    status: 'idea',
+                  });
+                  if (!res.ok) {
+                    toast.error(res.error || 'Could not save idea');
+                    return;
+                  }
+                  setPosts(prev => [...prev, res.data]);
                 }} />
               </div>
             </div>
@@ -481,10 +519,10 @@ function AddIdeaInline({ onAdd }: { onAdd: (title: string) => Promise<void> }) {
 
 // ─── ADD/EDIT LEAD FORM ───
 function AddLeadForm({ currentUser, mode, onClose, onCreated }: {
-  currentUser: any; mode: string;
+  currentUser: { id: string; ownerId: string } | null; mode: 'personal' | 'agency';
   onClose: () => void; onCreated: (lead: OutreachLead) => void;
 }) {
-  const supabase = useRef(createClient()).current!;
+  const supabase = useRef(createClient()).current;
   const [name, setName] = useState('');
   const [profileUrl, setProfileUrl] = useState('');
   const [company, setCompany] = useState('');
@@ -497,11 +535,20 @@ function AddLeadForm({ currentUser, mode, onClose, onCreated }: {
     if (!name.trim()) { setError('Name is required'); return; }
     if (!currentUser) return;
     setSaving(true);
-    const { data, error: dbErr } = await supabase.from('outreach_leads')
-      .insert({ user_id: currentUser.id, mode, name: name.trim(), profile_url: profileUrl || null, company: company || null, requirement: requirement || null, status })
-      .select().single();
-    if (dbErr) { setError(dbErr.message); setSaving(false); return; }
-    if (data) onCreated(data as OutreachLead);
+    const res = await createOutreachLead({
+      mode,
+      name: name.trim(),
+      profile_url: profileUrl || null,
+      company: company || null,
+      requirement: requirement || null,
+      status: status as OutreachLeadStatus,
+    });
+    setSaving(false);
+    if (!res.ok) {
+      setError(res.error);
+      return;
+    }
+    onCreated(res.data as unknown as OutreachLead);
   }
 
   return (
@@ -529,22 +576,31 @@ function LeadDetailView({ lead, onClose, onUpdate, onDelete }: {
   lead: OutreachLead; onClose: () => void;
   onUpdate: (l: OutreachLead) => void; onDelete: () => void;
 }) {
-  const supabase = useRef(createClient()).current!;
+  const supabase = useRef(createClient()).current;
   const [status, setStatus] = useState(lead.status);
   const [notes, setNotes] = useState(lead.notes || '');
   const [saving, setSaving] = useState(false);
 
   async function handleSave() {
     setSaving(true);
-    const { data } = await supabase.from('outreach_leads')
-      .update({ status, notes: notes || null, updated_at: new Date().toISOString() })
-      .eq('id', lead.id).select().single();
-    if (data) onUpdate(data as OutreachLead);
+    const res = await updateOutreachLead(lead.id, {
+      status: status as OutreachLeadStatus,
+      notes: notes || null,
+    });
     setSaving(false);
+    if (!res.ok) {
+      toast.error(res.error || 'Could not save outreach');
+      return;
+    }
+    onUpdate(res.data as unknown as OutreachLead);
   }
 
   async function handleDelete() {
-    await supabase.from('outreach_leads').delete().eq('id', lead.id);
+    const res = await deleteOutreachLead(lead.id);
+    if (!res.ok) {
+      toast.error(res.error || 'Could not delete outreach');
+      return;
+    }
     onDelete();
   }
 
@@ -585,31 +641,40 @@ function LeadDetailView({ lead, onClose, onUpdate, onDelete }: {
 
 // ─── ADD/EDIT POST FORM ───
 function AddPostForm({ currentUser, mode, existing, onClose, onCreated }: {
-  currentUser: any; mode: string; existing?: SocialPost;
+  currentUser: { id: string; ownerId: string } | null; mode: 'personal' | 'agency'; existing?: SocialPost;
   onClose: () => void; onCreated: (post: SocialPost) => void;
 }) {
-  const supabase = useRef(createClient()).current!;
+  const supabase = useRef(createClient()).current;
   const [title, setTitle] = useState(existing?.title || '');
   const [content, setContent] = useState(existing?.content || '');
   const [date, setDate] = useState(existing?.planned_date || '');
-  const [status, setStatus] = useState(existing?.status || 'idea');
+  const [status, setStatus] = useState<SocialPostStatus>(existing?.status || 'idea');
   const [saving, setSaving] = useState(false);
 
   async function handleSave() {
     if (!currentUser) return;
     setSaving(true);
-    if (existing) {
-      const { data } = await supabase.from('social_posts')
-        .update({ title, content, planned_date: date || null, status, updated_at: new Date().toISOString() })
-        .eq('id', existing.id).select().single();
-      if (data) onCreated(data as SocialPost);
-    } else {
-      const { data } = await supabase.from('social_posts')
-        .insert({ user_id: currentUser.id, mode, platform: 'linkedin', title, content, planned_date: date || null, status })
-        .select().single();
-      if (data) onCreated(data as SocialPost);
-    }
+    const res = existing
+      ? await updateSocialPost(existing.id, {
+          title,
+          content,
+          planned_date: date || null,
+          status,
+        })
+      : await createSocialPost({
+          mode,
+          platform: 'linkedin',
+          title,
+          content,
+          planned_date: date || null,
+          status,
+        });
     setSaving(false);
+    if (!res.ok) {
+      toast.error(res.error || 'Could not save post');
+      return;
+    }
+    onCreated(res.data);
   }
 
   return (
@@ -620,7 +685,7 @@ function AddPostForm({ currentUser, mode, existing, onClose, onCreated }: {
         placeholder="Write the post or notes..." style={{ minHeight: 120 }} />
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <Input label="Planned Date" type="date" value={date} onChange={e => setDate(e.target.value)} />
-        <Select label="Status" value={status} onChange={e => setStatus(e.target.value as any)}
+        <Select label="Status" value={status} onChange={e => setStatus(e.target.value as SocialPostStatus)}
           options={[
             { value: 'idea', label: 'Idea' }, { value: 'draft', label: 'Draft' },
             { value: 'scheduled', label: 'Scheduled' }, { value: 'published', label: 'Published' },

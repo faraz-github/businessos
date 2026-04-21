@@ -4,6 +4,7 @@ import 'server-only';
 // ============================================================
 import { cookies } from 'next/headers';
 import { verifyToken, COOKIE_NAME, type BosSession } from './jwt';
+import { canAccessSection } from './access';
 
 /**
  * Get the current session from cookies. Returns null if not authenticated
@@ -31,41 +32,40 @@ export async function requireSession(): Promise<BosSession> {
 
 /**
  * Check whether the current user can access a given mode + section.
- * superadmin always returns true.
+ * Delegates to the shared access utility so this stays in sync with
+ * the client-side check in use-auth.ts and the Edge check in proxy.ts.
  */
 export function canAccess(
   session: BosSession,
   mode: 'personal' | 'agency',
   section: string,
 ): boolean {
-  if (session.role === 'superadmin') return true;
-  const allowed = mode === 'personal' ? session.allowedPersonal : session.allowedAgency;
-  if (!allowed) return false;
-  return allowed.includes(section);
+  return canAccessSection(session, mode, section);
 }
 
 /**
  * Get the owner's user_id from a session.
  *
  * For superadmin: ownerId === session.sub (they own their own data).
- * For admin: ownerId === the superadmin who created them.
+ * For admin:      ownerId === the superadmin who created them.
  *
- * The silent `session.ownerId ?? session.sub` fallback masked broken
- * sessions — old JWTs minted before ownerId was added to the schema
- * would silently query with the wrong ID and return no data.
- * This function surfaces that clearly instead of swallowing it.
+ * ALL data queries should use this — never `session.sub` directly,
+ * because admin users querying with their own id would find no data
+ * (the data belongs to the superadmin).
+ *
+ * Until v3.3.1 this was inlined as `session.ownerId ?? session.sub`
+ * in multiple call sites. Centralised so the legacy fallback is logged
+ * once and the call sites are clean.
  */
 export function getOwnerId(session: BosSession): string {
   if (session.ownerId) return session.ownerId;
-  // ownerId missing — JWT was minted before migration 004 added it.
-  // Log a warning so it's visible in server logs, then fall back to sub.
-  // This only affects sessions older than the migration date; they will
-  // expire within 24h and re-issue correctly on next login.
+  // ownerId missing — JWT was minted before ownerId was added to the
+  // session payload. Log once so it's visible in server logs, then fall
+  // back to sub. Old sessions expire within 24h and the next login mints
+  // a JWT with ownerId set. After that day, this branch should never fire.
   console.warn(
     `[auth] Session for user ${session.sub} (${session.email}) is missing ownerId. ` +
-    `This JWT predates migration 004. Falling back to sub — data may not load correctly. ` +
-    `Will resolve on next login.`,
+    `Falling back to sub — data may not load correctly. Will resolve on next login.`,
   );
   return session.sub;
 }
-

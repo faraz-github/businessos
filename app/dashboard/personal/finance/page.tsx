@@ -8,13 +8,27 @@ import { PageTransition } from '@/components/dashboard/PageTransition';
 import { Button, Modal, Input, Select } from '@/components/ui';
 import { toast } from '@/components/ui/Toast';
 import { RevenueChart } from '@/components/charts/RevenueChart';
-import { formatINR, formatDate, isDueSoon } from '@/lib/utils';
+import { formatINR, formatDate, isDueSoon, monthlyEquivalent } from '@/lib/utils';
 import {
   Plus, IndianRupee, TrendingUp, TrendingDown, RotateCw,
   CheckCircle2, Trash2, Pause, Play, Receipt, CreditCard,
   Search, ExternalLink, Pencil, AlertTriangle,
 } from 'lucide-react';
-import type { Transaction, Subscription, NormalizedInvoice } from '@/types';
+import type { Transaction, Subscription, BillingCycle, DocumentStatus } from '@/types';
+import {
+  createSubscription,
+  updateSubscription,
+  toggleSubscriptionStatus,
+  markSubscriptionReviewed,
+  deleteSubscription,
+} from '@/app/dashboard/actions/subscriptions';
+import {
+  createTransaction,
+  deleteTransaction,
+  deleteInvoiceDocument,
+  markInvoicePaidAction,
+  createPaidInvoiceAction,
+} from '@/app/dashboard/actions/transactions';
 
 /* ── constants ─────────────────────────────────────────────── */
 const INCOME_CATS = [
@@ -37,6 +51,14 @@ const SUB_CATS = [
   { value: 'services',  label: 'Services' },
   { value: 'other',     label: 'Other' },
 ];
+// Billing cycle dropdown options — defined once so the Add and Edit
+// modals can't drift. Ordering is shortest → longest.
+const BILLING_CYCLE_OPTIONS: { value: BillingCycle; label: string }[] = [
+  { value: 'monthly',     label: 'Monthly' },
+  { value: 'quarterly',   label: 'Quarterly (every 3 months)' },
+  { value: 'semi_annual', label: 'Semi-annual (every 6 months)' },
+  { value: 'annual',      label: 'Annual' },
+];
 const INVOICE_STATUS: Record<string, { label: string; color: string }> = {
   draft:   { label: 'Draft',   color: 'var(--text-tertiary)' },
   sent:    { label: 'Sent',    color: 'var(--accent-blue)' },
@@ -45,8 +67,57 @@ const INVOICE_STATUS: Record<string, { label: string; color: string }> = {
   paid:    { label: 'Paid',    color: 'var(--accent-green)' },
 };
 
+/**
+ * Normalised invoice row shape used by the finance page. Derived from
+ * the `documents` table (type='invoice') — the invoice fields lift out
+ * of the JSON blob and sit at the top level for easier rendering.
+ */
+interface InvoiceListRow {
+  id:          string;
+  number:      string;
+  total:       number;
+  due_date:    string;
+  paid_date:   string | null;
+  paid_at:     string | null;
+  /**
+   * The computed-at-read-time status. May differ from the DB row's
+   * status column for overdue detection: we derive "overdue" locally
+   * from due_date < today rather than trusting the physical column
+   * (which can drift — the previous writeback was only triggered from
+   * this page, so anyone who didn't visit Finance had stale statuses).
+   */
+  status:      DocumentStatus;
+  share_token: string | null;
+  clients:     { name: string } | null;
+  client_id:   string | null;
+  fields:      Record<string, unknown>;
+  _source:     'document';
+}
+
 function catLabel(cat: string) {
   return cat.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+
+/** Human-readable cycle label. "Quarterly", "Semi-annual", etc. */
+function formatCycleLabel(cycle: BillingCycle): string {
+  const labels: Record<BillingCycle, string> = {
+    monthly:     'Monthly',
+    quarterly:   'Quarterly',
+    semi_annual: 'Semi-annual',
+    annual:      'Annual',
+  };
+  return labels[cycle];
+}
+
+/** Short suffix used in "/mo", "/qtr", "/6mo", "/yr" price displays. */
+function formatCycleSuffix(cycle: BillingCycle): string {
+  const suffixes: Record<BillingCycle, string> = {
+    monthly:     'mo',
+    quarterly:   'qtr',
+    semi_annual: '6mo',
+    annual:      'yr',
+  };
+  return suffixes[cycle];
 }
 
 function StatusPill({ status, color }: { status: string; color: string }) {
@@ -72,10 +143,10 @@ export default function PersonalFinancePage() {
   const { mode } = useBrand();
   const { user: currentUser } = useCurrentUser();
   const supabaseRef = useRef(createClient());
-  const supabase    = supabaseRef.current!;
+  const supabase    = supabaseRef.current;
 
   const [activeTab, setActiveTab] = useState<'overview' | 'invoices' | 'transactions' | 'subscriptions'>('overview');
-  const [invoices, setInvoices]           = useState<NormalizedInvoice[]>([]);
+  const [invoices, setInvoices]           = useState<InvoiceListRow[]>([]);
   const [transactions, setTransactions]   = useState<Transaction[]>([]);
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [loading, setLoading]             = useState(true);
@@ -85,6 +156,10 @@ export default function PersonalFinancePage() {
   const [txSearch, setTxSearch]           = useState('');
   const [txFilter, setTxFilter]           = useState<'all' | 'income' | 'expense'>('all');
   const [invFilter, setInvFilter]         = useState<'all' | 'unpaid' | 'overdue' | 'paid'>('all');
+  // Step 4: mark-paid modal (asks for paid_date + category before
+  // confirming) + log-paid modal (create a backdated already-paid invoice).
+  const [markingPaid, setMarkingPaid]     = useState<InvoiceListRow | null>(null);
+  const [showLogPaid, setShowLogPaid]     = useState(false);
 
   const loadData = useCallback(async () => {
     if (!currentUser) return;
@@ -99,46 +174,78 @@ export default function PersonalFinancePage() {
       supabase.from('subscriptions').select('*').eq('user_id', currentUser.ownerId).eq('mode', mode).order('next_renewal_at'),
     ]);
     const today = new Date().toISOString().split('T')[0];
-    // Normalise documents into invoice shape
-    const nowOverdueIds: string[] = [];
-    const rawInvoices = (invDocs.data || []).map((doc: any) => {
-      const f = doc.fields || {};
-      const dueDate = f.due_date || '';
-      let status = doc.status;
-      // Compute overdue: not paid/signed and past due date
-      if (status !== 'paid' && status !== 'signed' && dueDate && dueDate < today) {
-        // Track IDs that need their DB status updated from sent/viewed → overdue
-        if (status !== 'overdue') nowOverdueIds.push(doc.id);
+
+    // Shape row returned by the documents-with-clients join. Inlined
+    // rather than hoisted since it's only used in this mapper.
+    type InvoiceDocRow = {
+      id:          string;
+      title:       string | null;
+      status:      DocumentStatus;
+      fields:      Record<string, unknown> | null;
+      share_token: string | null;
+      client_id:   string | null;
+      clients:     { name: string } | null;
+    };
+
+    // Normalise documents into invoice shape. The status we display is
+    // DERIVED: compute overdue locally from due_date + paid_date rather
+    // than trusting the physical `status` column. Why derived: the
+    // overdue state is a function of (due_date, paid_date, today), and
+    // every call site that cares about it (home attention feed, home
+    // stats RPC, this page) computes it the same way. The physical
+    // column is best-effort cache — useful if set, never authoritative.
+    const rawInvoices: InvoiceListRow[] = (invDocs.data as InvoiceDocRow[] | null ?? []).map((doc) => {
+      const f = doc.fields ?? {};
+      const dueDate  = (f.due_date  as string | undefined) ?? '';
+      const paidDate = (f.paid_date as string | undefined) ?? null;
+      const paidAt   = (f.paid_at   as string | undefined) ?? null;
+      let status: DocumentStatus = doc.status;
+      if (
+        status !== 'paid' && status !== 'signed' &&
+        !paidDate &&                 // step 4 belt-and-braces
+        dueDate && dueDate < today
+      ) {
         status = 'overdue';
       }
       return {
         id:          doc.id,
-        number:      f.invoice_number || doc.title || '—',
-        total:       f.total || 0,
+        number:      (f.invoice_number as string | undefined) ?? doc.title ?? '—',
+        total:       Number(f.total ?? 0),
         due_date:    dueDate,
-        paid_at:     f.paid_at || null,
+        paid_date:   paidDate,
+        paid_at:     paidAt,
         status,
         share_token: doc.share_token,
         clients:     doc.clients,
         client_id:   doc.client_id,
         fields:      f,
-        _source:     'document' as const, // for markInvoicePaid to know which table
+        _source:     'document',
       };
     });
     setInvoices(rawInvoices);
-    setTransactions((tx.data as Transaction[]) || []);
-    setSubscriptions((subs.data as Subscription[]) || []);
+    setTransactions((tx.data as Transaction[]) ?? []);
+    setSubscriptions((subs.data as Subscription[]) ?? []);
     setLoading(false);
 
-    // Persist overdue status to DB for any invoices that just became overdue.
-    // Fire-and-forget — UI is already correct, this just keeps the DB consistent
-    // so the attention feed and server-side queries return accurate statuses.
-    if (nowOverdueIds.length > 0) {
-      supabase.from('documents')
-        .update({ status: 'overdue' })
-        .in('id', nowOverdueIds)
-        .then(() => {});
-    }
+    // Overdue writeback was removed in v3.5 step 3.
+    //
+    // Previously this page computed overdue locally AND wrote the
+    // correction back to documents.status. The writeback caused three
+    // problems:
+    //   1. Drift — anyone who didn't open this page never triggered
+    //      the writeback, so DB state lagged UI state everywhere else.
+    //   2. Correctness — every other overdue-detection site in the
+    //      codebase (home.ts, the get_home_stats RPC) already derived
+    //      overdue from (due_date, paid_date, today) at read time. The
+    //      writeback was redundant with those derivations.
+    //   3. Locality — it embedded a server-state mutation in a browser
+    //      data-load callback, which is the wrong layer.
+    //
+    // Derivation is now the source of truth. The physical `overdue`
+    // status value on documents.status is treated as best-effort cache:
+    // honoured when set by the user or a future batch job, overridden
+    // by the derivation when the derivation says it should be something
+    // else. See docs/v3.5-finance-audit.md Critical-3 for the long form.
   }, [currentUser, mode, supabase]);
 
   useEffect(() => { loadData(); }, [loadData]);
@@ -157,8 +264,14 @@ export default function PersonalFinancePage() {
   const lastIncome   = lastMonthTx.filter(t => t.type === 'income').reduce((s, t) => s + Number(t.amount), 0);
   const lastExpense  = lastMonthTx.filter(t => t.type === 'expense').reduce((s, t) => s + Number(t.amount), 0);
 
-  const monthlyBurn  = subscriptions.filter(s => s.status === 'active')
-    .reduce((sum, s) => sum + (s.billing_cycle === 'annual' ? Number(s.cost) / 12 : Number(s.cost)), 0);
+  // Monthly burn — normalise every active subscription's cost to its
+  // monthly equivalent. Before v3.5, this branched only on 'annual vs
+  // not-annual' which was fine when the type was `monthly | annual`
+  // but treats quarterly and semi-annual incorrectly. The helper in
+  // lib/utils keeps the rule in one place.
+  const monthlyBurn = subscriptions
+    .filter((s) => s.status === 'active')
+    .reduce((sum, s) => sum + monthlyEquivalent(Number(s.cost), s.billing_cycle), 0);
   const overdueTotal = invoices.filter(i => i.status === 'overdue').reduce((s, i) => s + Number(i.total), 0);
   const outstandingTotal = invoices.filter(i => ['sent','viewed','overdue'].includes(i.status)).reduce((s, i) => s + Number(i.total), 0);
 
@@ -182,54 +295,95 @@ export default function PersonalFinancePage() {
   });
 
   /* ── actions ── */
-  async function markInvoicePaid(inv: any) {
-    const now = new Date().toISOString();
-    const today = now.split('T')[0];
-    const updatedFields = { ...inv.fields, paid_at: now };
-    const { error: docErr } = await supabase.from('documents')
-      .update({ status: 'paid', fields: updatedFields, updated_at: now })
-      .eq('id', inv.id);
-    if (docErr) { toast.error('Failed to mark invoice as paid'); return; }
-    await supabase.from('transactions').insert({
-      user_id: currentUser!.ownerId, mode, type: 'income',
-      category: 'project_payment',
-      amount: Number(inv.total),
-      description: `Invoice ${inv.number}${inv.clients?.name ? ` — ${inv.clients.name}` : ''}`,
-      date: today,
+
+  /**
+   * Mark-paid is now a two-step flow: clicking the row's "Mark Paid"
+   * button opens a modal where the user picks paid_date + category.
+   * The confirm handler below is what the modal calls on submit.
+   */
+  async function confirmMarkPaid(
+    inv: InvoiceListRow,
+    opts: { paidDate: string; category: string },
+  ) {
+    const res = await markInvoicePaidAction({
+      id:            inv.id,
+      mode,
+      amount:        Number(inv.total) || 0,
+      fields:        inv.fields,
+      invoiceNumber: inv.number,
+      clientName:    inv.clients?.name ?? null,
+      paid_date:     opts.paidDate,
+      category:      opts.category,
     });
-    setInvoices(prev => prev.map(i => i.id === inv.id ? { ...i, status: 'paid', paid_at: now } : i));
-    toast.success('Invoice marked as paid');
+    if (!res.ok) {
+      toast.error(res.error || 'Failed to mark invoice as paid');
+      return;
+    }
+    setInvoices(prev => prev.map(i =>
+      i.id === inv.id
+        ? { ...i, status: 'paid', paid_at: res.data.paid_at, paid_date: res.data.paid_date }
+        : i,
+    ));
+    setMarkingPaid(null);
+    toast.success(`Invoice marked as paid on ${formatDate(res.data.paid_date)}`);
     loadData();
   }
 
   async function deleteInvoice(id: string) {
-    await supabase.from('documents').delete().eq('id', id);
-    setInvoices(prev => prev.filter(i => i.id !== id));
+    const prev = invoices;
+    setInvoices(p => p.filter(i => i.id !== id));
+    const res = await deleteInvoiceDocument(id);
+    if (!res.ok) {
+      setInvoices(prev);
+      toast.error(res.error || 'Could not delete invoice');
+    }
   }
 
   async function deleteTx(id: string) {
-    await supabase.from('transactions').delete().eq('id', id);
-    setTransactions(prev => prev.filter(t => t.id !== id));
+    const prev = transactions;
+    setTransactions(p => p.filter(t => t.id !== id));
+    const res = await deleteTransaction(id);
+    if (!res.ok) {
+      setTransactions(prev);
+      toast.error(res.error || 'Could not delete transaction');
+    }
   }
 
   async function markSubReviewed(sub: Subscription) {
+    // Optimistic update — reflect the change immediately, rollback if the
+    // server rejects. Consistent with the performance contract (no round-
+    // trip wait for UI feedback).
     const now = new Date().toISOString();
-    await supabase.from('subscriptions')
-      .update({ last_reviewed_at: now, updated_at: now })
-      .eq('id', sub.id);
-    setSubscriptions(prev => prev.map(s => s.id === sub.id ? { ...s, last_reviewed_at: now } : s));
+    const prev = subscriptions;
+    setSubscriptions(p => p.map(s => s.id === sub.id ? { ...s, last_reviewed_at: now } : s));
+    const res = await markSubscriptionReviewed(sub.id);
+    if (!res.ok) {
+      setSubscriptions(prev);
+      toast.error(res.error || 'Could not mark as reviewed');
+      return;
+    }
     toast.success(`${sub.name} marked as reviewed`);
   }
 
   async function toggleSubStatus(sub: Subscription) {
     const next = sub.status === 'active' ? 'paused' : 'active';
-    await supabase.from('subscriptions').update({ status: next }).eq('id', sub.id);
-    setSubscriptions(prev => prev.map(s => s.id === sub.id ? { ...s, status: next as any } : s));
+    const prev = subscriptions;
+    setSubscriptions(p => p.map(s => s.id === sub.id ? { ...s, status: next } : s));
+    const res = await toggleSubscriptionStatus(sub.id, next);
+    if (!res.ok) {
+      setSubscriptions(prev);
+      toast.error(res.error || 'Could not update status');
+    }
   }
 
   async function deleteSub(id: string) {
-    await supabase.from('subscriptions').delete().eq('id', id);
-    setSubscriptions(prev => prev.filter(s => s.id !== id));
+    const prev = subscriptions;
+    setSubscriptions(p => p.filter(s => s.id !== id));
+    const res = await deleteSubscription(id);
+    if (!res.ok) {
+      setSubscriptions(prev);
+      toast.error(res.error || 'Could not delete subscription');
+    }
   }
 
   /* ── filtered data ── */
@@ -243,9 +397,12 @@ export default function PersonalFinancePage() {
   });
 
   const filteredInvoices = invoices.filter(i => {
-    if (invFilter === 'unpaid') return ['draft','sent','viewed'].includes(i.status);
+    // "Unpaid" now includes overdue — an overdue invoice is still
+    // unpaid from the owner's perspective. The separate "Overdue"
+    // filter stays for when the user wants to drill into overdue-only.
+    if (invFilter === 'unpaid')  return ['draft','sent','viewed','overdue'].includes(i.status);
     if (invFilter === 'overdue') return i.status === 'overdue';
-    if (invFilter === 'paid') return i.status === 'paid';
+    if (invFilter === 'paid')    return i.status === 'paid';
     return true;
   });
 
@@ -454,9 +611,16 @@ export default function PersonalFinancePage() {
                   </button>
                 ))}
               </div>
-              <a href={`/dashboard/${mode}/paperwork`} style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'var(--text-secondary)', fontFamily: 'var(--font-body)', textDecoration: 'none' }}>
-                <ExternalLink size={11} /> Create in Paperwork
-              </a>
+              <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <button onClick={() => setShowLogPaid(true)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-default)', background: 'transparent', color: 'var(--text-secondary)', fontSize: 11, fontFamily: 'var(--font-body)', fontWeight: 500, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                  title="Record an invoice that's already been paid, without going through the full paperwork flow">
+                  <CheckCircle2 size={11} /> Log paid invoice
+                </button>
+                <a href={`/dashboard/${mode}/paperwork`} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'var(--text-secondary)', fontFamily: 'var(--font-body)', textDecoration: 'none' }}>
+                  <ExternalLink size={11} /> Create in Paperwork
+                </a>
+              </div>
             </div>
 
             {loading ? (
@@ -488,14 +652,15 @@ export default function PersonalFinancePage() {
                       <StatusPill status={cfg.label} color={cfg.color} />
                     </div>
                     <p className="t-2xs text-tertiary">
-                      Due {inv.due_date ? formatDate(inv.due_date) : '—'}
-                      {inv.paid_at ? ` · Paid ${formatDate(inv.paid_at)}` : ''}
+                      {inv.status === 'paid' && inv.paid_date
+                        ? `Paid ${formatDate(inv.paid_date)}`
+                        : `Due ${inv.due_date ? formatDate(inv.due_date) : '—'}`}
                     </p>
                   </div>
                   <span style={{ fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', flexShrink: 0 }}>{formatINR(Number(inv.total))}</span>
                   <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
                     {inv.status !== 'paid' && (
-                      <button onClick={() => markInvoicePaid(inv)}
+                      <button onClick={() => setMarkingPaid(inv)}
                         style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--accent-green)', background: 'var(--accent-green-dim)', color: 'var(--accent-green)', fontSize: 11, fontFamily: 'var(--font-body)', fontWeight: 500, cursor: 'pointer', transition: 'all 150ms', whiteSpace: 'nowrap' }}
                         onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--accent-green)'; (e.currentTarget as HTMLElement).style.color = '#fff'; }}
                         onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'var(--accent-green-dim)'; (e.currentTarget as HTMLElement).style.color = 'var(--accent-green)'; }}>
@@ -661,7 +826,7 @@ export default function PersonalFinancePage() {
                           )}
                         </div>
                         <p className="t-2xs text-tertiary">
-                          {sub.billing_cycle === 'monthly' ? 'Monthly' : 'Annual'} · {catLabel(sub.category)} · Renews {formatDate(sub.next_renewal_at)}
+                          {formatCycleLabel(sub.billing_cycle)} · {catLabel(sub.category)} · Renews {formatDate(sub.next_renewal_at)}
                         </p>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
@@ -669,9 +834,9 @@ export default function PersonalFinancePage() {
                           <span style={{ fontFamily: 'var(--font-display)', fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>
                             {formatINR(Number(sub.cost))}
                           </span>
-                          <span className="t-2xs text-tertiary">/{sub.billing_cycle === 'monthly' ? 'mo' : 'yr'}</span>
-                          {sub.billing_cycle === 'annual' && (
-                            <p className="t-2xs text-tertiary">{formatINR(Math.round(Number(sub.cost) / 12))}/mo</p>
+                          <span className="t-2xs text-tertiary">/{formatCycleSuffix(sub.billing_cycle)}</span>
+                          {sub.billing_cycle !== 'monthly' && (
+                            <p className="t-2xs text-tertiary">{formatINR(Math.round(monthlyEquivalent(Number(sub.cost), sub.billing_cycle)))}/mo</p>
                           )}
                         </div>
                         <button onClick={() => setEditingSub(sub)} title="Edit"
@@ -704,10 +869,10 @@ export default function PersonalFinancePage() {
         {/* Modals */}
         <AddTransactionModal open={showAddTx} onClose={() => setShowAddTx(false)}
           mode={mode} currentUser={currentUser}
-          onCreated={tx => { setTransactions(prev => [tx, ...prev]); setShowAddTx(false); }} />
+          onCreated={(tx: Transaction) => { setTransactions(prev => [tx, ...prev]); setShowAddTx(false); }} />
         <AddSubscriptionModal open={showAddSub} onClose={() => setShowAddSub(false)}
           mode={mode} currentUser={currentUser}
-          onCreated={sub => {
+          onCreated={(sub: Subscription) => {
             setSubscriptions(prev => [...prev, sub].sort((a, b) => a.next_renewal_at.localeCompare(b.next_renewal_at)));
             setShowAddSub(false);
           }} />
@@ -718,14 +883,21 @@ export default function PersonalFinancePage() {
               setEditingSub(null);
             }} />
         )}
+        {markingPaid && (
+          <MarkInvoicePaidModal inv={markingPaid}
+            onClose={() => setMarkingPaid(null)}
+            onConfirm={(opts) => confirmMarkPaid(markingPaid, opts)} />
+        )}
+        <LogPaidInvoiceModal open={showLogPaid} onClose={() => setShowLogPaid(false)}
+          mode={mode}
+          onCreated={() => { setShowLogPaid(false); loadData(); }} />
       </div>
     </PageTransition>
   );
 }
 
 /* ── ADD TRANSACTION MODAL ──────────────────────────────────── */
-function AddTransactionModal({ open, onClose, mode, currentUser, onCreated }: { open: boolean; onClose: () => void; mode: string; currentUser: { ownerId: string } | null | undefined; onCreated: (tx: Transaction) => void }) {
-  const supabase = useRef(createClient()).current!;
+function AddTransactionModal({ open, onClose, mode, currentUser, onCreated }: { open: boolean; onClose: () => void; mode: 'personal' | 'agency'; currentUser: { ownerId: string } | null | undefined; onCreated: (tx: Transaction) => void }) {
   const [type, setType]               = useState<'income' | 'expense'>('income');
   const [category, setCategory]       = useState('project_payment');
   const [amount, setAmount]           = useState('');
@@ -740,11 +912,20 @@ function AddTransactionModal({ open, onClose, mode, currentUser, onCreated }: { 
   async function handleSave() {
     if (!amount || !currentUser) return;
     setSaving(true);
-    const { data, error } = await supabase.from('transactions')
-      .insert({ user_id: currentUser.ownerId, mode, type, category, amount: parseFloat(amount), description: description || null, date })
-      .select().single();
-    if (!error && data) onCreated(data);
+    const res = await createTransaction({
+      mode,
+      type,
+      category,
+      amount: parseFloat(amount),
+      description: description || null,
+      date,
+    });
     setSaving(false);
+    if (!res.ok) {
+      toast.error(res.error || 'Could not add transaction');
+      return;
+    }
+    onCreated(res.data);
   }
 
   const cats = type === 'income' ? INCOME_CATS : EXPENSE_CATS;
@@ -765,7 +946,7 @@ function AddTransactionModal({ open, onClose, mode, currentUser, onCreated }: { 
           <Input label="Amount (₹)" type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0" autoFocus />
           <Input label="Date" type="date" value={date} onChange={e => setDate(e.target.value)} />
         </div>
-        <Select label="Category" options={cats} value={category} onChange={e => setCategory(e.target.value as any)} />
+        <Select label="Category" options={cats} value={category} onChange={e => setCategory(e.target.value)} />
         <Input label="Description" value={description} onChange={e => setDescription(e.target.value)} placeholder="Optional note (e.g., client name, project)" />
         <div style={{ display: 'flex', gap: 10, paddingTop: 4 }}>
           <Button variant="secondary" onClick={onClose} style={{ flex: 1 }}>Cancel</Button>
@@ -777,11 +958,10 @@ function AddTransactionModal({ open, onClose, mode, currentUser, onCreated }: { 
 }
 
 /* ── ADD SUBSCRIPTION MODAL ─────────────────────────────────── */
-function AddSubscriptionModal({ open, onClose, mode, currentUser, onCreated }: { open: boolean; onClose: () => void; mode: string; currentUser: { ownerId: string } | null | undefined; onCreated: (sub: Subscription) => void }) {
-  const supabase = useRef(createClient()).current!;
+function AddSubscriptionModal({ open, onClose, mode, currentUser, onCreated }: { open: boolean; onClose: () => void; mode: 'personal' | 'agency'; currentUser: { ownerId: string } | null | undefined; onCreated: (sub: Subscription) => void }) {
   const [name, setName]             = useState('');
   const [cost, setCost]             = useState('');
-  const [cycle, setCycle]           = useState('monthly');
+  const [cycle, setCycle]           = useState<BillingCycle>('monthly');
   const [category, setCategory]     = useState('tools');
   const [renewalDate, setRenewalDate] = useState('');
   const [saving, setSaving]         = useState(false);
@@ -791,16 +971,24 @@ function AddSubscriptionModal({ open, onClose, mode, currentUser, onCreated }: {
   async function handleSave() {
     if (!name || !cost || !renewalDate || !currentUser) return;
     setSaving(true);
-    const { data, error } = await supabase.from('subscriptions')
-      .insert({
-        user_id: currentUser.ownerId, mode, name, cost: parseFloat(cost),
-        billing_cycle: cycle, category, next_renewal_at: renewalDate,
-        status: 'active', auto_pay: false,
-        last_reviewed_at: new Date().toISOString(),
-      })
-      .select().single();
-    if (!error && data) onCreated(data);
+    // Server action does Zod validation + ownership scoping + insert.
+    // user_id and last_reviewed_at are set server-side.
+    const res = await createSubscription({
+      mode,
+      name,
+      category,
+      cost: parseFloat(cost),
+      billing_cycle: cycle,
+      next_renewal_at: renewalDate,
+      status: 'active',
+      auto_pay: false,
+    });
     setSaving(false);
+    if (!res.ok) {
+      toast.error(res.error || 'Could not add subscription');
+      return;
+    }
+    onCreated(res.data);
   }
 
   return (
@@ -809,10 +997,10 @@ function AddSubscriptionModal({ open, onClose, mode, currentUser, onCreated }: {
         <Input label="Service Name" value={name} onChange={e => setName(e.target.value)} placeholder="e.g., Figma, Vercel, ChatGPT Plus" autoFocus />
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <Input label="Cost (₹)" type="number" value={cost} onChange={e => setCost(e.target.value)} placeholder="0" />
-          <Select label="Billing Cycle" options={[{ value: 'monthly', label: 'Monthly' }, { value: 'annual', label: 'Annual' }]} value={cycle} onChange={e => setCycle(e.target.value)} />
+          <Select label="Billing Cycle" options={BILLING_CYCLE_OPTIONS} value={cycle} onChange={e => setCycle(e.target.value as BillingCycle)} />
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-          <Select label="Category" options={SUB_CATS} value={category} onChange={e => setCategory(e.target.value as any)} />
+          <Select label="Category" options={SUB_CATS} value={category} onChange={e => setCategory(e.target.value)} />
           <Input label="Next Renewal" type="date" value={renewalDate} onChange={e => setRenewalDate(e.target.value)} />
         </div>
         <div style={{ display: 'flex', gap: 10, paddingTop: 4 }}>
@@ -826,7 +1014,6 @@ function AddSubscriptionModal({ open, onClose, mode, currentUser, onCreated }: {
 
 /* ── EDIT SUBSCRIPTION MODAL ────────────────────────────────── */
 function EditSubscriptionModal({ sub, onClose, onSaved }: { sub: Subscription; onClose: () => void; onSaved: (s: Subscription) => void }) {
-  const supabase = useRef(createClient()).current!;
   const [name, setName]             = useState(sub.name);
   const [cost, setCost]             = useState(String(sub.cost));
   const [cycle, setCycle]           = useState(sub.billing_cycle);
@@ -836,11 +1023,19 @@ function EditSubscriptionModal({ sub, onClose, onSaved }: { sub: Subscription; o
 
   async function handleSave() {
     setSaving(true);
-    const { data } = await supabase.from('subscriptions')
-      .update({ name, cost: parseFloat(cost), billing_cycle: cycle, category, next_renewal_at: renewalDate, last_reviewed_at: new Date().toISOString() })
-      .eq('id', sub.id).select().single();
-    if (data) onSaved(data as Subscription);
+    const res = await updateSubscription(sub.id, {
+      name,
+      cost: parseFloat(cost),
+      billing_cycle: cycle,
+      category,
+      next_renewal_at: renewalDate,
+    });
     setSaving(false);
+    if (!res.ok) {
+      toast.error(res.error || 'Could not save subscription');
+      return;
+    }
+    onSaved(res.data);
   }
 
   return (
@@ -849,15 +1044,194 @@ function EditSubscriptionModal({ sub, onClose, onSaved }: { sub: Subscription; o
         <Input label="Service Name" value={name} onChange={e => setName(e.target.value)} />
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <Input label="Cost (₹)" type="number" value={cost} onChange={e => setCost(e.target.value)} />
-          <Select label="Billing Cycle" options={[{ value: 'monthly', label: 'Monthly' }, { value: 'annual', label: 'Annual' }]} value={cycle} onChange={e => setCycle(e.target.value)} />
+          <Select label="Billing Cycle" options={BILLING_CYCLE_OPTIONS} value={cycle} onChange={e => setCycle(e.target.value as BillingCycle)} />
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-          <Select label="Category" options={SUB_CATS} value={category} onChange={e => setCategory(e.target.value as any)} />
+          <Select label="Category" options={SUB_CATS} value={category} onChange={e => setCategory(e.target.value)} />
           <Input label="Next Renewal" type="date" value={renewalDate} onChange={e => setRenewalDate(e.target.value)} />
         </div>
         <div style={{ display: 'flex', gap: 10, paddingTop: 4 }}>
           <Button variant="secondary" onClick={onClose} style={{ flex: 1 }}>Cancel</Button>
           <Button onClick={handleSave} loading={saving} disabled={!name || !cost} style={{ flex: 1 }}>Save</Button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+/* ── MARK INVOICE PAID MODAL (step 4) ───────────────────────────
+ * Lets the user pick paid_date (defaults today, editable) and the
+ * income category before firing markInvoicePaidAction. Replaces the
+ * previous one-click flow — necessary so backdated payments land in
+ * the correct month's revenue stats and so the auto-logged income
+ * transaction gets the right category bucket.
+ */
+function MarkInvoicePaidModal({
+  inv, onClose, onConfirm,
+}: {
+  inv: InvoiceListRow;
+  onClose: () => void;
+  onConfirm: (opts: { paidDate: string; category: string }) => Promise<void>;
+}) {
+  const today = new Date().toISOString().split('T')[0];
+  const [paidDate, setPaidDate] = useState(today);
+  const [category, setCategory] = useState('project_payment');
+  const [saving, setSaving]     = useState(false);
+
+  async function handleSubmit() {
+    if (!paidDate) return;
+    setSaving(true);
+    try {
+      await onConfirm({ paidDate, category });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal open={true} onClose={onClose} title="Mark Invoice Paid" size="sm">
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={{ padding: 12, background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)' }}>
+          <p className="t-2xs text-tertiary" style={{ marginBottom: 2 }}>Invoice</p>
+          <p className="t-xs-medium">{inv.number}</p>
+          <p className="t-2xs text-tertiary">
+            {inv.clients?.name ? `${inv.clients.name} · ` : ''}{formatINR(Number(inv.total))}
+          </p>
+        </div>
+
+        <Input
+          label="Payment received on"
+          type="date"
+          value={paidDate}
+          max={today}
+          onChange={e => setPaidDate(e.target.value)}
+        />
+        <p className="t-2xs text-tertiary" style={{ marginTop: -8 }}>
+          Use a past date if the payment was received earlier — revenue stats
+          will land in the correct month.
+        </p>
+
+        <Select
+          label="Income Category"
+          options={INCOME_CATS}
+          value={category}
+          onChange={e => setCategory(e.target.value)}
+        />
+
+        <div style={{ display: 'flex', gap: 10, paddingTop: 4 }}>
+          <Button variant="secondary" onClick={onClose} style={{ flex: 1 }}>Cancel</Button>
+          <Button onClick={handleSubmit} loading={saving} disabled={!paidDate} style={{ flex: 1 }}>
+            Mark as Paid
+          </Button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+/* ── LOG PAID INVOICE MODAL (step 4) ────────────────────────────
+ * "Record an invoice that's already been paid." Creates the invoice
+ * document in `paid` status with a linked income transaction in one
+ * server round-trip via createPaidInvoiceAction.
+ *
+ * Keeps the form minimal — no line items, no GST breakdown, no
+ * payment terms. This flow is for record-keeping ("I got paid ₹X
+ * last week, let me log it properly"), not for the full paperwork
+ * authoring experience.
+ */
+function LogPaidInvoiceModal({
+  open, onClose, mode, onCreated,
+}: {
+  open: boolean;
+  onClose: () => void;
+  mode: 'personal' | 'agency';
+  onCreated: () => void;
+}) {
+  const today = new Date().toISOString().split('T')[0];
+  const [clientName, setClientName]       = useState('');
+  const [invoiceNumber, setInvoiceNumber] = useState('');
+  const [total, setTotal]                 = useState('');
+  const [invoiceDate, setInvoiceDate]     = useState(today);
+  const [paidDate, setPaidDate]           = useState(today);
+  const [category, setCategory]           = useState('project_payment');
+  const [description, setDescription]     = useState('');
+  const [saving, setSaving]               = useState(false);
+
+  useEffect(() => {
+    if (!open) {
+      setClientName(''); setInvoiceNumber(''); setTotal('');
+      setInvoiceDate(today); setPaidDate(today);
+      setCategory('project_payment'); setDescription('');
+    }
+  }, [open, today]);
+
+  async function handleSave() {
+    const amount = parseFloat(total);
+    if (!clientName || !invoiceNumber || !amount || amount <= 0) return;
+    setSaving(true);
+    const res = await createPaidInvoiceAction({
+      mode,
+      client_name:    clientName,
+      invoice_number: invoiceNumber,
+      total:          amount,
+      invoice_date:   invoiceDate,
+      paid_date:      paidDate,
+      category,
+      description:    description.trim() || null,
+    });
+    setSaving(false);
+    if (!res.ok) {
+      toast.error(res.error || 'Could not log invoice');
+      return;
+    }
+    toast.success(`Invoice ${invoiceNumber} logged as paid on ${formatDate(res.data.paid_date)}`);
+    onCreated();
+  }
+
+  const amount = parseFloat(total);
+  const validAmount = Number.isFinite(amount) && amount > 0;
+
+  return (
+    <Modal open={open} onClose={onClose} title="Log Paid Invoice" size="sm">
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <p className="t-xs text-secondary" style={{ marginBottom: 2 }}>
+          Record an invoice that&apos;s already been paid. Creates the
+          invoice + income transaction in one step — skip this if you
+          want the full paperwork flow instead.
+        </p>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <Input label="Client Name" value={clientName} onChange={e => setClientName(e.target.value)}
+            placeholder="e.g., ACME Corp" autoFocus />
+          <Input label="Invoice Number" value={invoiceNumber} onChange={e => setInvoiceNumber(e.target.value)}
+            placeholder="INV-2026-001" />
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <Input label="Total (₹)" type="number" value={total}
+            onChange={e => setTotal(e.target.value)} placeholder="0" />
+          <Select label="Income Category" options={INCOME_CATS}
+            value={category} onChange={e => setCategory(e.target.value)} />
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <Input label="Invoice Date" type="date" value={invoiceDate}
+            max={today} onChange={e => setInvoiceDate(e.target.value)} />
+          <Input label="Paid Date" type="date" value={paidDate}
+            max={today} min={invoiceDate} onChange={e => setPaidDate(e.target.value)} />
+        </div>
+
+        <Input label="Description (optional)" value={description}
+          onChange={e => setDescription(e.target.value)}
+          placeholder="e.g., 50% upfront — website design" />
+
+        <div style={{ display: 'flex', gap: 10, paddingTop: 4 }}>
+          <Button variant="secondary" onClick={onClose} style={{ flex: 1 }}>Cancel</Button>
+          <Button onClick={handleSave} loading={saving}
+            disabled={!clientName || !invoiceNumber || !validAmount}
+            style={{ flex: 1 }}>
+            Log Invoice
+          </Button>
         </div>
       </div>
     </Modal>

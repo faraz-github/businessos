@@ -1,91 +1,287 @@
 'use server';
+// ============================================================
+// Business OS — Social + Outreach Leads Server Actions
+//
+// Two tables that share the /social page:
+//   1. social_posts    — content calendar (LinkedIn/GitHub/etc. posts)
+//   2. outreach_leads  — DM tracking, light-touch lead capture
+//
+// Grouped in one file because they're edited from the same page and
+// the UI flows are parallel (quick-add from idea parking lot,
+// status toggle, delete). Each has its own exported actions.
+//
+// Canonical pattern — see subscriptions.ts for the long-form rationale.
+// ============================================================
 
-import { getSession } from '@/lib/auth';
-
+import { z } from 'zod';
+import { requireSession, getOwnerId } from '@/lib/auth';
 import { createClient } from '@/lib/supabase/server';
+import { socialPostSchema } from '@/types/schemas';
 import { revalidatePath } from 'next/cache';
-import type { Mode } from '@/types';
-import type { SocialPostFormData } from '@/types/schemas';
+import type { SocialPost } from '@/types';
+import type { DbOutreachChannel } from '@/types/database';
+import type { ActionResult } from './subscriptions';
 
-export async function getSocialPosts(mode: Mode, platform?: string) {
-  const supabase = await createClient();
-  const session = await getSession(); const user = session ? { id: session.sub } : null;
-  if (!user) return [];
-
-  let query = supabase
-    .from('social_posts')
-    .select('*')
-    .eq('user_id', user.id)
-    .eq('mode', mode)
-    .order('planned_date', { ascending: true });
-
-  if (platform) query = query.eq('platform', platform);
-
-  const { data, error } = await query;
-  if (error) throw error;
-  return data;
+function revalidateSocial(): void {
+  revalidatePath('/dashboard/personal/social');
+  revalidatePath('/dashboard/agency/social');
 }
 
-export async function createSocialPost(formData: SocialPostFormData) {
+// ════════════════════════════════════════════════════════════════
+// SOCIAL POSTS
+// ════════════════════════════════════════════════════════════════
+
+// ─── CREATE ────────────────────────────────────────────────────
+// Most social-post creates come from the "idea parking lot" — just a
+// title and status='idea'. The full schema requires everything,
+// so we use a lenient create schema that accepts minimal input.
+
+const socialPostCreateSchema = socialPostSchema.extend({
+  // Override defaults so minimal-input creates work cleanly.
+  title:   z.string().nullable().optional(),
+  content: z.string().nullable().optional(),
+});
+export type SocialPostCreateInput = z.infer<typeof socialPostCreateSchema>;
+
+export async function createSocialPost(
+  input: SocialPostCreateInput,
+): Promise<ActionResult<SocialPost>> {
+  const parsed = socialPostCreateSchema.safeParse(input);
+  if (!parsed.success) {
+    const msg = parsed.error.issues.map((i) => i.message).join('; ');
+    return { ok: false, error: msg };
+  }
+
+  const session  = await requireSession();
+  const ownerId  = getOwnerId(session);
   const supabase = await createClient();
-  const session = await getSession(); const user = session ? { id: session.sub } : null;
-  if (!user) throw new Error('Not authenticated');
 
   const { data, error } = await supabase
     .from('social_posts')
-    .insert({ ...formData, user_id: user.id })
+    .insert({
+      ...parsed.data,
+      user_id: ownerId,
+    })
     .select()
     .single();
 
-  if (error) throw error;
-  revalidatePath('/dashboard');
-  return data;
+  if (error) return { ok: false, error: error.message };
+  revalidateSocial();
+  return { ok: true, data: data as unknown as SocialPost };
 }
 
-export async function updateSocialPost(id: string, data: Partial<SocialPostFormData>) {
+// ─── UPDATE (edit modal) ──────────────────────────────────────
+
+const socialPostUpdateSchema = socialPostSchema.pick({
+  title: true,
+  content: true,
+  planned_date: true,
+  status: true,
+  platform: true,
+  engagement_notes: true,
+}).partial();
+export type SocialPostUpdateInput = z.infer<typeof socialPostUpdateSchema>;
+
+export async function updateSocialPost(
+  id: string,
+  input: SocialPostUpdateInput,
+): Promise<ActionResult<SocialPost>> {
+  if (!id) return { ok: false, error: 'Post id required' };
+
+  const parsed = socialPostUpdateSchema.safeParse(input);
+  if (!parsed.success) {
+    const msg = parsed.error.issues.map((i) => i.message).join('; ');
+    return { ok: false, error: msg };
+  }
+
+  const session  = await requireSession();
+  const ownerId  = getOwnerId(session);
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from('social_posts')
+    .update(parsed.data)
+    .eq('id', id)
+    .eq('user_id', ownerId)
+    .select()
+    .single();
+
+  if (error) return { ok: false, error: error.message };
+  revalidateSocial();
+  return { ok: true, data: data as unknown as SocialPost };
+}
+
+// ─── STATUS TOGGLE ─────────────────────────────────────────────
+
+const SOCIAL_STATUSES = ['idea', 'draft', 'scheduled', 'published'] as const;
+export type SocialPostStatus = typeof SOCIAL_STATUSES[number];
+
+export async function updateSocialPostStatus(
+  id: string,
+  status: SocialPostStatus,
+): Promise<ActionResult<SocialPost>> {
+  if (!id) return { ok: false, error: 'Post id required' };
+  if (!SOCIAL_STATUSES.includes(status)) {
+    return { ok: false, error: 'Invalid status' };
+  }
+
+  const session  = await requireSession();
+  const ownerId  = getOwnerId(session);
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from('social_posts')
+    .update({ status })
+    .eq('id', id)
+    .eq('user_id', ownerId)
+    .select()
+    .single();
+
+  if (error) return { ok: false, error: error.message };
+  revalidateSocial();
+  return { ok: true, data: data as unknown as SocialPost };
+}
+
+// ─── DELETE ────────────────────────────────────────────────────
+
+export async function deleteSocialPost(
+  id: string,
+): Promise<ActionResult<{ id: string }>> {
+  if (!id) return { ok: false, error: 'Post id required' };
+
+  const session  = await requireSession();
+  const ownerId  = getOwnerId(session);
   const supabase = await createClient();
 
   const { error } = await supabase
     .from('social_posts')
-    .update(data)
-    .eq('id', id);
+    .delete()
+    .eq('id', id)
+    .eq('user_id', ownerId);
 
-  if (error) throw error;
-  revalidatePath('/dashboard');
+  if (error) return { ok: false, error: error.message };
+  revalidateSocial();
+  return { ok: true, data: { id } };
 }
 
-export async function getProfileReviews(platform: string) {
-  const supabase = await createClient();
-  const session = await getSession(); const user = session ? { id: session.sub } : null;
-  if (!user) return [];
+// ════════════════════════════════════════════════════════════════
+// OUTREACH LEADS
+// ════════════════════════════════════════════════════════════════
+// Separate table from `leads` — this one is a lighter capture flow for
+// DM-style outreach (name + profile URL + one-line requirement).
+// Kept intentionally minimal; richer pipeline work is in `leads.ts`.
 
-  const { data, error } = await supabase
-    .from('profile_reviews')
-    .select('*')
-    .eq('user_id', user.id)
-    .eq('platform', platform)
-    .order('section');
+const OUTREACH_CHANNELS = [
+  'linkedin', 'email', 'whatsapp', 'phone', 'cold_call', 'instagram', 'other',
+] as const satisfies readonly DbOutreachChannel[];
 
-  if (error) throw error;
-  return data;
-}
+const OUTREACH_STATUSES = [
+  'found', 'connected', 'intro_sent', 'replied',
+  'call_scheduled', 'converted', 'not_interested',
+] as const;
+export type OutreachLeadStatus = typeof OUTREACH_STATUSES[number];
 
-export async function toggleProfileReview(id: string, completed: boolean) {
-  const supabase = await createClient();
+const outreachLeadCreateSchema = z.object({
+  mode:        z.enum(['personal', 'agency']),
+  name:        z.string().min(1, 'Name is required'),
+  profile_url: z.string().nullable().optional(),
+  company:     z.string().nullable().optional(),
+  requirement: z.string().nullable().optional(),
+  status:      z.enum(OUTREACH_STATUSES).default('found'),
+  channel:     z.enum(OUTREACH_CHANNELS).default('linkedin'),
+  notes:       z.string().nullable().optional(),
+});
+// Use z.input so defaulted fields (status, channel) are optional at the
+// call site — the user may omit them and Zod fills the default during
+// safeParse. z.infer would type them as required, which they aren't.
+export type OutreachLeadCreateInput = z.input<typeof outreachLeadCreateSchema>;
 
-  const updates: any = { completed };
-  if (completed) {
-    updates.last_reviewed_at = new Date().toISOString();
-    const nextReview = new Date();
-    nextReview.setDate(nextReview.getDate() + 90);
-    updates.next_review_at = nextReview.toISOString();
+export async function createOutreachLead(
+  input: OutreachLeadCreateInput,
+): Promise<ActionResult<Record<string, unknown>>> {
+  const parsed = outreachLeadCreateSchema.safeParse(input);
+  if (!parsed.success) {
+    // Surface a clean sentence rather than concatenated Zod messages.
+    // The first issue is almost always the useful one; secondary
+    // issues tend to be downstream fallout.
+    const first = parsed.error.issues[0];
+    const field = first?.path?.[0];
+    const friendly = field === 'name'        ? 'Please enter a name for this lead.'
+                   : field === 'status'      ? 'Please pick a valid status from the dropdown.'
+                   : field === 'channel'     ? 'Please pick a valid channel.'
+                   :                           'Please check the form fields and try again.';
+    return { ok: false, error: friendly };
   }
 
-  const { error } = await supabase
-    .from('profile_reviews')
-    .update(updates)
-    .eq('id', id);
+  const session  = await requireSession();
+  const ownerId  = getOwnerId(session);
+  const supabase = await createClient();
 
-  if (error) throw error;
-  revalidatePath('/dashboard');
+  const { data, error } = await supabase
+    .from('outreach_leads')
+    .insert({
+      ...parsed.data,
+      user_id: ownerId,
+    })
+    .select()
+    .single();
+
+  if (error) return { ok: false, error: error.message };
+  revalidateSocial();
+  return { ok: true, data: data as unknown as Record<string, unknown> };
+}
+
+const outreachLeadUpdateSchema = z.object({
+  status: z.enum(OUTREACH_STATUSES).optional(),
+  notes:  z.string().nullable().optional(),
+});
+export type OutreachLeadUpdateInput = z.infer<typeof outreachLeadUpdateSchema>;
+
+export async function updateOutreachLead(
+  id: string,
+  input: OutreachLeadUpdateInput,
+): Promise<ActionResult<Record<string, unknown>>> {
+  if (!id) return { ok: false, error: 'Outreach lead id required' };
+
+  const parsed = outreachLeadUpdateSchema.safeParse(input);
+  if (!parsed.success) {
+    const msg = parsed.error.issues.map((i) => i.message).join('; ');
+    return { ok: false, error: msg };
+  }
+
+  const session  = await requireSession();
+  const ownerId  = getOwnerId(session);
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from('outreach_leads')
+    .update(parsed.data)
+    .eq('id', id)
+    .eq('user_id', ownerId)
+    .select()
+    .single();
+
+  if (error) return { ok: false, error: error.message };
+  revalidateSocial();
+  return { ok: true, data: data as unknown as Record<string, unknown> };
+}
+
+export async function deleteOutreachLead(
+  id: string,
+): Promise<ActionResult<{ id: string }>> {
+  if (!id) return { ok: false, error: 'Outreach lead id required' };
+
+  const session  = await requireSession();
+  const ownerId  = getOwnerId(session);
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from('outreach_leads')
+    .delete()
+    .eq('id', id)
+    .eq('user_id', ownerId);
+
+  if (error) return { ok: false, error: error.message };
+  revalidateSocial();
+  return { ok: true, data: { id } };
 }

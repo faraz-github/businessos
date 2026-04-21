@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
         .eq('role', 'superadmin')
         .eq('is_active', true)
         .limit(1)
-        .single<{ id: string }>();
+        .single();
       if (sa) ownerId = sa.id;
     }
 

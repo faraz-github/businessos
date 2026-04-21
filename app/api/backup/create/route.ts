@@ -1,87 +1,115 @@
+// ============================================================
 // POST /api/backup/create
-// Creates a full JSON backup of all user data.
-// - Fetches all 19 tables for the authenticated owner
-// - Downloads brand logos and embeds as base64 (cross-project portable)
-// - Uploads to bos-backups storage bucket
-// - Returns the JSON file as a download simultaneously
-// Superadmin only. Requires password confirmation.
+//
+// Creates a full JSON backup of all user data for the authenticated
+// superadmin (owner). Flow:
+//   1. Verify superadmin + password (prevents hijacked session abuse)
+//   2. Fetch all tables listed in RESTORE_ORDER, scoped to ownerId
+//   3. Download brand logos from the brand-assets bucket, embed as base64
+//      (makes the backup cross-project portable)
+//   4. Upload the assembled JSON to bos-backups bucket
+//   5. Stream the same JSON back as a download response
+//
+// Superadmin only.
+// ============================================================
 import { NextResponse, type NextRequest } from 'next/server';
-import { getSession } from '@/lib/auth/session';
+import { getSession, getOwnerId } from '@/lib/auth';
 import { getSupabaseAdmin } from '@/lib/auth/supabase-admin';
 import { createClient } from '@/lib/supabase/server';
 import {
-  BACKUP_TABLES, BACKUP_BUCKET, BACKUP_VERSION, CURRENT_SCHEMA_VERSION,
-  ensureBackupBucket, verifySuperadminPassword,
-  type BackupFile, type BackupManifest, type LogoEntry, type BackupTableName,
+  RESTORE_ORDER,
+  TABLES_WITHOUT_USER_ID,
+  BACKUP_BUCKET,
+  BACKUP_VERSION,
+  CURRENT_SCHEMA_VERSION,
+  ensureBackupBucket,
+  verifySuperadminPassword,
+  buildBackupFilename,
+  fetchUserScopedRows,
+  type BackupFile,
+  type BackupManifest,
+  type LogoEntry,
+  type BackupTableName,
+  type UserScopedTable,
 } from '@/lib/backup';
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const session = await getSession();
-  if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-  if (session.role !== 'superadmin') return NextResponse.json({ error: 'Superadmin only' }, { status: 403 });
+  if (!session) {
+    return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  }
+  if (session.role !== 'superadmin') {
+    return NextResponse.json({ error: 'Superadmin only' }, { status: 403 });
+  }
 
-  let body: { password?: string };
-  try { body = await request.json(); } catch { body = {}; }
-  if (!body.password) return NextResponse.json({ error: 'Password required' }, { status: 400 });
+  let body: { password?: unknown };
+  try {
+    body = await request.json();
+  } catch {
+    body = {};
+  }
+  const password = typeof body.password === 'string' ? body.password : '';
+  if (!password) {
+    return NextResponse.json({ error: 'Password required' }, { status: 400 });
+  }
 
-  // Verify superadmin password
-  const valid = await verifySuperadminPassword(session.sub, body.password);
-  if (!valid) return NextResponse.json({ error: 'Incorrect password' }, { status: 401 });
+  const valid = await verifySuperadminPassword(session.sub, password);
+  if (!valid) {
+    return NextResponse.json({ error: 'Incorrect password' }, { status: 401 });
+  }
 
-  const ownerId = session.ownerId ?? session.sub;
-  const admin   = getSupabaseAdmin();
+  const ownerId  = getOwnerId(session);
+  const admin    = getSupabaseAdmin();
   const supabase = await createClient();
 
   try {
-    // ── 1. Fetch all table data ──────────────────────────────
-    const tableData: Record<string, Record<string, unknown>[]> = {};
-    const tableCounts: Record<string, { count: number }> = {};
+    // ── 1. Fetch table data ──────────────────────────────────────
+    // Partial<> because we assemble it table-by-table; fully-populated
+    // before we construct BackupFile below.
+    const tableData: Partial<Record<BackupTableName, Record<string, unknown>[]>> = {};
+    const tableCounts: Partial<Record<BackupTableName, { count: number }>> = {};
 
-    for (const table of BACKUP_TABLES) {
-      const { data, error } = await admin
-        .from(table)
-        .select('*')
-        .eq('user_id', ownerId);
-      if (error) {
-        console.error(`[backup] Failed to fetch ${table}:`, error.message);
+    for (const table of RESTORE_ORDER) {
+      // Tables without user_id are handled after we have the parent rows.
+      if (TABLES_WITHOUT_USER_ID.includes(table)) {
         tableData[table] = [];
-      } else {
-        tableData[table] = (data as Record<string, unknown>[]) || [];
+        tableCounts[table] = { count: 0 };
+        continue;
       }
-      tableCounts[table] = { count: tableData[table].length };
+      const rows = await fetchUserScopedRows(admin, table as UserScopedTable, ownerId);
+      tableData[table] = rows;
+      tableCounts[table] = { count: rows.length };
     }
 
-    // signatures don't have user_id — fetch via document_ids
-    const docIds = (tableData['documents'] || []).map((d: any) => d.id as string);
+    // Signatures are scoped via document_id — fetch after documents.
+    const docRows = tableData.documents ?? [];
+    const docIds = docRows
+      .map((d) => d.id)
+      .filter((id): id is string => typeof id === 'string');
     if (docIds.length > 0) {
-      const { data: sigs } = await admin
-        .from('signatures')
-        .select('*')
-        .in('document_id', docIds);
-      tableData['signatures'] = (sigs as Record<string, unknown>[]) || [];
-      tableCounts['signatures'] = { count: tableData['signatures'].length };
-    } else {
-      tableData['signatures'] = [];
-      tableCounts['signatures'] = { count: 0 };
+      const { data: sigs } = await admin.from('signatures').select('*').in('document_id', docIds);
+      tableData.signatures = (sigs ?? []) as Record<string, unknown>[];
+      tableCounts.signatures = { count: tableData.signatures.length };
     }
 
-    // ── 2. Fetch and embed brand logos as base64 ─────────────
+    // ── 2. Embed brand logos as base64 ───────────────────────────
     const logos: LogoEntry[] = [];
     const { data: brands } = await admin
       .from('brand_profiles')
       .select('mode, logo_url')
       .eq('user_id', ownerId);
 
-    for (const brand of brands || []) {
+    for (const brand of brands ?? []) {
       if (!brand.logo_url) continue;
       try {
-        // Extract storage path from the public URL
-        // URL format: .../storage/v1/object/public/brand-logos/{path}
-        const urlPath = brand.logo_url.split('/storage/v1/object/public/brand-logos/')[1];
+        // Public URL format: .../storage/v1/object/public/brand-assets/{path}
+        // Grab the path after the bucket name.
+        const match = brand.logo_url.match(/\/brand-assets\/(.+)$/);
+        const urlPath = match?.[1];
         if (!urlPath) continue;
 
         const { data: fileData } = await supabase.storage
-          .from('brand-logos')
+          .from('brand-assets')
           .download(urlPath);
         if (!fileData) continue;
 
@@ -96,11 +124,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           data:      base64,
         });
       } catch (logoErr) {
-        console.warn(`[backup] Could not embed logo for ${brand.mode}:`, logoErr);
+        console.warn(`[backup/create] Could not embed logo for ${brand.mode}:`, logoErr);
       }
     }
 
-    // ── 3. Assemble backup file ──────────────────────────────
+    // ── 3. Assemble backup file ──────────────────────────────────
     const now = new Date().toISOString();
     const manifest: BackupManifest = {
       version:        BACKUP_VERSION,
@@ -110,18 +138,17 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       tables:         tableCounts as BackupManifest['tables'],
       logos,
     };
-
     const backupFile: BackupFile = {
       manifest,
       data: tableData as BackupFile['data'],
     };
 
-    const json = JSON.stringify(backupFile, null, 2);
+    const json  = JSON.stringify(backupFile, null, 2);
     const bytes = Buffer.from(json, 'utf-8');
 
-    // ── 4. Upload to storage bucket ──────────────────────────
+    // ── 4. Upload to bos-backups bucket (non-fatal on failure) ──
     await ensureBackupBucket();
-    const filename = `${ownerId}/${now.replace(/[:.]/g, '-').replace('T', '_').slice(0, 19)}.json`;
+    const filename = buildBackupFilename(ownerId, now);
     const { error: uploadError } = await supabase.storage
       .from(BACKUP_BUCKET)
       .upload(filename, bytes, {
@@ -129,26 +156,27 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         cacheControl: '3600',
         upsert:       false,
       });
-
     if (uploadError) {
-      console.error('[backup] Storage upload failed:', uploadError.message);
-      // Still return the download even if storage upload fails
+      // Upload failure shouldn't stop the download — user still gets the file.
+      // They just won't see it in the backup list.
+      console.error('[backup/create] Storage upload failed:', uploadError.message);
     }
 
-    // ── 5. Return as file download ───────────────────────────
+    // ── 5. Stream as download response ───────────────────────────
     const downloadName = `bos-backup-${now.slice(0, 10)}.json`;
-    return new NextResponse(bytes, {
+    const tablesHeader = Object.entries(tableCounts)
+      .map(([t, v]) => `${t}:${v?.count ?? 0}`)
+      .join(',');
+
+    return new NextResponse(bytes as unknown as BodyInit, {
       status: 200,
       headers: {
         'Content-Type':        'application/json',
         'Content-Disposition': `attachment; filename="${downloadName}"`,
         'Content-Length':      String(bytes.length),
-        'X-Backup-Tables':     Object.entries(tableCounts)
-                                 .map(([t, v]) => `${t}:${v.count}`)
-                                 .join(','),
+        'X-Backup-Tables':     tablesHeader,
       },
     });
-
   } catch (err) {
     console.error('[backup/create] Unexpected error:', err);
     return NextResponse.json({ error: 'Backup failed. Check server logs.' }, { status: 500 });

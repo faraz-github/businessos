@@ -7,6 +7,7 @@ import { Modal } from '@/components/ui/Modal';
 import { Select } from '@/components/ui/Select';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
+import { toast } from '@/components/ui/Toast';
 import { Sparkline } from '@/components/charts/Sparkline';
 import { PageTransition } from '@/components/dashboard/PageTransition';
 import { createClient } from '@/lib/supabase/client';
@@ -18,7 +19,14 @@ import {
   IndianRupee, Users, Linkedin, Briefcase, Clock,
   Trash2,
 } from 'lucide-react';
-import type { AttentionItem, Priority, TimeBlock } from '@/types';
+import type { AttentionItem, Priority, TimeBlock, TimeBlockType } from '@/types';
+import {
+  createPriority,
+  togglePriority,
+  deletePriority,
+  createTimeBlock,
+  deleteTimeBlock,
+} from '@/app/dashboard/actions/focus';
 
 interface HomeStats {
   money: { revenueThisMonth: number; outstandingTotal: number; overdueTotal: number; sparklineData: { value: number }[] };
@@ -109,7 +117,7 @@ export function PersonalHomeClient({ attentionItems, stats, priorities: initialP
   const { mode } = useBrand();
   const { user: currentUser } = useCurrentUser();
   const supabaseRef = useRef(createClient());
-  const supabase    = supabaseRef.current!;
+  const supabase    = supabaseRef.current;
 
   const [priorities, setPriorities]   = useState(initialPriorities);
   const [timeBlocks, setTimeBlocks]   = useState(initialTimeBlocks);
@@ -148,36 +156,68 @@ export function PersonalHomeClient({ attentionItems, stats, priorities: initialP
     if (!newPriority.trim() || priorities.length >= 3 || !currentUser) return;
     setAddingPriority(true);
     const today = new Date().toISOString().split('T')[0];
-    const { data } = await supabase.from('priorities')
-      .insert({ user_id: currentUser.id, mode, date: today, text: newPriority.trim(), sort_order: priorities.length })
-      .select().single();
-    if (data) setPriorities(prev => [...prev, data as Priority]);
-    setNewPriority('');
+    const res = await createPriority({
+      mode,
+      date:       today,
+      text:       newPriority.trim(),
+      sort_order: priorities.length,
+    });
     setAddingPriority(false);
+    if (!res.ok) {
+      toast.error(res.error || 'Could not add priority');
+      return;
+    }
+    setPriorities(prev => [...prev, res.data]);
+    setNewPriority('');
   }
 
   async function handleTogglePriority(id: string, completed: boolean) {
-    await supabase.from('priorities').update({ completed: !completed }).eq('id', id);
-    setPriorities(prev => prev.map(p => p.id === id ? { ...p, completed: !completed } : p));
+    const next = !completed;
+    const prev = priorities;
+    setPriorities(p => p.map(pr => pr.id === id ? { ...pr, completed: next } : pr));
+    const res = await togglePriority(id, next);
+    if (!res.ok) {
+      setPriorities(prev);
+      toast.error(res.error || 'Could not update priority');
+    }
   }
 
   async function handleDeletePriority(id: string) {
-    await supabase.from('priorities').delete().eq('id', id);
-    setPriorities(prev => prev.filter(p => p.id !== id));
+    const prev = priorities;
+    setPriorities(p => p.filter(pr => pr.id !== id));
+    const res = await deletePriority(id);
+    if (!res.ok) {
+      setPriorities(prev);
+      toast.error(res.error || 'Could not delete priority');
+    }
   }
 
-  async function handleAddTimeBlock(type: string, startTime: string, endTime: string, label: string) {
+  async function handleAddTimeBlock(type: TimeBlockType, startTime: string, endTime: string, label: string) {
     if (!currentUser) return;
     const today = new Date().toISOString().split('T')[0];
-    const { data } = await supabase.from('time_blocks')
-      .insert({ user_id: currentUser.id, mode, date: today, type, start_time: startTime, end_time: endTime, label: label || null })
-      .select().single();
-    if (data) setTimeBlocks(prev => [...prev, data as TimeBlock].sort((a, b) => a.start_time.localeCompare(b.start_time)));
+    const res = await createTimeBlock({
+      mode,
+      date:       today,
+      type,
+      start_time: startTime,
+      end_time:   endTime,
+      label:      label || null,
+    });
+    if (!res.ok) {
+      toast.error(res.error || 'Could not add time block');
+      return;
+    }
+    setTimeBlocks(prev => [...prev, res.data].sort((a, b) => a.start_time.localeCompare(b.start_time)));
   }
 
   async function handleDeleteBlock(id: string) {
-    await supabase.from('time_blocks').delete().eq('id', id);
-    setTimeBlocks(prev => prev.filter(b => b.id !== id));
+    const prev = timeBlocks;
+    setTimeBlocks(p => p.filter(b => b.id !== id));
+    const res = await deleteTimeBlock(id);
+    if (!res.ok) {
+      setTimeBlocks(prev);
+      toast.error(res.error || 'Could not delete time block');
+    }
   }
 
   // Precise current-block detection using minutes
@@ -406,9 +446,9 @@ export function PersonalHomeClient({ attentionItems, stats, priorities: initialP
 // ── ADD TIME BLOCK MODAL ───────────────────────────────────────
 function AddTimeBlockModal({ open, onClose, onAdd }: {
   open: boolean; onClose: () => void;
-  onAdd: (type: string, start: string, end: string, label: string) => void;
+  onAdd: (type: TimeBlockType, start: string, end: string, label: string) => void;
 }) {
-  const [type, setType]           = useState('deep');
+  const [type, setType]           = useState<TimeBlockType>('deep');
   const [startTime, setStartTime] = useState('09:00');
   const [endTime, setEndTime]     = useState('11:00');
   const [label, setLabel]         = useState('');
@@ -436,7 +476,7 @@ function AddTimeBlockModal({ open, onClose, onAdd }: {
               { value: 'admin',    label: 'Admin',      color: 'var(--accent-amber)' },
               { value: 'personal', label: 'Personal',   color: 'var(--accent-violet)' },
             ].map(t => (
-              <button key={t.value} type="button" onClick={() => setType(t.value)}
+              <button key={t.value} type="button" onClick={() => setType(t.value as TimeBlockType)}
                 style={{ padding: '8px 4px', borderRadius: 'var(--radius-sm)', border: `1px solid ${type === t.value ? t.color : 'var(--border-default)'}`, background: type === t.value ? `${t.color}18` : 'transparent', cursor: 'pointer', transition: 'all 150ms', textAlign: 'center' }}>
                 <div style={{ width: 8, height: 8, borderRadius: '50%', background: t.color, margin: '0 auto 5px' }} />
                 <span style={{ fontSize: 10, fontWeight: 600, color: type === t.value ? t.color : 'var(--text-secondary)', fontFamily: 'var(--font-body)' }}>{t.label}</span>

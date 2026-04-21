@@ -9,9 +9,10 @@ import { useBrand } from '@/lib/brand';
 import { useCurrentUser } from '@/lib/auth/use-auth';
 import { ALL_SECTIONS, SECTION_LABELS, AGENCY_SECTION_LABELS } from '@/lib/auth/sections';
 import { PageTransition } from '@/components/dashboard/PageTransition';
-import { Button, Input, Select } from '@/components/ui';
+import { Button, Input, Select, ConfirmDialog, SignaturePad } from '@/components/ui';
+import type { SignaturePadHandle } from '@/components/ui';
 import { ColorPicker } from '@/components/ui/ColorPicker';
-import { Save, Check, Plus, UserCog, Shield, Pencil, X, Power, Trash2, Download, Upload, AlertTriangle, Database, RotateCcw, HardDriveDownload } from 'lucide-react';
+import { Save, Check, Plus, UserCog, Shield, Pencil, X, Power, Trash2, Download, Upload, Loader, Archive, AlertTriangle, Skull, Pen, Type } from 'lucide-react';
 import type { Mode } from '@/types';
 
 interface TeamMember {
@@ -349,29 +350,182 @@ function BrandTab() {
   async function handleLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (!file.type.startsWith('image/')) return;
-    if (file.size > 2 * 1024 * 1024) { alert('Logo must be under 2MB'); return; }
+    if (!file.type.startsWith('image/')) {
+      alert('Please select an image file');
+      return;
+    }
+    // 2 MB pre-compression sanity cap. The compressor will bring this
+    // well under the bucket's 2 MB limit, but a 50 MB source would
+    // take noticeable time to compress on a slow phone.
+    if (file.size > 2 * 1024 * 1024) {
+      alert('Logo source file must be under 2 MB. Try a smaller image.');
+      return;
+    }
+
     setLogoUploading(true);
     try {
+      // Compress on the user's device before shipping bytes.
+      // SVGs pass through unchanged (they're already small and lossless).
+      const { compressImage } = await import('@/lib/storage/compress');
+      const compressed = file.type === 'image/svg+xml'
+        ? file
+        : await compressImage(file, 'logo');
+
       const formData = new FormData();
-      formData.append('file', file);
+      formData.append('file', compressed);
+
       const { uploadBrandLogo } = await import('@/app/dashboard/actions/brand');
-      const url = await uploadBrandLogo(activeMode, formData);
-      setLocalLogoUrl(url);
+      const res = await uploadBrandLogo(activeMode, formData);
+      if (!res.ok) {
+        alert(`Logo upload failed: ${res.error}`);
+        return;
+      }
+      setLocalLogoUrl(res.data.url);
       await refreshBrand();
-    } catch (err) { console.error('Logo upload failed:', err); }
-    finally { setLogoUploading(false); }
+    } catch (err) {
+      console.error('Logo upload failed:', err);
+      alert(err instanceof Error ? err.message : 'Logo upload failed');
+    } finally {
+      setLogoUploading(false);
+    }
   }
 
   async function handleLogoRemove() {
-    setLocalLogoUrl('');
-    // Clear logo_url by saving empty string — brand.logo_url will be null after refresh
-    await fetch('/api/brand/logo', {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mode: activeMode }),
-    });
-    await refreshBrand();
+    const prev = localLogoUrl;
+    setLocalLogoUrl('');  // optimistic
+    try {
+      const { removeBrandLogo } = await import('@/app/dashboard/actions/brand');
+      const res = await removeBrandLogo(activeMode);
+      if (!res.ok) {
+        setLocalLogoUrl(prev);  // rollback
+        alert(`Could not remove logo: ${res.error}`);
+        return;
+      }
+      await refreshBrand();
+    } catch (err) {
+      setLocalLogoUrl(prev);  // rollback
+      console.error('Logo remove failed:', err);
+      alert(err instanceof Error ? err.message : 'Logo remove failed');
+    }
+  }
+
+  // ─── SIGNATURE STATE / HANDLERS ──────────────────────────────
+  // Mirrors the logo pattern 1:1: local optimistic state, optimistic
+  // render while the upload/remove round-trips. The "Draw" flow
+  // exports the canvas as a PNG Blob directly — no data URL → Blob
+  // conversion needed — which keeps bytes-on-wire minimal. The
+  // "Upload" flow goes through the same compressImage pipeline as
+  // logos so we reuse the well-tuned compression profile.
+  const [signatureTab, setSignatureTab] = useState<'saved' | 'draw' | 'upload'>('saved');
+  const [sigUploading, setSigUploading] = useState(false);
+  const [localSigUrl,  setLocalSigUrl]  = useState<string | null>(null);
+  const [localSigType, setLocalSigType] = useState<'drawn' | 'uploaded' | null>(null);
+  const [sigHasStrokes, setSigHasStrokes] = useState(false);
+  const signaturePadRef = useRef<SignaturePadHandle>(null);
+
+  // When switching modes, reset the local overrides so the preview
+  // reflects the other mode's saved signature (not the one we just
+  // uploaded to the previous mode).
+  useEffect(() => {
+    setLocalSigUrl(null);
+    setLocalSigType(null);
+    setSignatureTab('saved');
+  }, [activeMode]);
+
+  // `displaySignatureUrl` is the URL we show in the preview:
+  // the local optimistic URL wins over the brand's persisted URL.
+  const displaySignatureUrl = localSigUrl ?? brand?.signature_url ?? null;
+  const displaySignatureType: 'drawn' | 'uploaded' | null =
+    localSigType ?? brand?.signature_type ?? null;
+
+  async function handleSaveDrawnSignature() {
+    const blob = await signaturePadRef.current?.getPngBlob();
+    if (!blob) return;
+    setSigUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', new File([blob], 'signature.png', { type: 'image/png' }));
+      const { uploadBrandSignature } = await import('@/app/dashboard/actions/brand');
+      const res = await uploadBrandSignature(activeMode, formData, 'drawn');
+      if (!res.ok) {
+        alert(`Could not save signature: ${res.error}`);
+        return;
+      }
+      setLocalSigUrl(res.data.url);
+      setLocalSigType('drawn');
+      signaturePadRef.current?.clear();
+      setSignatureTab('saved');
+      await refreshBrand();
+    } catch (err) {
+      console.error('Signature save error:', err);
+      alert(err instanceof Error ? err.message : 'Could not save signature');
+    } finally {
+      setSigUploading(false);
+    }
+  }
+
+  async function handleUploadSignature(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      alert('Please select an image file');
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      alert('Signature file must be under 2 MB. Try a smaller image.');
+      return;
+    }
+    // Reset the input so picking the same file twice still fires change.
+    e.target.value = '';
+
+    setSigUploading(true);
+    try {
+      const { compressImage } = await import('@/lib/storage/compress');
+      // Signatures reuse the logo compression profile (≤200KB, 512px long
+      // edge). That's plenty for a stamp or scan — signatures print at
+      // postage-stamp size inside the doc anyway.
+      const compressed = await compressImage(file, 'logo');
+      const formData = new FormData();
+      formData.append('file', compressed);
+      const { uploadBrandSignature } = await import('@/app/dashboard/actions/brand');
+      const res = await uploadBrandSignature(activeMode, formData, 'uploaded');
+      if (!res.ok) {
+        alert(`Could not upload signature: ${res.error}`);
+        return;
+      }
+      setLocalSigUrl(res.data.url);
+      setLocalSigType('uploaded');
+      setSignatureTab('saved');
+      await refreshBrand();
+    } catch (err) {
+      console.error('Signature upload error:', err);
+      alert(err instanceof Error ? err.message : 'Could not upload signature');
+    } finally {
+      setSigUploading(false);
+    }
+  }
+
+  async function handleSignatureRemove() {
+    const prevUrl  = localSigUrl;
+    const prevType = localSigType;
+    setLocalSigUrl('');           // optimistic
+    setLocalSigType(null);
+    try {
+      const { removeBrandSignature } = await import('@/app/dashboard/actions/brand');
+      const res = await removeBrandSignature(activeMode);
+      if (!res.ok) {
+        setLocalSigUrl(prevUrl);  // rollback
+        setLocalSigType(prevType);
+        alert(`Could not remove signature: ${res.error}`);
+        return;
+      }
+      await refreshBrand();
+    } catch (err) {
+      setLocalSigUrl(prevUrl);
+      setLocalSigType(prevType);
+      console.error('Signature remove failed:', err);
+      alert(err instanceof Error ? err.message : 'Could not remove signature');
+    }
   }
 
   useEffect(() => {
@@ -399,12 +553,20 @@ function BrandTab() {
     setSaving(true);
     try {
       const { upsertBrandProfile } = await import('@/app/dashboard/actions/brand');
-      await upsertBrandProfile(data);
+      const res = await upsertBrandProfile(data);
+      if (!res.ok) {
+        alert(`Could not save brand: ${res.error}`);
+        return;
+      }
       await refreshBrand();
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
-    } catch (err) { console.error('Brand save error:', err); }
-    finally { setSaving(false); }
+    } catch (err) {
+      console.error('Brand save error:', err);
+      alert(err instanceof Error ? err.message : 'Brand save failed');
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -506,6 +668,131 @@ function BrandTab() {
           </div>
         </div>
 
+        {/* Section 0b: Signature */}
+        {/* Saved signature / stamp. Offered as a picker option in the
+            paperwork editor — NEVER auto-applied on Send or Final.
+            The user explicitly chooses "Use saved" or drafts fresh
+            each time. See SenderSignatureField in paperwork/page.tsx. */}
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+            <p className="t-label" style={{ margin: 0 }}>Signature</p>
+            <p className="t-2xs text-tertiary" style={{ margin: 0 }}>Reusable signature or stamp for your {activeMode === 'personal' ? 'personal' : 'agency'} documents</p>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 20 }}>
+            {/* Preview */}
+            <div style={{
+              width: 160, height: 90, borderRadius: 'var(--radius-md)',
+              border: '1px solid var(--border-default)',
+              background: displaySignatureUrl ? '#ffffff' : 'var(--bg-hover)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              overflow: 'hidden', flexShrink: 0,
+            }}>
+              {displaySignatureUrl ? (
+                <img src={displaySignatureUrl} alt="Saved signature"
+                  style={{ maxWidth: '90%', maxHeight: '80%', objectFit: 'contain' }} />
+              ) : (
+                <span className="t-2xs text-tertiary" style={{ textAlign: 'center', padding: 12 }}>
+                  No signature saved
+                </span>
+              )}
+            </div>
+
+            {/* Controls */}
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {/* Tab picker */}
+              <div style={{ display: 'flex', background: 'var(--bg-hover)', padding: 3, gap: 2, borderRadius: 'var(--radius-md)', width: 'fit-content' }}>
+                {([
+                  { id: 'saved',  label: displaySignatureUrl ? 'Saved' : 'No saved', icon: <Check size={12} />, disabled: !displaySignatureUrl },
+                  { id: 'draw',   label: 'Draw',   icon: <Pen  size={12} />, disabled: false },
+                  { id: 'upload', label: 'Upload', icon: <Type size={12} />, disabled: false },
+                ] as const).map(t => (
+                  <button key={t.id} type="button" onClick={() => { if (!t.disabled) setSignatureTab(t.id); }}
+                    disabled={t.disabled}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 5,
+                      padding: '5px 12px', borderRadius: 7, border: 'none',
+                      background:   signatureTab === t.id ? 'var(--bg-surface)' : 'transparent',
+                      color:        signatureTab === t.id ? 'var(--text-primary)' : (t.disabled ? 'var(--text-tertiary)' : 'var(--text-secondary)'),
+                      fontSize: 12, fontWeight: 500, fontFamily: 'var(--font-body)',
+                      cursor: t.disabled ? 'not-allowed' : 'pointer',
+                      opacity: t.disabled ? 0.5 : 1,
+                      boxShadow: signatureTab === t.id ? 'var(--shadow-card)' : 'none',
+                      transition: 'all 150ms',
+                    }}>
+                    {t.icon}{t.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Saved — just show Remove */}
+              {signatureTab === 'saved' && displaySignatureUrl && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <p className="t-2xs text-tertiary" style={{ margin: 0, flex: 1 }}>
+                    {displaySignatureType === 'drawn' ? 'Drawn in app' : 'Uploaded image'}
+                    {' · '}
+                    Used as a picker option on outgoing documents.
+                  </p>
+                  <Button type="button" variant="ghost" size="sm" onClick={handleSignatureRemove}>
+                    <Trash2 size={12} /> Remove
+                  </Button>
+                </div>
+              )}
+
+              {/* Draw */}
+              {signatureTab === 'draw' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <SignaturePad
+                    ref={signaturePadRef}
+                    width={400}
+                    height={90}
+                    onDrawChange={setSigHasStrokes}
+                  />
+                  <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                    <Button type="button" variant="ghost" size="sm"
+                      onClick={() => signaturePadRef.current?.clear()}
+                      disabled={!sigHasStrokes || sigUploading}>
+                      Clear
+                    </Button>
+                    <Button type="button" size="sm"
+                      onClick={handleSaveDrawnSignature}
+                      disabled={!sigHasStrokes || sigUploading}>
+                      {sigUploading ? 'Saving...' : 'Save Signature'}
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Upload */}
+              {signatureTab === 'upload' && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <label style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 6,
+                    padding: '7px 14px',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid var(--border-default)',
+                    background: 'var(--bg-elevated)',
+                    color: sigUploading ? 'var(--text-tertiary)' : 'var(--text-secondary)',
+                    fontSize: 12, fontWeight: 500, fontFamily: 'var(--font-body)',
+                    cursor: sigUploading ? 'not-allowed' : 'pointer',
+                    transition: 'all 150ms',
+                  }}>
+                    {sigUploading ? 'Uploading...' : 'Choose image'}
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      disabled={sigUploading}
+                      onChange={handleUploadSignature}
+                      style={{ display: 'none' }}
+                    />
+                  </label>
+                  <p className="t-2xs text-tertiary" style={{ margin: 0 }}>PNG, JPG or WebP · max 2MB</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
         {/* Section 1: Identity */}
         <div>
           <p className="t-label section-gap">Identity</p>
@@ -556,24 +843,523 @@ function BrandTab() {
   );
 }
 
+// ─── BACKUP TAB ───
+interface BackupListItem {
+  filename:   string;
+  name:       string;
+  size_bytes: number;
+  created_at: string;
+}
+
+type PasswordAction =
+  | { kind: 'create' }
+  | { kind: 'restore-file';     file: File;         mode: 'replace' | 'merge' }
+  | { kind: 'restore-existing'; filename: string;   mode: 'replace' | 'merge' }
+  | { kind: 'nuke' };
+
+function formatBytes(n: number): string {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / 1024 / 1024).toFixed(2)} MB`;
+}
+
+function BackupTab() {
+  const [backups, setBackups]             = useState<BackupListItem[]>([]);
+  const [listLoading, setListLoading]     = useState(true);
+  const [listError, setListError]         = useState<string | null>(null);
+  const [running, setRunning]             = useState(false);
+  const [resultMsg, setResultMsg]         = useState<{ ok: boolean; text: string } | null>(null);
+
+  // Restore-from-file UX state
+  const [pendingFile, setPendingFile]     = useState<File | null>(null);
+  const [restoreMode, setRestoreMode]     = useState<'replace' | 'merge'>('replace');
+
+  // Password prompt state — one modal serves create/restore/nuke
+  const [pwdAction, setPwdAction]         = useState<PasswordAction | null>(null);
+  const [pwd, setPwd]                     = useState('');
+  const [pwdError, setPwdError]           = useState<string | null>(null);
+
+  // Nuke double-confirmation — user types the phrase to arm
+  const [nukePhrase, setNukePhrase]       = useState('');
+  const NUKE_PHRASE = 'DELETE ALL MY DATA';
+
+  // Delete-backup confirmation — uses the ConfirmDialog primitive so the
+  // destructive action gets a consistent two-step gate instead of firing
+  // on the first button click.
+  const [confirmDeleteBackup, setConfirmDeleteBackup] = useState<BackupListItem | null>(null);
+
+  const loadBackups = useCallback(async () => {
+    setListLoading(true);
+    setListError(null);
+    try {
+      const res = await fetch('/api/backup/list');
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({})) as { error?: string };
+        throw new Error(body.error || `HTTP ${res.status}`);
+      }
+      const data = await res.json() as BackupListItem[];
+      setBackups(data);
+    } catch (err) {
+      setListError(err instanceof Error ? err.message : 'Failed to load backups');
+    } finally {
+      setListLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { void loadBackups(); }, [loadBackups]);
+
+  async function runAction(action: PasswordAction, password: string): Promise<void> {
+    setRunning(true);
+    setResultMsg(null);
+    try {
+      if (action.kind === 'create') {
+        const res = await fetch('/api/backup/create', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ password }),
+        });
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({})) as { error?: string };
+          throw new Error(body.error || `Backup failed (${res.status})`);
+        }
+        // Stream the blob to a download link so the user also gets the file locally.
+        const blob  = await res.blob();
+        const url   = URL.createObjectURL(blob);
+        const a     = document.createElement('a');
+        const stamp = new Date().toISOString().slice(0, 10);
+        a.href = url;
+        a.download = `bos-backup-${stamp}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        setResultMsg({ ok: true, text: 'Backup created and downloaded.' });
+      } else if (action.kind === 'restore-file' || action.kind === 'restore-existing') {
+        const form = new FormData();
+        form.append('password', password);
+        form.append('mode',     action.mode);
+        if (action.kind === 'restore-file') {
+          form.append('file', action.file);
+        } else {
+          form.append('filename', action.filename);
+        }
+        const res = await fetch('/api/backup/restore', { method: 'POST', body: form });
+        const body = await res.json() as {
+          ok?: boolean; error?: string;
+          restored?: Record<string, number>;
+          source_date?: string;
+          errors?: string[];
+        };
+        if (!res.ok || !body.ok) throw new Error(body.error || 'Restore failed');
+        const totalRows = Object.values(body.restored ?? {}).reduce((s, n) => s + n, 0);
+        const hint = body.errors?.length
+          ? ` (${body.errors.length} table error${body.errors.length === 1 ? '' : 's'} — see console)`
+          : '';
+        if (body.errors?.length) console.warn('[restore] table errors:', body.errors);
+        setResultMsg({
+          ok:   true,
+          text: `Restored ${totalRows} rows from backup dated ${new Date(body.source_date || '').toLocaleString()}${hint}.`,
+        });
+        setPendingFile(null);
+      } else {
+        // Nuke
+        const res = await fetch('/api/backup/nuke', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ password }),
+        });
+        const body = await res.json() as {
+          ok?: boolean; error?: string; deleted?: Record<string, number>;
+        };
+        if (!res.ok || !body.ok) throw new Error(body.error || 'Nuke failed');
+        const totalRows = Object.values(body.deleted ?? {}).reduce((s, n) => s + n, 0);
+        setResultMsg({ ok: true, text: `Deleted ${totalRows} rows across all tables.` });
+        setNukePhrase('');
+      }
+      await loadBackups();
+    } catch (err) {
+      setResultMsg({ ok: false, text: err instanceof Error ? err.message : 'Action failed' });
+    } finally {
+      setRunning(false);
+    }
+  }
+
+  function submitPassword(e: React.FormEvent): void {
+    e.preventDefault();
+    if (!pwdAction || !pwd) { setPwdError('Password required'); return; }
+    setPwdError(null);
+    const action = pwdAction;
+    const password = pwd;
+    setPwdAction(null);
+    setPwd('');
+    void runAction(action, password);
+  }
+
+  function downloadExistingBackup(item: BackupListItem): void {
+    // GET the backup file through our server route — the bucket is private
+    // so we can't link directly. The browser opens the Content-Disposition
+    // header as a download automatically.
+    const url = `/api/backup/download?filename=${encodeURIComponent(item.filename)}`;
+    const a = document.createElement('a');
+    a.href = url;
+    a.rel = 'noopener';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  }
+
+  async function deleteExistingBackup(item: BackupListItem): Promise<void> {
+    setRunning(true);
+    setResultMsg(null);
+    try {
+      const res = await fetch('/api/backup/delete', {
+        method:  'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ filename: item.filename }),
+      });
+      const body = await res.json() as { ok?: boolean; error?: string };
+      if (!res.ok || !body.ok) throw new Error(body.error || `Delete failed (${res.status})`);
+      setResultMsg({ ok: true, text: `Deleted "${item.name}".` });
+      await loadBackups();
+    } catch (err) {
+      setResultMsg({ ok: false, text: err instanceof Error ? err.message : 'Delete failed' });
+    } finally {
+      setRunning(false);
+    }
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+
+      {/* ── Create section ──────────────────────────────────────── */}
+      <div>
+        <h2 className="t-h2" style={{ marginBottom: 6 }}>Create backup</h2>
+        <p className="t-xs text-secondary" style={{ marginBottom: 16 }}>
+          Exports every row you own across every table, plus brand logos, into a single JSON file.
+          A copy is stored in your workspace and downloaded to your device.
+        </p>
+        <Button
+          onClick={() => { setPwdAction({ kind: 'create' }); setPwd(''); setPwdError(null); }}
+          disabled={running}
+          style={{ gap: 6 }}
+        >
+          {running ? <Loader size={14} className="spin" /> : <Download size={14} />}
+          Create new backup
+        </Button>
+      </div>
+
+      <div style={{ height: 1, background: 'var(--border-subtle)' }} />
+
+      {/* ── Restore from file ───────────────────────────────────── */}
+      <div>
+        <h2 className="t-h2" style={{ marginBottom: 6 }}>Restore from file</h2>
+        <p className="t-xs text-secondary" style={{ marginBottom: 16 }}>
+          Upload a backup JSON to restore.{' '}
+          <strong style={{ color: 'var(--text-primary)' }}>Replace</strong> wipes existing data first;{' '}
+          <strong style={{ color: 'var(--text-primary)' }}>Merge</strong> only adds rows whose IDs don&apos;t already exist.
+        </p>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <label
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+              padding: '18px 16px', border: '1px dashed var(--border-default)',
+              borderRadius: 'var(--radius-md)', cursor: 'pointer',
+              background: pendingFile ? 'var(--accent-blue-dim)' : 'transparent',
+              color: pendingFile ? 'var(--accent-blue)' : 'var(--text-secondary)',
+              fontSize: 13, fontFamily: 'var(--font-body)',
+            }}
+          >
+            <Upload size={14} />
+            {pendingFile ? `${pendingFile.name} (${formatBytes(pendingFile.size)})` : 'Click to select a backup JSON'}
+            <input
+              type="file"
+              accept="application/json,.json"
+              style={{ display: 'none' }}
+              onChange={e => setPendingFile(e.target.files?.[0] ?? null)}
+            />
+          </label>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: 6 }}>
+              {(['replace', 'merge'] as const).map(m => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setRestoreMode(m)}
+                  style={{
+                    padding: '5px 14px', borderRadius: 100,
+                    border: `1px solid ${restoreMode === m ? 'var(--accent-blue)' : 'var(--border-default)'}`,
+                    background: restoreMode === m ? 'var(--accent-blue-dim)' : 'transparent',
+                    color: restoreMode === m ? 'var(--accent-blue)' : 'var(--text-secondary)',
+                    fontSize: 11, fontWeight: 500, fontFamily: 'var(--font-body)', cursor: 'pointer',
+                    textTransform: 'capitalize', transition: 'all 150ms',
+                  }}
+                >
+                  {m}
+                </button>
+              ))}
+            </div>
+
+            <Button
+              onClick={() => {
+                if (!pendingFile) return;
+                setPwdAction({ kind: 'restore-file', file: pendingFile, mode: restoreMode });
+                setPwd('');
+                setPwdError(null);
+              }}
+              disabled={!pendingFile || running}
+              style={{ gap: 6 }}
+            >
+              {running ? <Loader size={14} className="spin" /> : <Archive size={14} />}
+              Restore from file
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      <div style={{ height: 1, background: 'var(--border-subtle)' }} />
+
+      {/* ── Existing backups ────────────────────────────────────── */}
+      <div>
+        <h2 className="t-h2" style={{ marginBottom: 6 }}>Stored backups</h2>
+        <p className="t-xs text-secondary" style={{ marginBottom: 16 }}>
+          Backups stored in your Supabase project. Restore any of them directly.
+        </p>
+
+        {listLoading ? (
+          <p className="t-xs text-tertiary" style={{ padding: '10px 0' }}>Loading…</p>
+        ) : listError ? (
+          <p className="t-xs" style={{ color: 'var(--accent-red)', padding: '10px 0' }}>
+            {listError}
+          </p>
+        ) : backups.length === 0 ? (
+          <p className="t-xs text-tertiary" style={{ padding: '10px 0' }}>
+            No backups yet. Create one above.
+          </p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {backups.map(b => (
+              <div
+                key={b.filename}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 12,
+                  padding: '10px 14px',
+                  background: 'var(--bg-hover)', borderRadius: 'var(--radius-md)',
+                }}
+              >
+                <Archive size={14} style={{ color: 'var(--text-tertiary)', flexShrink: 0 }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p className="t-xs-medium text-primary" style={{ fontFamily: 'var(--font-mono)' }}>
+                    {b.name}
+                  </p>
+                  <p className="t-2xs text-tertiary" style={{ marginTop: 2 }}>
+                    {new Date(b.created_at).toLocaleString()} · {formatBytes(b.size_bytes)}
+                  </p>
+                </div>
+                <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                  <Button
+                    onClick={() => downloadExistingBackup(b)}
+                    disabled={running}
+                    variant="secondary"
+                    style={{ padding: '4px 10px', fontSize: 11 }}
+                  >
+                    <Download size={11} /> Download
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      setPwdAction({ kind: 'restore-existing', filename: b.filename, mode: restoreMode });
+                      setPwd('');
+                      setPwdError(null);
+                    }}
+                    disabled={running}
+                    style={{ padding: '4px 10px', fontSize: 11 }}
+                  >
+                    <Archive size={11} /> Restore
+                  </Button>
+                  <Button
+                    onClick={() => setConfirmDeleteBackup(b)}
+                    disabled={running}
+                    variant="ghost"
+                    style={{ padding: '4px 10px', fontSize: 11, color: 'var(--accent-red)' }}
+                  >
+                    <Trash2 size={11} />
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div style={{ height: 1, background: 'var(--border-subtle)' }} />
+
+      {/* ── Danger zone ─────────────────────────────────────────── */}
+      <div
+        style={{
+          padding: 18, borderRadius: 'var(--radius-md)',
+          background: 'var(--accent-red-dim)',
+          border: '1px solid rgba(240,82,82,0.25)',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+          <AlertTriangle size={14} style={{ color: 'var(--accent-red)' }} />
+          <h2 className="t-h2" style={{ color: 'var(--accent-red)' }}>Delete all data</h2>
+        </div>
+        <p className="t-xs" style={{ color: 'var(--accent-red)', opacity: 0.85, marginBottom: 14 }}>
+          Wipes every row across every table for this account. Your sign-in credentials remain
+          so you can start fresh. <strong>Irreversible.</strong> Download a backup first.
+        </p>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          <input
+            value={nukePhrase}
+            onChange={e => setNukePhrase(e.target.value)}
+            placeholder={`Type "${NUKE_PHRASE}" to arm`}
+            className="input"
+            style={{ maxWidth: 280, fontFamily: 'var(--font-mono)', fontSize: 12 }}
+          />
+          <Button
+            onClick={() => { setPwdAction({ kind: 'nuke' }); setPwd(''); setPwdError(null); }}
+            disabled={running || nukePhrase !== NUKE_PHRASE}
+            style={{
+              gap: 6,
+              background: nukePhrase === NUKE_PHRASE ? 'var(--accent-red)' : 'var(--bg-hover)',
+              color: nukePhrase === NUKE_PHRASE ? '#fff' : 'var(--text-tertiary)',
+            }}
+          >
+            <Skull size={13} /> Delete everything
+          </Button>
+        </div>
+      </div>
+
+      {/* ── Result banner ───────────────────────────────────────── */}
+      {resultMsg && (
+        <div
+          style={{
+            padding: '10px 14px', borderRadius: 'var(--radius-md)',
+            background: resultMsg.ok ? 'var(--accent-green-dim)' : 'var(--accent-red-dim)',
+            color: resultMsg.ok ? 'var(--accent-green)' : 'var(--accent-red)',
+            fontSize: 12, fontFamily: 'var(--font-body)',
+            display: 'flex', alignItems: 'center', gap: 8,
+          }}
+        >
+          {resultMsg.ok ? <Check size={13} /> : <X size={13} />}
+          {resultMsg.text}
+        </div>
+      )}
+
+      {/* ── Password prompt modal ───────────────────────────────── */}
+      {pwdAction && (
+        <div
+          style={{
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            zIndex: 100, padding: 24,
+          }}
+          onClick={() => { if (!running) { setPwdAction(null); setPwd(''); } }}
+        >
+          <form
+            onSubmit={submitPassword}
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: 'var(--bg-elevated)', border: '1px solid var(--border-default)',
+              borderRadius: 'var(--radius-xl)', padding: 24,
+              width: '100%', maxWidth: 400,
+              boxShadow: 'var(--shadow-elevated)',
+            }}
+          >
+            <h3 className="t-h2" style={{ marginBottom: 6 }}>Confirm your password</h3>
+            <p className="t-xs text-secondary" style={{ marginBottom: 16 }}>
+              {pwdAction.kind === 'nuke'
+                ? 'This will permanently delete all of your data. Enter your password to confirm.'
+                : pwdAction.kind === 'create'
+                ? 'Re-enter your password to create a backup.'
+                : 'Re-enter your password to restore. This will modify your data.'}
+            </p>
+            <Input
+              type="password"
+              value={pwd}
+              onChange={e => setPwd(e.target.value)}
+              autoFocus
+              placeholder="Your password"
+            />
+            {pwdError && (
+              <p className="t-xs" style={{ color: 'var(--accent-red)', marginTop: 8 }}>{pwdError}</p>
+            )}
+            <div style={{ display: 'flex', gap: 8, marginTop: 16, justifyContent: 'flex-end' }}>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => { setPwdAction(null); setPwd(''); }}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={!pwd}>
+                Confirm
+              </Button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* ── Confirm-delete-backup dialog ─────────────────────────── */}
+      <ConfirmDialog
+        open={confirmDeleteBackup !== null}
+        onClose={() => setConfirmDeleteBackup(null)}
+        onConfirm={() => {
+          const item = confirmDeleteBackup;
+          setConfirmDeleteBackup(null);
+          if (item) void deleteExistingBackup(item);
+        }}
+        title="Delete this backup?"
+        description={
+          confirmDeleteBackup
+            ? `"${confirmDeleteBackup.name}" will be permanently removed from storage. Any copies you've already downloaded are unaffected.`
+            : ''
+        }
+        confirmLabel="Delete backup"
+        loading={running}
+      />
+
+      <style>{`.spin { animation: spin 0.8s linear infinite; } @keyframes spin { to { transform: rotate(360deg); } }`}</style>
+    </div>
+  );
+}
+
 // ─── MAIN PAGE ───
 export default function SettingsPage() {
   const searchParams = useSearchParams();
-  const [activeTab, setActiveTab] = useState(() => {
-    const t = searchParams.get('tab');
-    if (t === 'team') return 'team';
-    if (t === 'backup') return 'backup';
-    return 'brand';
-  });
   const { user } = useCurrentUser();
 
+  // Resolve the initial tab from URL. Must reflect the user's role — a
+  // non-superadmin with ?tab=team or ?tab=backup gets silently bumped
+  // to 'brand' rather than rendering an empty content pane.
+  const resolveTab = useCallback((raw: string | null, role?: string): 'brand' | 'team' | 'backup' => {
+    if (role !== 'superadmin') return 'brand';
+    if (raw === 'team' || raw === 'backup') return raw;
+    return 'brand';
+  }, []);
+
+  const [activeTab, setActiveTab] = useState<'brand' | 'team' | 'backup'>(() =>
+    resolveTab(searchParams.get('tab'), 'superadmin'),
+  );
+
   useEffect(() => {
-    const tab = searchParams.get('tab');
-    if (tab === 'team') setActiveTab('team');
-    else if (!tab || tab === 'brand') setActiveTab('brand');
-  }, [searchParams]);
+    setActiveTab(resolveTab(searchParams.get('tab'), user?.role));
+  }, [searchParams, user?.role, resolveTab]);
 
   if (!user) return null;
+
+  type TabValue = 'brand' | 'team' | 'backup';
+  const tabs: ReadonlyArray<{ value: TabValue; label: string }> = [
+    { value: 'brand', label: 'Brand Settings' },
+    ...(user.role === 'superadmin'
+      ? ([
+          { value: 'team',   label: 'Team & Access' },
+          { value: 'backup', label: 'Backup & Restore' },
+        ] as const)
+      : []),
+  ];
 
   return (
     <PageTransition>
@@ -582,16 +1368,12 @@ export default function SettingsPage() {
         {/* Page header */}
         <div>
           <h1 className="t-h1">Settings</h1>
-          <p className="t-xs mt-1">Manage your brand and team access.</p>
+          <p className="t-xs mt-1">Manage your brand, team access, and backups.</p>
         </div>
 
         {/* Tab switcher — underline style, not pill */}
         <div style={{ display: 'flex', borderBottom: '1px solid var(--border-subtle)', gap: 0 }}>
-          {[
-            { value: 'brand', label: 'Brand Settings' },
-            ...(user.role === 'superadmin' ? [{ value: 'team', label: 'Team & Access' }] : []),
-            ...(user.role === 'superadmin' ? [{ value: 'backup', label: 'Backup & Restore' }] : []),
-          ].map(tab => (
+          {tabs.map(tab => (
             <button
               key={tab.value}
               onClick={() => setActiveTab(tab.value)}
@@ -618,342 +1400,12 @@ export default function SettingsPage() {
 
         {/* Content */}
         <div className="card">
-          {activeTab === 'brand' && <BrandTab />}
-          {activeTab === 'team' && user.role === 'superadmin' && <TeamTab />}
+          {activeTab === 'brand'  && <BrandTab />}
+          {activeTab === 'team'   && user.role === 'superadmin' && <TeamTab />}
           {activeTab === 'backup' && user.role === 'superadmin' && <BackupTab />}
         </div>
 
       </div>
     </PageTransition>
-  );
-}
-
-// ─── BACKUP TAB ───────────────────────────────────────────────
-interface BackupListItem {
-  filename: string; name: string; size_bytes: number; created_at: string;
-}
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
-}
-
-type BackupStep = 'idle' | 'confirm_password' | 'loading' | 'done' | 'error';
-
-function PasswordGate({ title, description, danger, onConfirm, onCancel, loading, error }: {
-  title: string; description: string; danger?: boolean;
-  onConfirm: (password: string) => void; onCancel: () => void;
-  loading: boolean; error: string | null;
-}) {
-  const [pw, setPw] = useState('');
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <div style={{ padding: '12px 14px', background: danger ? 'var(--accent-red-dim)' : 'var(--bg-hover)', borderRadius: 'var(--radius-md)', border: `1px solid ${danger ? 'rgba(240,82,82,0.2)' : 'var(--border-subtle)'}` }}>
-        <p style={{ fontSize: 13, fontWeight: 600, color: danger ? 'var(--accent-red)' : 'var(--text-primary)', fontFamily: 'var(--font-body)', marginBottom: 4 }}>{title}</p>
-        <p style={{ fontSize: 12, color: danger ? 'var(--accent-red)' : 'var(--text-secondary)', fontFamily: 'var(--font-body)', opacity: 0.85 }}>{description}</p>
-      </div>
-      <div>
-        <label style={{ fontSize: 11, fontWeight: 500, textTransform: 'uppercase' as const, letterSpacing: '0.06em', color: 'var(--text-tertiary)', fontFamily: 'var(--font-body)', display: 'block', marginBottom: 6 }}>
-          Superadmin Password
-        </label>
-        <input
-          type="password" value={pw} onChange={e => setPw(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter' && pw.trim()) onConfirm(pw); }}
-          placeholder="Enter your password to confirm"
-          autoFocus
-          style={{ width: '100%', padding: '9px 12px', background: 'var(--bg-surface)', border: '1px solid var(--border-default)', borderRadius: 'var(--radius-md)', fontSize: 13, fontFamily: 'var(--font-body)', color: 'var(--text-primary)', outline: 'none', boxSizing: 'border-box' as const }}
-        />
-      </div>
-      {error && <p style={{ fontSize: 12, color: 'var(--accent-red)', fontFamily: 'var(--font-body)' }}>{error}</p>}
-      <div style={{ display: 'flex', gap: 10 }}>
-        <button onClick={onCancel} style={{ flex: 1, padding: '8px 14px', background: 'var(--bg-elevated)', color: 'var(--text-secondary)', border: '1px solid var(--border-default)', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, fontFamily: 'var(--font-body)', cursor: 'pointer' }}>Cancel</button>
-        <button onClick={() => pw.trim() && onConfirm(pw)} disabled={loading || !pw.trim()}
-          style={{ flex: 1, padding: '8px 14px', background: danger ? 'var(--accent-red)' : 'var(--accent-blue)', color: '#fff', border: 'none', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 600, fontFamily: 'var(--font-body)', cursor: loading || !pw.trim() ? 'not-allowed' : 'pointer', opacity: loading || !pw.trim() ? 0.6 : 1 }}>
-          {loading ? 'Working…' : 'Confirm'}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function BackupTab() {
-  const [backups, setBackups]       = useState<BackupListItem[]>([]);
-  const [loadingList, setLoadingList] = useState(true);
-
-  // Backup state
-  const [backupStep, setBackupStep]   = useState<BackupStep>('idle');
-  const [backupError, setBackupError] = useState<string | null>(null);
-
-  // Restore state
-  const [restoreStep, setRestoreStep]   = useState<BackupStep>('idle');
-  const [restoreError, setRestoreError] = useState<string | null>(null);
-  const [restoreSource, setRestoreSource] = useState<{ type: 'file'; file: File } | { type: 'stored'; filename: string } | null>(null);
-  const [restoreMode, setRestoreMode]   = useState<'replace' | 'merge'>('replace');
-  const [restoreResult, setRestoreResult] = useState<Record<string, number> | null>(null);
-
-  // Nuke state
-  const [nukeStep, setNukeStep]   = useState<BackupStep>('idle');
-  const [nukeError, setNukeError] = useState<string | null>(null);
-  const [nukeResult, setNukeResult] = useState<string | null>(null);
-
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const loadBackups = useCallback(async () => {
-    setLoadingList(true);
-    try {
-      const res = await fetch('/api/backup/list');
-      if (res.ok) { const data = await res.json(); setBackups(data); }
-    } finally { setLoadingList(false); }
-  }, []);
-
-  useEffect(() => { loadBackups(); }, [loadBackups]);
-
-  // ── Create backup ────────────────────────────────────────────
-  async function handleCreateBackup(password: string) {
-    setBackupStep('loading'); setBackupError(null);
-    try {
-      const res = await fetch('/api/backup/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password }),
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        setBackupError(err.error || 'Backup failed'); setBackupStep('error'); return;
-      }
-      // Trigger browser download
-      const blob = await res.blob();
-      const disposition = res.headers.get('Content-Disposition') || '';
-      const nameMatch = disposition.match(/filename="([^"]+)"/);
-      const filename = nameMatch?.[1] || 'bos-backup.json';
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a'); a.href = url; a.download = filename; a.click();
-      URL.revokeObjectURL(url);
-      setBackupStep('done');
-      loadBackups();
-    } catch { setBackupError('Network error'); setBackupStep('error'); }
-  }
-
-  // ── Restore ──────────────────────────────────────────────────
-  async function handleRestore(password: string) {
-    if (!restoreSource) return;
-    setRestoreStep('loading'); setRestoreError(null);
-    try {
-      const form = new FormData();
-      form.append('password', password);
-      form.append('mode', restoreMode);
-      if (restoreSource.type === 'file') form.append('file', restoreSource.file);
-      else form.append('filename', restoreSource.filename);
-
-      const res = await fetch('/api/backup/restore', { method: 'POST', body: form });
-      const data = await res.json();
-      if (!res.ok) { setRestoreError(data.error || 'Restore failed'); setRestoreStep('error'); return; }
-      setRestoreResult(data.restored);
-      setRestoreStep('done');
-      loadBackups();
-    } catch { setRestoreError('Network error'); setRestoreStep('error'); }
-  }
-
-  // ── Nuke ─────────────────────────────────────────────────────
-  async function handleNuke(password: string) {
-    setNukeStep('loading'); setNukeError(null);
-    try {
-      const res = await fetch('/api/backup/nuke', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password }),
-      });
-      const data = await res.json();
-      if (!res.ok) { setNukeError(data.error || 'Nuke failed'); setNukeStep('error'); return; }
-      setNukeResult(data.message); setNukeStep('done');
-      setBackups([]);
-    } catch { setNukeError('Network error'); setNukeStep('error'); }
-  }
-
-  const sectionStyle = { display: 'flex', flexDirection: 'column' as const, gap: 16, paddingBottom: 24, marginBottom: 24, borderBottom: '1px solid var(--border-subtle)' };
-  const labelStyle   = { fontSize: 10, fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: '0.08em', color: 'var(--text-tertiary)', fontFamily: 'var(--font-body)', marginBottom: 4 };
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-
-      {/* ── Create Backup ─────────────────────────────────── */}
-      <div style={sectionStyle}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
-          <div>
-            <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', fontFamily: 'var(--font-body)', marginBottom: 4 }}>Create Backup</p>
-            <p style={{ fontSize: 13, color: 'var(--text-secondary)', fontFamily: 'var(--font-body)', lineHeight: 1.5 }}>
-              Exports all your data (clients, documents, transactions, social posts, and more) to a JSON file. Brand logos are embedded as base64 — portable to any Supabase project. Backup is also stored in your private bucket.
-            </p>
-          </div>
-          {backupStep === 'idle' && (
-            <button onClick={() => { setBackupStep('confirm_password'); setBackupError(null); }}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', background: 'var(--accent-blue)', color: '#fff', border: 'none', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 600, fontFamily: 'var(--font-body)', cursor: 'pointer', flexShrink: 0 }}>
-              <HardDriveDownload size={14} /> Create Backup
-            </button>
-          )}
-          {backupStep === 'done' && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--accent-green)', fontSize: 13, fontWeight: 500, fontFamily: 'var(--font-body)', flexShrink: 0 }}>
-              <Check size={14} /> Downloaded
-              <button onClick={() => setBackupStep('idle')} style={{ marginLeft: 8, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: 11, fontFamily: 'var(--font-body)' }}>New backup</button>
-            </div>
-          )}
-        </div>
-        {backupStep === 'confirm_password' && (
-          <PasswordGate
-            title="Create backup" description="Downloads a full JSON backup and saves a copy to your private bucket."
-            onConfirm={handleCreateBackup} onCancel={() => setBackupStep('idle')}
-            loading={backupStep === 'loading'} error={backupError}
-          />
-        )}
-        {backupStep === 'error' && backupError && (
-          <div style={{ padding: '10px 14px', background: 'var(--accent-red-dim)', borderRadius: 'var(--radius-md)', fontSize: 13, color: 'var(--accent-red)', fontFamily: 'var(--font-body)' }}>
-            {backupError} — <button onClick={() => setBackupStep('idle')} style={{ background: 'none', border: 'none', color: 'var(--accent-red)', cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: 13, textDecoration: 'underline' }}>Try again</button>
-          </div>
-        )}
-      </div>
-
-      {/* ── Backup history ───────────────────────────────── */}
-      <div style={sectionStyle}>
-        <p style={labelStyle}>Stored Backups</p>
-        {loadingList ? (
-          <p style={{ fontSize: 13, color: 'var(--text-tertiary)', fontFamily: 'var(--font-body)' }}>Loading...</p>
-        ) : backups.length === 0 ? (
-          <p style={{ fontSize: 13, color: 'var(--text-tertiary)', fontFamily: 'var(--font-body)' }}>No backups stored yet. Create your first backup above.</p>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 0, border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
-            {backups.map((b, i) => (
-              <div key={b.filename} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: 'var(--bg-card)', borderBottom: i < backups.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}>
-                <Database size={14} style={{ color: 'var(--text-tertiary)', flexShrink: 0 }} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>{b.name}</p>
-                  <p style={{ fontSize: 11, color: 'var(--text-tertiary)', fontFamily: 'var(--font-body)' }}>{formatBytes(b.size_bytes)}</p>
-                </div>
-                <button
-                  onClick={() => { setRestoreSource({ type: 'stored', filename: b.filename }); setRestoreStep('confirm_password'); setRestoreError(null); }}
-                  style={{ padding: '4px 10px', background: 'var(--bg-elevated)', border: '1px solid var(--border-default)', borderRadius: 'var(--radius-sm)', fontSize: 11, fontWeight: 500, fontFamily: 'var(--font-body)', color: 'var(--text-secondary)', cursor: 'pointer' }}>
-                  Restore
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* ── Restore from file ────────────────────────────── */}
-      <div style={sectionStyle}>
-        <div>
-          <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', fontFamily: 'var(--font-body)', marginBottom: 4 }}>Restore from File</p>
-          <p style={{ fontSize: 13, color: 'var(--text-secondary)', fontFamily: 'var(--font-body)', lineHeight: 1.5 }}>
-            Upload a backup JSON file from your computer. Choose Replace to clear existing data first, or Merge to only add rows that don't already exist.
-          </p>
-        </div>
-
-        {(restoreStep === 'idle' || restoreStep === 'error') && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div style={{ display: 'flex', gap: 8 }}>
-              {(['replace', 'merge'] as const).map(m => (
-                <button key={m} onClick={() => setRestoreMode(m)}
-                  style={{ padding: '6px 14px', borderRadius: 'var(--radius-md)', fontSize: 12, fontWeight: 500, fontFamily: 'var(--font-body)', cursor: 'pointer', border: `1px solid ${restoreMode === m ? 'var(--accent-blue)' : 'var(--border-default)'}`, background: restoreMode === m ? 'var(--accent-blue-dim)' : 'var(--bg-elevated)', color: restoreMode === m ? 'var(--accent-blue)' : 'var(--text-secondary)' }}>
-                  {m === 'replace' ? 'Replace (clear first)' : 'Merge (add missing)'}
-                </button>
-              ))}
-            </div>
-            {restoreMode === 'replace' && (
-              <p style={{ fontSize: 11, color: 'var(--accent-amber)', fontFamily: 'var(--font-body)' }}>⚠ Replace deletes all current data before restoring. Irreversible — take a backup first.</p>
-            )}
-            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-              <input ref={fileInputRef} type="file" accept=".json" style={{ display: 'none' }}
-                onChange={e => {
-                  const f = e.target.files?.[0];
-                  if (f) { setRestoreSource({ type: 'file', file: f }); setRestoreStep('confirm_password'); setRestoreError(null); }
-                }}
-              />
-              <button onClick={() => fileInputRef.current?.click()}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', background: 'var(--bg-elevated)', border: '1px solid var(--border-default)', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, fontFamily: 'var(--font-body)', color: 'var(--text-secondary)', cursor: 'pointer' }}>
-                <Upload size={13} /> Choose backup file
-              </button>
-              {restoreSource?.type === 'file' && (
-                <p style={{ fontSize: 12, color: 'var(--text-secondary)', fontFamily: 'var(--font-body)' }}>{restoreSource.file.name}</p>
-              )}
-            </div>
-            {restoreStep === 'error' && restoreError && (
-              <p style={{ fontSize: 12, color: 'var(--accent-red)', fontFamily: 'var(--font-body)' }}>{restoreError}</p>
-            )}
-          </div>
-        )}
-
-        {restoreStep === 'confirm_password' && (
-          <PasswordGate
-            title={`Restore (${restoreMode} mode)`}
-            description={restoreMode === 'replace'
-              ? 'This will DELETE all current data then insert from the backup. This cannot be undone.'
-              : 'This will insert rows from the backup that don\'t already exist. Current data is kept.'}
-            danger={restoreMode === 'replace'}
-            onConfirm={handleRestore}
-            onCancel={() => { setRestoreStep('idle'); setRestoreSource(null); }}
-            loading={restoreStep === 'loading'} error={restoreError}
-          />
-        )}
-
-        {restoreStep === 'done' && restoreResult && (
-          <div style={{ padding: '12px 14px', background: 'var(--accent-green-dim)', borderRadius: 'var(--radius-md)', border: '1px solid rgba(52,201,136,0.2)' }}>
-            <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent-green)', fontFamily: 'var(--font-body)', marginBottom: 8 }}>✓ Restore complete</p>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-              {Object.entries(restoreResult).filter(([, c]) => c > 0).map(([t, c]) => (
-                <span key={t} style={{ fontSize: 11, padding: '2px 8px', background: 'rgba(52,201,136,0.15)', borderRadius: 100, color: 'var(--accent-green)', fontFamily: 'var(--font-mono)' }}>
-                  {t}: {c}
-                </span>
-              ))}
-            </div>
-            <button onClick={() => { setRestoreStep('idle'); setRestoreSource(null); setRestoreResult(null); }}
-              style={{ marginTop: 10, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--accent-green)', fontSize: 12, fontFamily: 'var(--font-body)', textDecoration: 'underline' }}>
-              Done
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* ── Danger zone: Nuke ────────────────────────────── */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-        <div style={{ padding: '14px 16px', background: 'var(--accent-red-dim)', borderRadius: 'var(--radius-md)', border: '1px solid rgba(240,82,82,0.2)' }}>
-          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
-            <div>
-              <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--accent-red)', fontFamily: 'var(--font-body)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
-                <AlertTriangle size={15} /> Nuke All Data
-              </p>
-              <p style={{ fontSize: 12, color: 'var(--accent-red)', fontFamily: 'var(--font-body)', lineHeight: 1.5, opacity: 0.85 }}>
-                Permanently deletes all clients, documents, transactions, leads, and every other data table. Your account is preserved — you stay logged in. <strong>There is no undo.</strong> Take a backup first.
-              </p>
-            </div>
-            {nukeStep === 'idle' && (
-              <button onClick={() => { setNukeStep('confirm_password'); setNukeError(null); }}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: 'var(--accent-red)', color: '#fff', border: 'none', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 600, fontFamily: 'var(--font-body)', cursor: 'pointer', flexShrink: 0 }}>
-                <Trash2 size={13} /> Nuke All Data
-              </button>
-            )}
-          </div>
-          {nukeStep === 'confirm_password' && (
-            <div style={{ marginTop: 14 }}>
-              <PasswordGate
-                title="Nuke all data — this cannot be undone"
-                description="Deletes everything except your account. Your login is preserved."
-                danger
-                onConfirm={handleNuke}
-                onCancel={() => setNukeStep('idle')}
-                loading={nukeStep === 'loading'} error={nukeError}
-              />
-            </div>
-          )}
-          {nukeStep === 'done' && nukeResult && (
-            <p style={{ marginTop: 10, fontSize: 13, color: 'var(--accent-green)', fontFamily: 'var(--font-body)', fontWeight: 500 }}>✓ {nukeResult}</p>
-          )}
-          {nukeStep === 'error' && nukeError && (
-            <p style={{ marginTop: 10, fontSize: 12, color: 'var(--accent-red)', fontFamily: 'var(--font-body)' }}>{nukeError}</p>
-          )}
-        </div>
-      </div>
-
-    </div>
   );
 }

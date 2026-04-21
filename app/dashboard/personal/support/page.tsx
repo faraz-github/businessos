@@ -12,7 +12,12 @@ import {
   Plus, Shield, Mail, MessageCircle, Copy, Check,
   Pencil, Trash2, Calendar, Clock, RotateCcw,
 } from 'lucide-react';
-import type { Client, SupportPeriodWithClient } from '@/types';
+import type { Client } from '@/types';
+import {
+  createSupportPeriod,
+  updateSupportPeriod,
+  deleteSupportPeriod,
+} from '@/app/dashboard/actions/engagements';
 
 // ── Helpers ────────────────────────────────────────────────────
 function progressPct(start: string, end: string): number {
@@ -47,13 +52,13 @@ export default function PersonalSupportPage() {
   const { mode, brand } = useBrand();
   const { user: currentUser } = useCurrentUser();
   const supabaseRef = useRef(createClient());
-  const supabase    = supabaseRef.current!;
+  const supabase    = supabaseRef.current;
 
-  const [periods, setPeriods]     = useState<SupportPeriodWithClient[]>([]);
+  const [periods, setPeriods]     = useState<any[]>([]);
   const [clients, setClients]     = useState<Client[]>([]);
   const [showAdd, setShowAdd]     = useState(false);
-  const [editingPeriod, setEditingPeriod] = useState<SupportPeriodWithClient | null>(null);
-  const [composingFor, setComposingFor]   = useState<SupportPeriodWithClient | null>(null);
+  const [editingPeriod, setEditingPeriod] = useState<any>(null);
+  const [composingFor, setComposingFor]   = useState<any>(null);
 
   const loadData = useCallback(async () => {
     if (!currentUser) return;
@@ -72,9 +77,13 @@ export default function PersonalSupportPage() {
   useEffect(() => { loadData(); }, [loadData]);
 
   async function handleDelete(id: string) {
-    const { error: delErr } = await supabase.from('support_periods').delete().eq('id', id);
-    if (delErr) { toast.error("Failed to delete support period"); return; }
-    setPeriods(prev => prev.filter(p => p.id !== id));
+    const prev = periods;
+    setPeriods(p => p.filter(period => period.id !== id));
+    const res = await deleteSupportPeriod(id);
+    if (!res.ok) {
+      setPeriods(prev);
+      toast.error(res.error || "Failed to delete support period");
+    }
   }
 
   const active = periods.filter(p => new Date(p.end_date) >= new Date());
@@ -255,10 +264,10 @@ export default function PersonalSupportPage() {
 
 // ── ADD / EDIT MODAL ──────────────────────────────────────────
 function AddEditModal({ mode, clients, currentUser, existing, onClose, onSaved }: {
-  mode: string; clients: Client[]; currentUser: any;
+  mode: 'personal' | 'agency'; clients: Client[]; currentUser: { ownerId: string } | null;
   existing?: any; onClose: () => void; onSaved: (sp: any) => void;
 }) {
-  const supabase = useRef(createClient()).current!;
+  const supabase = useRef(createClient()).current;
   const isEdit   = !!existing;
 
   const [clientId, setClientId]   = useState(existing?.client_id || '');
@@ -280,21 +289,28 @@ function AddEditModal({ mode, clients, currentUser, existing, onClose, onSaved }
   async function handleSave() {
     if (!clientId || !startDate || !endDate || !currentUser) return;
     setSaving(true);
-    const payload = { user_id: currentUser.ownerId, mode, client_id: clientId, start_date: startDate, end_date: endDate, notes: notes || null };
 
-    if (isEdit) {
-      const { data } = await supabase.from('support_periods')
-        .update({ client_id: clientId, start_date: startDate, end_date: endDate, notes: notes || null, updated_at: new Date().toISOString() })
-        .eq('id', existing.id)
-        .select('*, clients(name, contact_email, contact_phone)').single();
-      if (data) onSaved(data);
-    } else {
-      const { data } = await supabase.from('support_periods')
-        .insert(payload)
-        .select('*, clients(name, contact_email, contact_phone)').single();
-      if (data) onSaved(data);
-    }
+    const res = isEdit
+      ? await updateSupportPeriod(existing.id, {
+          client_id:  clientId,
+          start_date: startDate,
+          end_date:   endDate,
+          notes:      notes || null,
+        })
+      : await createSupportPeriod({
+          mode,
+          client_id:  clientId,
+          start_date: startDate,
+          end_date:   endDate,
+          notes:      notes || null,
+        });
+
     setSaving(false);
+    if (!res.ok) {
+      toast.error(res.error || 'Failed to save support period');
+      return;
+    }
+    onSaved(res.data);
   }
 
   const durationDays = startDate && endDate

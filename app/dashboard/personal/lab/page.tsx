@@ -7,6 +7,18 @@ import { createClient } from '@/lib/supabase/client';
 import { PageTransition } from '@/components/dashboard/PageTransition';
 import { Button, Modal, Input, Textarea, Select } from '@/components/ui';
 import { toast } from '@/components/ui/Toast';
+import {
+  createLabProject,
+  updateLabProject,
+  updateLabProjectStatus,
+  deleteLabProject,
+  createLabTool,
+  updateLabTool,
+  deleteLabTool,
+  createLabSkill,
+  updateLabSkill,
+  deleteLabSkill,
+} from '@/app/dashboard/actions/lab';
 import { formatDate, formatRelative } from '@/lib/utils';
 import {
   Plus, FlaskConical, Lightbulb, Wrench, BookOpen,
@@ -34,12 +46,6 @@ interface SkillItem {
   id: string; name: string; category: string; status: SkillStatus;
   resource: string | null; notes: string | null; created_at: string; updated_at: string;
 }
-
-/** Discriminated union for the editingItem modal state. */
-type EditingItem =
-  | { type: 'project'; data: LabProject }
-  | { type: 'tool';    data: LabTool }
-  | { type: 'skill';   data: SkillItem };
 
 // ── Config ─────────────────────────────────────────────────────
 const PROJECT_STATUS: Record<ProjectStatus, { label: string; color: string; bg: string }> = {
@@ -75,7 +81,7 @@ function StatusPill({ label, color, bg }: { label: string; color: string; bg: st
 export default function LabPage() {
   const { user: currentUser } = useCurrentUser();
   const supabaseRef = useRef(createClient());
-  const supabase    = supabaseRef.current!;
+  const supabase    = supabaseRef.current;
 
   const [activeTab, setActiveTab]   = useState<'projects' | 'tools' | 'skills'>('projects');
   const [projects, setProjects]     = useState<LabProject[]>([]);
@@ -83,7 +89,7 @@ export default function LabPage() {
   const [skills, setSkills]         = useState<SkillItem[]>([]);
   const [loading, setLoading]       = useState(true);
   const [showAdd, setShowAdd]       = useState(false);
-  const [editingItem, setEditingItem] = useState<EditingItem | null>(null);
+  const [editingItem, setEditingItem] = useState<any>(null);
 
   const loadData = useCallback(async () => {
     if (!currentUser) return;
@@ -103,20 +109,40 @@ export default function LabPage() {
 
   // Quick status update helpers
   async function updateProjectStatus(id: string, status: ProjectStatus) {
-    await supabase.from('lab_projects').update({ status }).eq('id', id);
-    setProjects(prev => prev.map(p => p.id === id ? { ...p, status } : p));
+    const prev = projects;
+    setProjects(p => p.map(project => project.id === id ? { ...project, status } : project));
+    const res = await updateLabProjectStatus(id, status);
+    if (!res.ok) {
+      setProjects(prev);
+      toast.error(res.error || 'Could not update status');
+    }
   }
   async function deleteProject(id: string) {
-    await supabase.from('lab_projects').delete().eq('id', id);
-    setProjects(prev => prev.filter(p => p.id !== id));
+    const prev = projects;
+    setProjects(p => p.filter(project => project.id !== id));
+    const res = await deleteLabProject(id);
+    if (!res.ok) {
+      setProjects(prev);
+      toast.error(res.error || 'Could not delete project');
+    }
   }
   async function deleteTool(id: string) {
-    await supabase.from('lab_tools').delete().eq('id', id);
-    setTools(prev => prev.filter(t => t.id !== id));
+    const prev = tools;
+    setTools(p => p.filter(t => t.id !== id));
+    const res = await deleteLabTool(id);
+    if (!res.ok) {
+      setTools(prev);
+      toast.error(res.error || 'Could not delete tool');
+    }
   }
   async function deleteSkill(id: string) {
-    await supabase.from('lab_skills').delete().eq('id', id);
-    setSkills(prev => prev.filter(s => s.id !== id));
+    const prev = skills;
+    setSkills(p => p.filter(s => s.id !== id));
+    const res = await deleteLabSkill(id);
+    if (!res.ok) {
+      setSkills(prev);
+      toast.error(res.error || 'Could not delete skill');
+    }
   }
 
   // Stats
@@ -446,17 +472,17 @@ export default function LabPage() {
             {activeTab === 'projects' && (
               <ProjectForm currentUser={currentUser}
                 onClose={() => setShowAdd(false)}
-                onSaved={p => { setProjects(prev => [p, ...prev]); setShowAdd(false); }} />
+                onSaved={(p: LabProject) => { setProjects(prev => [p, ...prev]); setShowAdd(false); }} />
             )}
             {activeTab === 'tools' && (
               <ToolForm currentUser={currentUser}
                 onClose={() => setShowAdd(false)}
-                onSaved={t => { setTools(prev => [t, ...prev]); setShowAdd(false); }} />
+                onSaved={(t: LabTool) => { setTools(prev => [t, ...prev]); setShowAdd(false); }} />
             )}
             {activeTab === 'skills' && (
               <SkillForm currentUser={currentUser}
                 onClose={() => setShowAdd(false)}
-                onSaved={s => { setSkills(prev => [s, ...prev]); setShowAdd(false); }} />
+                onSaved={(s: SkillItem) => { setSkills(prev => [s, ...prev]); setShowAdd(false); }} />
             )}
           </Modal>
         )}
@@ -468,17 +494,17 @@ export default function LabPage() {
             {editingItem.type === 'project' && (
               <ProjectForm currentUser={currentUser} existing={editingItem.data}
                 onClose={() => setEditingItem(null)}
-                onSaved={p => { setProjects(prev => prev.map(x => x.id === p.id ? p : x)); setEditingItem(null); }} />
+                onSaved={(p: LabProject) => { setProjects(prev => prev.map(x => x.id === p.id ? p : x)); setEditingItem(null); }} />
             )}
             {editingItem.type === 'tool' && (
               <ToolForm currentUser={currentUser} existing={editingItem.data}
                 onClose={() => setEditingItem(null)}
-                onSaved={t => { setTools(prev => prev.map(x => x.id === t.id ? t : x)); setEditingItem(null); }} />
+                onSaved={(t: LabTool) => { setTools(prev => prev.map(x => x.id === t.id ? t : x)); setEditingItem(null); }} />
             )}
             {editingItem.type === 'skill' && (
               <SkillForm currentUser={currentUser} existing={editingItem.data}
                 onClose={() => setEditingItem(null)}
-                onSaved={s => { setSkills(prev => prev.map(x => x.id === s.id ? s : x)); setEditingItem(null); }} />
+                onSaved={(s: SkillItem) => { setSkills(prev => prev.map(x => x.id === s.id ? s : x)); setEditingItem(null); }} />
             )}
           </Modal>
         )}
@@ -489,7 +515,7 @@ export default function LabPage() {
 
 // ── PROJECT FORM ───────────────────────────────────────────────
 function ProjectForm({ currentUser, existing, onClose, onSaved }: any) {
-  const supabase = useRef(createClient()).current!;
+  const supabase = useRef(createClient()).current;
   const isEdit = !!existing;
   const [title, setTitle]             = useState(existing?.title || '');
   const [description, setDescription] = useState(existing?.description || '');
@@ -503,14 +529,15 @@ function ProjectForm({ currentUser, existing, onClose, onSaved }: any) {
     if (!title || !currentUser) return;
     setSaving(true);
     const payload = { title, description: description || null, status, tech_stack: techStack || null, url: url || null, repo_url: repoUrl || null };
-    if (isEdit) {
-      const { data } = await supabase.from('lab_projects').update({ ...payload, updated_at: new Date().toISOString() }).eq('id', existing.id).select().single();
-      if (data) onSaved(data);
-    } else {
-      const { data } = await supabase.from('lab_projects').insert({ user_id: currentUser.id, ...payload }).select().single();
-      if (data) onSaved(data);
-    }
+    const res = isEdit
+      ? await updateLabProject(existing.id, payload)
+      : await createLabProject(payload);
     setSaving(false);
+    if (!res.ok) {
+      toast.error(res.error || 'Could not save project');
+      return;
+    }
+    onSaved(res.data);
   }
 
   return (
@@ -537,7 +564,7 @@ function ProjectForm({ currentUser, existing, onClose, onSaved }: any) {
 
 // ── TOOL FORM ──────────────────────────────────────────────────
 function ToolForm({ currentUser, existing, onClose, onSaved }: any) {
-  const supabase = useRef(createClient()).current!;
+  const supabase = useRef(createClient()).current;
   const isEdit = !!existing;
   const [name, setName]           = useState(existing?.name || '');
   const [category, setCategory]   = useState(existing?.category || 'AI / LLM');
@@ -551,21 +578,22 @@ function ToolForm({ currentUser, existing, onClose, onSaved }: any) {
     if (!name || !currentUser) return;
     setSaving(true);
     const payload = { name, category, status, notes: notes || null, url: url || null, monthly_cost: monthlyCost !== '' ? parseFloat(monthlyCost) : 0 };
-    if (isEdit) {
-      const { data } = await supabase.from('lab_tools').update({ ...payload, updated_at: new Date().toISOString() }).eq('id', existing.id).select().single();
-      if (data) onSaved(data);
-    } else {
-      const { data } = await supabase.from('lab_tools').insert({ user_id: currentUser.id, ...payload }).select().single();
-      if (data) onSaved(data);
-    }
+    const res = isEdit
+      ? await updateLabTool(existing.id, payload)
+      : await createLabTool(payload);
     setSaving(false);
+    if (!res.ok) {
+      toast.error(res.error || 'Could not save tool');
+      return;
+    }
+    onSaved(res.data);
   }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <Input label="Tool Name" value={name} onChange={e => setName(e.target.value)} placeholder="e.g., Cursor, Claude, Vercel" autoFocus />
-        <Select label="Category" value={category} onChange={e => setCategory(e.target.value as any)}
+        <Select label="Category" value={category} onChange={e => setCategory(e.target.value)}
           options={TOOL_CATEGORIES.map(c => ({ value: c, label: c }))} />
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
@@ -586,7 +614,7 @@ function ToolForm({ currentUser, existing, onClose, onSaved }: any) {
 
 // ── SKILL FORM ─────────────────────────────────────────────────
 function SkillForm({ currentUser, existing, onClose, onSaved }: any) {
-  const supabase = useRef(createClient()).current!;
+  const supabase = useRef(createClient()).current;
   const isEdit = !!existing;
   const [name, setName]         = useState(existing?.name || '');
   const [category, setCategory] = useState(existing?.category || 'Frontend');
@@ -599,21 +627,22 @@ function SkillForm({ currentUser, existing, onClose, onSaved }: any) {
     if (!name || !currentUser) return;
     setSaving(true);
     const payload = { name, category, status, resource: resource || null, notes: notes || null };
-    if (isEdit) {
-      const { data } = await supabase.from('lab_skills').update({ ...payload, updated_at: new Date().toISOString() }).eq('id', existing.id).select().single();
-      if (data) onSaved(data);
-    } else {
-      const { data } = await supabase.from('lab_skills').insert({ user_id: currentUser.id, ...payload }).select().single();
-      if (data) onSaved(data);
-    }
+    const res = isEdit
+      ? await updateLabSkill(existing.id, payload)
+      : await createLabSkill(payload);
     setSaving(false);
+    if (!res.ok) {
+      toast.error(res.error || 'Could not save skill');
+      return;
+    }
+    onSaved(res.data);
   }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <Input label="Skill / Topic" value={name} onChange={e => setName(e.target.value)} placeholder="e.g., React Server Components" autoFocus />
-        <Select label="Category" value={category} onChange={e => setCategory(e.target.value as any)}
+        <Select label="Category" value={category} onChange={e => setCategory(e.target.value)}
           options={SKILL_CATEGORIES.map(c => ({ value: c, label: c }))} />
       </div>
       <Select label="Status" value={status} onChange={e => setStatus(e.target.value as SkillStatus)}

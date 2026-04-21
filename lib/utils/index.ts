@@ -1,6 +1,7 @@
 import { format, formatDistanceToNow, isAfter, isBefore, addDays, differenceInDays } from 'date-fns';
 import { toZonedTime, fromZonedTime } from 'date-fns-tz';
 import { clsx, type ClassValue } from 'clsx';
+import type { BillingCycle } from '@/types';
 
 // ─── CLASSNAMES ───
 export function cn(...inputs: ClassValue[]) {
@@ -88,6 +89,28 @@ export function calculateGST(amount: number, rate: number = 18): { gst: number; 
   return { gst, total: amount + gst };
 }
 
+// ─── SUBSCRIPTIONS ───
+/**
+ * Normalise a subscription cost to its monthly equivalent.
+ *
+ * Using a Record<BillingCycle, number> means adding a new cycle to the
+ * BillingCycle type fails to compile here until the divisor is filled
+ * in — catching the "new cycle, forgot to update burn math" bug at
+ * build time instead of as silently-wrong dashboards.
+ *
+ * Used wherever the finance page renders a "monthly burn" stat: if that
+ * list grows, centralising here means the rule is defined once.
+ */
+export function monthlyEquivalent(cost: number, cycle: BillingCycle): number {
+  const divisor: Record<BillingCycle, number> = {
+    monthly:     1,
+    quarterly:   3,
+    semi_annual: 6,
+    annual:      12,
+  };
+  return cost / divisor[cycle];
+}
+
 // ─── STRING HELPERS ───
 export function slugify(text: string): string {
   return text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
@@ -118,22 +141,6 @@ export function generateInvoiceNumber(mode: 'personal' | 'agency', count: number
   return `${prefix}-${year}${month}-${num}`;
 }
 
-// ─── SHARE TOKEN ───
-export function generateShareToken(): string {
-  // Use crypto.randomBytes — Math.random() is NOT cryptographically secure.
-  // Share tokens gate access to client documents (contracts, invoices).
-  if (typeof globalThis.crypto !== 'undefined' && globalThis.crypto.getRandomValues) {
-    const bytes = new Uint8Array(18); // 18 bytes → 24 base64url chars
-    globalThis.crypto.getRandomValues(bytes);
-    return btoa(String.fromCharCode(...bytes))
-      .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '').slice(0, 24);
-  }
-  // Node.js fallback (server-side)
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const { randomBytes } = require('crypto');
-  return randomBytes(18).toString('base64url').slice(0, 24);
-}
-
 // ─── DEEP LINK BUILDERS ───
 export function buildMailtoLink(email: string, subject: string, body: string): string {
   return `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
@@ -144,7 +151,12 @@ export function buildWhatsAppLink(phone: string, message: string): string {
   return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
 }
 
-export function generateAccessCode(): string {
-  // 7-digit numeric code — easy to type, hard enough to guess
-  return Math.floor(1000000 + Math.random() * 9000000).toString();
-}
+// ─── NOTE ───
+// The previous versions of this file exported `generateShareToken()` and
+// `generateAccessCode()` helpers. Both were dead code (no imports) and
+// both violated the project's "no eslint-disable, no require()" contract.
+// The live versions live next to the only call sites that need them:
+//   - app/dashboard/actions/documents.ts::generateShareToken()
+//   - app/dashboard/actions/documents.ts::generateAccessCode()
+// If a future caller needs either, lift it back out into this file
+// cleanly (no eslint-disable, using globalThis.crypto.getRandomValues).

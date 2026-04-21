@@ -4,26 +4,24 @@ import 'server-only';
 // Used ONLY in server-side API routes and Server Components.
 // Never import this in client components.
 //
-// We use createClient<any> because bos_users is a custom auth
-// table not present in Supabase's generated types. Without this,
-// TypeScript infers every mutation on bos_users as type 'never'.
+// Typed with <Database> which INCLUDES bos_users (see
+// types/database.ts). This means all .insert() / .update()
+// payloads against bos_users are statically type-checked.
+// No `any` casts needed.
 // ============================================================
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-import { createClient as createSupabaseClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import type { Database } from '@/types/database';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let adminClient: ReturnType<typeof createSupabaseClient<any>> | null = null;
+let adminClient: SupabaseClient<Database> | null = null;
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function getSupabaseAdmin(): ReturnType<typeof createSupabaseClient<any>> {
+export function getSupabaseAdmin(): SupabaseClient<Database> {
   if (!adminClient) {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
     if (!url || !key) {
       throw new Error('NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set');
     }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    adminClient = createSupabaseClient<any>(url, key, {
+    adminClient = createClient<Database>(url, key, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
   }

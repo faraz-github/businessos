@@ -15,9 +15,17 @@ import {
   Phone, Radio, Instagram, Share2, ExternalLink,
 } from 'lucide-react';
 import type { Lead, LeadStage } from '@/types';
+import type { Json, Database, DbOutreachChannel } from '@/types/database';
+import {
+  createLead,
+  updateLead,
+  moveLeadStage,
+  addLeadNote,
+  deleteLead as deleteLeadAction,
+} from '@/app/dashboard/actions/leads';
 
 // ── Channel config ─────────────────────────────────────────────
-const CHANNELS: { value: string; label: string; color: string; icon: React.ReactNode }[] = [
+const CHANNELS: { value: DbOutreachChannel; label: string; color: string; icon: React.ReactNode }[] = [
   { value: 'linkedin',  label: 'LinkedIn',  color: 'var(--accent-blue)',   icon: <Linkedin size={11} /> },
   { value: 'email',     label: 'Email',     color: 'var(--accent-blue)',   icon: <Mail size={11} /> },
   { value: 'whatsapp',  label: 'WhatsApp',  color: 'var(--accent-green)',  icon: <MessageCircle size={11} /> },
@@ -97,7 +105,7 @@ export default function AgencyBDPipelinePage() {
   const { mode } = useBrand();
   const { user: currentUser } = useCurrentUser();
   const supabaseRef = useRef(createClient());
-  const supabase    = supabaseRef.current!;
+  const supabase    = supabaseRef.current;
 
   const [leads, setLeads]           = useState<Lead[]>([]);
   const [loading, setLoading]       = useState(true);
@@ -116,47 +124,75 @@ export default function AgencyBDPipelinePage() {
     const { data } = await supabase.from('leads').select('*')
       .eq('user_id', currentUser.ownerId).eq('mode', mode)
       .order('last_activity_at', { ascending: false });
-    setLeads((data as Lead[]) || []);
+    setLeads((data as unknown as Lead[]) || []);
     setLoading(false);
   }, [currentUser, mode, supabase]);
 
   useEffect(() => {
+    if (!currentUser) return;
     loadLeads();
-    if (!currentUser) return; // wait for user to load before subscribing
-    const channel = supabase.channel(`bd-leads-${mode}`)
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'leads',
-        // Scope to this owner's rows — without this filter, the subscription
-        // receives change events for every user in the database.
-        filter: `user_id=eq.${currentUser.ownerId}`,
-      }, payload => {
-        if (payload.eventType === 'INSERT') setLeads(prev => [payload.new as Lead, ...prev]);
-        if (payload.eventType === 'UPDATE') {
-          setLeads(prev => prev.map(l => l.id === payload.new.id ? payload.new as Lead : l));
-          setSelectedLead(prev => prev?.id === payload.new.id ? payload.new as Lead : prev);
-        }
-        if (payload.eventType === 'DELETE') {
-          setLeads(prev => prev.filter(l => l.id !== (payload.old as Lead).id));
-          setSelectedLead(prev => prev?.id === (payload.old as Lead).id ? null : prev);
-        }
-      }).subscribe();
+    // Scope realtime to this owner's rows only. Without `filter`, every
+    // change in the leads table — across every user in the database —
+    // would fire this handler. The filter is enforced server-side by
+    // Supabase Realtime, so it's a real security/perf boundary, not
+    // just a client-side optimization.
+    const ownerId = currentUser.ownerId;
+    const channel = supabase.channel(`bd-leads-${mode}-${ownerId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'leads', filter: `user_id=eq.${ownerId}` },
+        payload => {
+          if (payload.eventType === 'INSERT') {
+            const row = payload.new as Lead;
+            // Guard mode in case the same owner has both modes open.
+            if (row.mode !== mode) return;
+            setLeads(prev => [row, ...prev]);
+          }
+          if (payload.eventType === 'UPDATE') {
+            const row = payload.new as Lead;
+            if (row.mode !== mode) return;
+            setLeads(prev => prev.map(l => l.id === row.id ? row : l));
+            setSelectedLead(prev => prev?.id === row.id ? row : prev);
+          }
+          if (payload.eventType === 'DELETE') {
+            const old = payload.old as Lead;
+            setLeads(prev => prev.filter(l => l.id !== old.id));
+            setSelectedLead(prev => prev?.id === old.id ? null : prev);
+          }
+        },
+      ).subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [loadLeads, mode, supabase, currentUser]);
 
   async function moveStage(leadId: string, newStage: LeadStage) {
-    const { error } = await supabase.from('leads').update({ stage: newStage, last_activity_at: new Date().toISOString() }).eq('id', leadId);
-    if (error) { toast.error('Failed to update stage'); return; }
-    setLeads(prev => prev.map(l => l.id === leadId ? { ...l, stage: newStage } : l));
-    setSelectedLead(prev => prev?.id === leadId ? { ...prev, stage: newStage } : prev);
+    // Optimistic update — leads table has a realtime subscription, so the
+    // server will echo the canonical row back through that channel and
+    // reconcile if there's any drift.
+    const prev = leads;
+    const prevSelected = selectedLead;
+    setLeads(p => p.map(l => l.id === leadId ? { ...l, stage: newStage } : l));
+    setSelectedLead(p => p?.id === leadId ? { ...p, stage: newStage } : p);
+
+    const res = await moveLeadStage(leadId, newStage);
+    if (!res.ok) {
+      setLeads(prev);
+      setSelectedLead(prevSelected);
+      toast.error(res.error || 'Failed to update stage');
+    }
   }
 
   async function deleteLead(id: string) {
-    const { error } = await supabase.from('leads').delete().eq('id', id);
-    if (error) { toast.error('Failed to delete lead'); return; }
-    setLeads(prev => prev.filter(l => l.id !== id));
+    const prev = leads;
+    const prevSelected = selectedLead;
+    setLeads(p => p.filter(l => l.id !== id));
     if (selectedLead?.id === id) setSelectedLead(null);
+
+    const res = await deleteLeadAction(id);
+    if (!res.ok) {
+      setLeads(prev);
+      setSelectedLead(prevSelected);
+      toast.error(res.error || 'Failed to delete lead');
+    }
   }
 
   function handleSort(key: SortKey) {
@@ -679,7 +715,7 @@ function LeadDetailModal({ lead, onClose, onMoveStage, onDelete, onUpdate }: {
   onDelete: (id: string) => void;
   onUpdate: (lead: Lead) => void;
 }) {
-  const supabase = useRef(createClient()).current!;
+  const supabase = useRef(createClient()).current;
   const [newNote, setNewNote]         = useState('');
   const [savingNote, setSavingNote]   = useState(false);
   const [editing, setEditing]         = useState(false);
@@ -689,7 +725,7 @@ function LeadDetailModal({ lead, onClose, onMoveStage, onDelete, onUpdate }: {
   const [contactName, setContactName]       = useState(lead.contact_name || '');
   const [contactEmail, setContactEmail]     = useState(lead.contact_email || '');
   const [contactPhone, setContactPhone]     = useState(lead.contact_phone || '');
-  const [channel, setChannel]               = useState(lead.channel || 'linkedin');
+  const [channel, setChannel]               = useState<DbOutreachChannel>((lead.channel as DbOutreachChannel) || 'linkedin');
   const [profileUrl, setProfileUrl]         = useState(lead.profile_url || '');
   const [context, setContext]               = useState(lead.context || '');
   const [dealValue, setDealValue]           = useState(lead.deal_value ? String(lead.deal_value) : '');
@@ -707,28 +743,38 @@ function LeadDetailModal({ lead, onClose, onMoveStage, onDelete, onUpdate }: {
 
   async function saveEdit() {
     setSavingEdit(true);
-    const { data } = await supabase.from('leads').update({
-      company: company.trim(), contact_name: contactName || null,
-      contact_email: contactEmail || null, contact_phone: contactPhone || null,
-      channel: channel || null, profile_url: profileUrl || null,
-      context: context || null,
-      deal_value: dealValue ? parseFloat(dealValue) : null,
-      next_action: nextAction || null, next_action_date: nextActionDate || null,
-      updated_at: new Date().toISOString(),
-    }).eq('id', lead.id).select().single();
-    if (data) onUpdate(data as Lead);
+    const res = await updateLead(lead.id, {
+      company:          company.trim(),
+      contact_name:     contactName || null,
+      contact_email:    contactEmail || null,
+      contact_phone:    contactPhone || null,
+      channel:          channel || null,
+      profile_url:      profileUrl || null,
+      context:          context || null,
+      deal_value:       dealValue ? parseFloat(dealValue) : null,
+      next_action:      nextAction || null,
+      next_action_date: nextActionDate || null,
+    });
     setSavingEdit(false);
+    if (!res.ok) {
+      toast.error(res.error || 'Failed to save lead');
+      return;
+    }
+    onUpdate(res.data);
     setEditing(false);
   }
 
   async function addNote() {
     if (!newNote.trim()) return;
     setSavingNote(true);
-    const notes = [...(lead.notes || []), { text: newNote.trim(), created_at: new Date().toISOString() }];
-    await supabase.from('leads').update({ notes, last_activity_at: new Date().toISOString() }).eq('id', lead.id);
-    onUpdate({ ...lead, notes } as Lead);
-    setNewNote('');
+    const res = await addLeadNote(lead.id, { text: newNote.trim() });
     setSavingNote(false);
+    if (!res.ok) {
+      toast.error(res.error || 'Failed to add note');
+      return;
+    }
+    onUpdate(res.data);
+    setNewNote('');
   }
 
   return (
@@ -920,15 +966,14 @@ function LeadDetailModal({ lead, onClose, onMoveStage, onDelete, onUpdate }: {
 
 // ── CREATE LEAD MODAL ──────────────────────────────────────────
 function CreateLeadModal({ open, onClose, mode, currentUser, initialTab, onCreated }: {
-  open: boolean; onClose: () => void; mode: string; currentUser: any;
+  open: boolean; onClose: () => void; mode: 'personal' | 'agency'; currentUser: any;
   initialTab: 'contacts' | 'deals'; onCreated: (lead: Lead) => void;
 }) {
-  const supabase = useRef(createClient()).current!;
   const [company, setCompany]         = useState('');
   const [contactName, setContactName] = useState('');
   const [email, setEmail]             = useState('');
   const [phone, setPhone]             = useState('');
-  const [channel, setChannel]         = useState('linkedin');
+  const [channel, setChannel]         = useState<DbOutreachChannel>('linkedin');
   const [profileUrl, setProfileUrl]   = useState('');
   const [context, setContext]         = useState('');
   const [source, setSource]           = useState('');
@@ -950,24 +995,29 @@ function CreateLeadModal({ open, onClose, mode, currentUser, initialTab, onCreat
   async function handleCreate() {
     if (!company.trim() || !currentUser) return;
     setSaving(true);
-    // Build the insert payload — omit channel/profile_url/context if not set
-    // to avoid 400 errors on instances where migration 011 hasn't been applied yet
-    const payload: Record<string, unknown> = {
-      user_id: currentUser.ownerId, mode, company: company.trim(),
-      contact_name: contactName || null, contact_email: email || null,
+    // Server action handles user_id + last_activity_at + notes=[]. The
+    // channel enum is validated by the action's zod schema — it will
+    // reject any value outside DbOutreachChannel.
+    const res = await createLead({
+      mode,
+      company:       company.trim(),
+      contact_name:  contactName || null,
+      contact_email: email || null,
       contact_phone: phone || null,
-      source: source || null, stage: defaultStage,
-      deal_value: dealValue ? parseFloat(dealValue) : null,
-      next_action: nextAction || null, notes: [],
-      last_activity_at: new Date().toISOString(),
-    };
-    if (channel)     payload.channel     = channel;
-    if (profileUrl)  payload.profile_url = profileUrl;
-    if (context)     payload.context     = context;
-
-    const { data } = await supabase.from('leads').insert(payload).select().single();
-    if (data) onCreated(data as Lead);
+      source:        source || null,
+      stage:         defaultStage,
+      channel:       channel || null,
+      profile_url:   profileUrl || null,
+      context:       context || null,
+      deal_value:    dealValue ? parseFloat(dealValue) : null,
+      next_action:   nextAction || null,
+    });
     setSaving(false);
+    if (!res.ok) {
+      toast.error(res.error || 'Failed to create lead');
+      return;
+    }
+    onCreated(res.data);
   }
 
   const isDeals = initialTab === 'deals';

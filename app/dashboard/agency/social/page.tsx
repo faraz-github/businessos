@@ -14,9 +14,15 @@ import {
   Plus, Calendar, Lightbulb, Check, Pencil, Trash2, ArrowRight,
   Linkedin, Instagram, Share2,
 } from 'lucide-react';
-import type { SocialPost, SocialPlatform } from '@/types';
+import type { SocialPost, SocialPlatform, SocialPostStatus } from '@/types';
+import {
+  createSocialPost,
+  updateSocialPost,
+  updateSocialPostStatus,
+  deleteSocialPost,
+} from '@/app/dashboard/actions/social';
 
-const CONTENT_PLATFORMS: { value: SocialPlatform; label: string; color: string; icon: React.ReactNode }[] = [
+const CONTENT_PLATFORMS: { value: string; label: string; color: string; icon: React.ReactNode }[] = [
   { value: 'linkedin',  label: 'LinkedIn',  color: 'var(--accent-blue)',   icon: <Linkedin size={12} /> },
   { value: 'instagram', label: 'Instagram', color: 'var(--accent-violet)', icon: <Instagram size={12} /> },
   { value: 'other',     label: 'Other',     color: 'var(--text-tertiary)', icon: <Share2 size={12} /> },
@@ -27,7 +33,7 @@ export default function AgencyContentPage() {
   const { mode } = useBrand();
   const { user: currentUser } = useCurrentUser();
   const supabaseRef = useRef(createClient());
-  const supabase    = supabaseRef.current!;
+  const supabase    = supabaseRef.current;
 
   const [posts, setPosts]           = useState<SocialPost[]>([]);
   const [loading, setLoading]       = useState(true);
@@ -47,15 +53,25 @@ export default function AgencyContentPage() {
   useEffect(() => { load(); }, [load]);
 
   async function deletePost(id: string) {
-    await supabase.from('social_posts').delete().eq('id', id);
-    setPosts(prev => prev.filter(p => p.id !== id));
+    const prev = posts;
+    setPosts(p => p.filter(post => post.id !== id));
+    const res = await deleteSocialPost(id);
+    if (!res.ok) {
+      setPosts(prev);
+      toast.error(res.error || 'Could not delete post');
+    }
   }
 
-  async function updatePostStatus(id: string, status: string) {
-    const { data } = await supabase.from('social_posts')
-      .update({ status, updated_at: new Date().toISOString() })
-      .eq('id', id).select().single();
-    if (data) setPosts(prev => prev.map(p => p.id === id ? data as SocialPost : p));
+  async function updatePostStatus(id: string, status: SocialPostStatus) {
+    const prev = posts;
+    setPosts(p => p.map(post => post.id === id ? { ...post, status } : post));
+    const res = await updateSocialPostStatus(id, status);
+    if (!res.ok) {
+      setPosts(prev);
+      toast.error(res.error || 'Could not update status');
+      return;
+    }
+    setPosts(p => p.map(post => post.id === id ? res.data : post));
   }
 
   const now       = new Date();
@@ -200,10 +216,17 @@ export default function AgencyContentPage() {
               )}
               <AddIdeaInline onAdd={async (title) => {
                 if (!currentUser) return;
-                const { data } = await supabase.from('social_posts')
-                  .insert({ user_id: currentUser.ownerId, mode, platform: 'linkedin', title, status: 'idea' })
-                  .select().single();
-                if (data) setPosts(prev => [...prev, data as SocialPost]);
+                const res = await createSocialPost({
+                  mode,
+                  platform: 'linkedin',
+                  title,
+                  status: 'idea',
+                });
+                if (!res.ok) {
+                  toast.error(res.error || 'Could not save idea');
+                  return;
+                }
+                setPosts(prev => [...prev, res.data]);
               }} />
             </div>
           </div>
@@ -251,32 +274,41 @@ function AddIdeaInline({ onAdd }: { onAdd: (title: string) => Promise<void> }) {
 }
 
 function PostForm({ currentUser, mode, existing, onClose, onSaved }: {
-  currentUser: any; mode: string; existing?: SocialPost;
+  currentUser: { ownerId: string } | null; mode: 'personal' | 'agency'; existing?: SocialPost;
   onClose: () => void; onSaved: (post: SocialPost) => void;
 }) {
-  const supabase  = useRef(createClient()).current!;
   const [title, setTitle]       = useState(existing?.title || '');
   const [content, setContent]   = useState(existing?.content || '');
   const [date, setDate]         = useState(existing?.planned_date || '');
-  const [status, setStatus]     = useState(existing?.status || 'idea');
+  const [status, setStatus]     = useState<SocialPostStatus>(existing?.status || 'idea');
   const [platform, setPlatform] = useState<SocialPlatform>(existing?.platform || 'linkedin');
   const [saving, setSaving]     = useState(false);
 
   async function handleSave() {
     if (!currentUser) return;
     setSaving(true);
-    if (existing) {
-      const { data } = await supabase.from('social_posts')
-        .update({ title, content, planned_date: date || null, status, platform, updated_at: new Date().toISOString() })
-        .eq('id', existing.id).select().single();
-      if (data) onSaved(data as SocialPost);
-    } else {
-      const { data } = await supabase.from('social_posts')
-        .insert({ user_id: currentUser.ownerId, mode, platform, title, content, planned_date: date || null, status })
-        .select().single();
-      if (data) onSaved(data as SocialPost);
-    }
+    const res = existing
+      ? await updateSocialPost(existing.id, {
+          title,
+          content,
+          planned_date: date || null,
+          status,
+          platform,
+        })
+      : await createSocialPost({
+          mode,
+          platform,
+          title,
+          content,
+          planned_date: date || null,
+          status,
+        });
     setSaving(false);
+    if (!res.ok) {
+      toast.error(res.error || 'Could not save post');
+      return;
+    }
+    onSaved(res.data);
   }
 
   return (
@@ -296,7 +328,7 @@ function PostForm({ currentUser, mode, existing, onClose, onSaved }: {
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <Input label="Planned Date" type="date" value={date} onChange={e => setDate(e.target.value)} />
-        <Select label="Status" value={status} onChange={e => setStatus(e.target.value as any)}
+        <Select label="Status" value={status} onChange={e => setStatus(e.target.value as SocialPostStatus)}
           options={[
             { value: 'idea', label: 'Idea' }, { value: 'draft', label: 'Draft' },
             { value: 'scheduled', label: 'Scheduled' }, { value: 'published', label: 'Published' },

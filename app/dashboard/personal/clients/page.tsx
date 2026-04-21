@@ -12,7 +12,16 @@ import {
   Plus, Users, Search, ChevronRight, ChevronLeft, Mail, MessageCircle,
   StickyNote, Key, CheckCircle2, Trash2, Pencil, X, FileText, ExternalLink,
 } from 'lucide-react';
-import type { Client, ClientStage, DocumentWithClient } from '@/types';
+import type { Client, ClientStage, PreferredChannel } from '@/types';
+import type { Json } from '@/types/database';
+import {
+  createClientRecord,
+  updateClientRecord,
+  changeClientStage,
+  updateClientNotes,
+  updateClientCredentials,
+  deleteClientRecord,
+} from '@/app/dashboard/actions/clients';
 
 const ALL_STAGES: ClientStage[] = [
   'lead', 'contacted', 'qualified',
@@ -85,7 +94,7 @@ export default function PersonalClientsPage() {
   const { mode } = useBrand();
   const { user: currentUser } = useCurrentUser();
   const supabaseRef = useRef(createClient());
-  const supabase = supabaseRef.current!;
+  const supabase = supabaseRef.current;
 
   const [clients, setClients]             = useState<Client[]>([]);
   const [loading, setLoading]             = useState(true);
@@ -100,7 +109,7 @@ export default function PersonalClientsPage() {
     const { data } = await supabase.from('clients').select('*')
       .eq('user_id', currentUser.ownerId).eq('mode', mode)
       .order('updated_at', { ascending: false });
-    setClients((data as Client[]) || []);
+    setClients((data as unknown as Client[]) || []);
     setLoading(false);
   }, [currentUser, mode, supabase]);
 
@@ -117,19 +126,43 @@ export default function PersonalClientsPage() {
   async function handleStageChange(clientId: string, newStage: ClientStage) {
     const client = clients.find(c => c.id === clientId);
     if (!client) return;
-    const history = [...(client.stage_history || []), { stage: newStage, entered_at: new Date().toISOString() }];
-    await supabase.from('clients')
-      .update({ current_stage: newStage, stage_history: history, updated_at: new Date().toISOString() })
-      .eq('id', clientId);
-    const updated = { ...client, current_stage: newStage, stage_history: history };
-    setClients(prev => prev.map(c => c.id === clientId ? updated : c));
-    if (selectedClient?.id === clientId) setSelectedClient(updated);
+    // Optimistic update — server recomputes stage_history authoritatively,
+    // but showing the new stage immediately makes the kanban feel snappy.
+    // If the server rejects, we roll back and surface the error.
+    const optimisticHistory = [
+      ...(client.stage_history || []),
+      { stage: newStage, entered_at: new Date().toISOString() },
+    ];
+    const optimistic = { ...client, current_stage: newStage, stage_history: optimisticHistory };
+    const prevClients = clients;
+    setClients(prev => prev.map(c => c.id === clientId ? optimistic : c));
+    if (selectedClient?.id === clientId) setSelectedClient(optimistic);
+
+    const res = await changeClientStage(clientId, newStage);
+    if (!res.ok) {
+      setClients(prevClients);
+      if (selectedClient?.id === clientId) setSelectedClient(client);
+      toast.error(res.error || 'Could not change stage');
+      return;
+    }
+    // Replace optimistic with server truth (stage_history appended server-side
+    // includes server-generated entered_at timestamp, which may differ from ours).
+    setClients(prev => prev.map(c => c.id === clientId ? res.data : c));
+    if (selectedClient?.id === clientId) setSelectedClient(res.data);
   }
 
   async function handleDelete(clientId: string) {
-    await supabase.from('clients').delete().eq('id', clientId);
+    const prevClients = clients;
+    const prevSelected = selectedClient;
     setClients(prev => prev.filter(c => c.id !== clientId));
     if (selectedClient?.id === clientId) setSelectedClient(null);
+
+    const res = await deleteClientRecord(clientId);
+    if (!res.ok) {
+      setClients(prevClients);
+      setSelectedClient(prevSelected);
+      toast.error(res.error || 'Could not delete client');
+    }
   }
 
   // Any active clients across all phases?
@@ -285,14 +318,14 @@ function ClientDetailModal({ client, onClose, onStageChange, onUpdate, onDelete 
   onDelete: () => void;
 }) {
   const supabaseRef = useRef(createClient());
-  const supabase = supabaseRef.current!;
+  const supabase = supabaseRef.current;
 
   const [notes, setNotes]         = useState(client.notes || '');
   const [savingNotes, setSavingNotes] = useState(false);
   const [activeSection, setActiveSection] = useState<'overview' | 'documents' | 'credentials' | 'history'>('overview');
   const [editing, setEditing]     = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [clientDocs, setClientDocs] = useState<DocumentWithClient[]>([]);
+  const [clientDocs, setClientDocs] = useState<any[]>([]);
   const [docsLoading, setDocsLoading] = useState(false);
 
   // Update notes when client changes
@@ -306,7 +339,7 @@ function ClientDetailModal({ client, onClose, onStageChange, onUpdate, onDelete 
       .select('id, type, title, status, updated_at, share_token')
       .eq('client_id', client.id)
       .order('updated_at', { ascending: false })
-      .then(({ data }) => { setClientDocs((data || []) as unknown as DocumentWithClient[]); setDocsLoading(false); });
+      .then(({ data }) => { setClientDocs(data || []); setDocsLoading(false); });
   }, [activeSection, client.id, supabase]);
 
   const currentIdx = ALL_STAGES.indexOf(client.current_stage);
@@ -315,9 +348,13 @@ function ClientDetailModal({ client, onClose, onStageChange, onUpdate, onDelete 
 
   async function saveNotes() {
     setSavingNotes(true);
-    await supabase.from('clients').update({ notes, updated_at: new Date().toISOString() }).eq('id', client.id);
-    onUpdate({ ...client, notes });
+    const res = await updateClientNotes(client.id, notes);
     setSavingNotes(false);
+    if (!res.ok) {
+      toast.error(res.error || 'Could not save notes');
+      return;
+    }
+    onUpdate({ ...client, notes });
   }
 
   return (
@@ -525,7 +562,9 @@ function ClientDetailModal({ client, onClose, onStageChange, onUpdate, onDelete 
                   <CredentialRow key={i} cred={cred} index={i}
                     onDelete={() => {
                       const updated = client.credentials.filter((_, idx) => idx !== i);
-                      supabase.from('clients').update({ credentials: updated }).eq('id', client.id);
+                      void updateClientCredentials(client.id, updated).then(res => {
+                        if (!res.ok) toast.error(res.error || 'Could not delete credential');
+                      });
                       onUpdate({ ...client, credentials: updated });
                     }} />
                 ))}
@@ -589,7 +628,6 @@ function CredentialAdder({ clientId, existing, onSaved }: {
   existing: { service: string; detail: string }[];
   onSaved: (updated: { service: string; detail: string }[]) => void;
 }) {
-  const supabase = useRef(createClient()).current!;
   const [service, setService] = useState('');
   const [detail, setDetail]   = useState('');
   const [saving, setSaving]   = useState(false);
@@ -598,10 +636,14 @@ function CredentialAdder({ clientId, existing, onSaved }: {
     if (!service.trim() || !detail.trim()) return;
     setSaving(true);
     const updated = [...existing, { service: service.trim(), detail: detail.trim() }];
-    await supabase.from('clients').update({ credentials: updated }).eq('id', clientId);
+    const res = await updateClientCredentials(clientId, updated);
+    setSaving(false);
+    if (!res.ok) {
+      toast.error(res.error || 'Could not add credential');
+      return;
+    }
     onSaved(updated);
     setService(''); setDetail('');
-    setSaving(false);
   }
 
   return (
@@ -622,7 +664,6 @@ function CredentialAdder({ clientId, existing, onSaved }: {
 function EditClientModal({ client, onClose, onSaved }: {
   client: Client; onClose: () => void; onSaved: (c: Client) => void;
 }) {
-  const supabase = useRef(createClient()).current!;
   const [name, setName]               = useState(client.name);
   const [company, setCompany]         = useState(client.company || '');
   const [contactName, setContactName] = useState(client.contact_name || '');
@@ -635,11 +676,21 @@ function EditClientModal({ client, onClose, onSaved }: {
   async function handleSave() {
     if (!name.trim()) return;
     setSaving(true);
-    const { data } = await supabase.from('clients')
-      .update({ name: name.trim(), company: company || null, contact_name: contactName || null, contact_email: email || null, contact_phone: phone || null, preferred_channel: channel, service_type: serviceType, updated_at: new Date().toISOString() })
-      .eq('id', client.id).select().single();
-    if (data) onSaved(data as Client);
+    const res = await updateClientRecord(client.id, {
+      name: name.trim(),
+      company: company || null,
+      contact_name: contactName || null,
+      contact_email: email || null,
+      contact_phone: phone || null,
+      preferred_channel: channel as PreferredChannel,
+      service_type: serviceType,
+    });
     setSaving(false);
+    if (!res.ok) {
+      toast.error(res.error || 'Could not save client');
+      return;
+    }
+    onSaved(res.data);
   }
 
   return (
@@ -660,7 +711,7 @@ function EditClientModal({ client, onClose, onSaved }: {
             { value: 'whatsapp', label: 'WhatsApp' },
             { value: 'email', label: 'Email' },
             { value: 'phone', label: 'Phone' },
-          ]} value={channel} onChange={e => setChannel(e.target.value as any)} />
+          ]} value={channel} onChange={e => setChannel(e.target.value as PreferredChannel)} />
         </div>
         <div style={{ display: 'flex', gap: 10, paddingTop: 8 }}>
           <Button variant="secondary" onClick={onClose} style={{ flex: 1 }}>Cancel</Button>
@@ -673,9 +724,8 @@ function EditClientModal({ client, onClose, onSaved }: {
 
 // ─── CREATE CLIENT MODAL ───
 function CreateClientModal({ open, onClose, mode, currentUser, onCreated }: {
-  open: boolean; onClose: () => void; mode: string; currentUser: any; onCreated: (c: Client) => void;
+  open: boolean; onClose: () => void; mode: 'personal' | 'agency'; currentUser: { ownerId: string } | null; onCreated: (c: Client) => void;
 }) {
-  const supabase = useRef(createClient()).current!;
   const [name, setName]               = useState('');
   const [company, setCompany]         = useState('');
   const [contactName, setContactName] = useState('');
@@ -695,18 +745,25 @@ function CreateClientModal({ open, onClose, mode, currentUser, onCreated }: {
     if (!name.trim()) { setError('Name is required'); return; }
     if (!currentUser) return;
     setSaving(true); setError('');
-    const { data, error: dbErr } = await supabase.from('clients').insert({
-      user_id: currentUser.ownerId, mode, name: name.trim(),
-      company: company || null, contact_name: contactName || null,
-      contact_email: email || null, contact_phone: phone || null,
-      preferred_channel: channel, service_type: serviceType,
-      notes: '', credentials: [],
-      current_stage: 'lead',
-      stage_history: [{ stage: 'lead', entered_at: new Date().toISOString() }],
-    }).select().single();
-    if (dbErr) { setError(dbErr.message); setSaving(false); return; }
-    if (data) onCreated(data as Client);
+    // Server action handles user_id + initial stage + stage_history + empty
+    // credentials. The client only provides what the form collected.
+    const res = await createClientRecord({
+      mode,
+      name: name.trim(),
+      company: company || null,
+      contact_name: contactName || null,
+      contact_email: email || null,
+      contact_phone: phone || null,
+      preferred_channel: channel as PreferredChannel,
+      service_type: serviceType,
+      notes: '',
+    });
     setSaving(false);
+    if (!res.ok) {
+      setError(res.error);
+      return;
+    }
+    onCreated(res.data);
   }
 
   return (
@@ -727,7 +784,7 @@ function CreateClientModal({ open, onClose, mode, currentUser, onCreated }: {
             { value: 'whatsapp', label: 'WhatsApp' },
             { value: 'email', label: 'Email' },
             { value: 'phone', label: 'Phone' },
-          ]} value={channel} onChange={e => setChannel(e.target.value as any)} />
+          ]} value={channel} onChange={e => setChannel(e.target.value as PreferredChannel)} />
         </div>
         {error && <p style={{ fontSize: 12, color: 'var(--accent-red)', fontFamily: 'var(--font-body)' }}>{error}</p>}
         <div style={{ display: 'flex', gap: 10, paddingTop: 8 }}>

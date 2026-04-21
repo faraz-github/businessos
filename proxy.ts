@@ -7,9 +7,24 @@ import { verifyToken, COOKIE_NAME } from '@/lib/auth/jwt';
 import { canAccessSection, getDefaultRoute } from '@/lib/auth/access';
 
 // Routes that don't require auth.
-// NOTE: /api/auth/seed is intentionally NOT listed here.
-//       It self-protects via x-seed-secret header validation.
-const PUBLIC_PREFIXES = ['/auth', '/doc/', '/api/auth/login', '/api/doc/verify-code', '/setup'];
+// /api/auth/seed bypasses JWT here so that initial setup can run before any
+// user exists — but the route itself enforces SEED_SECRET header validation.
+// /api/doc/verify-code is called by unauthenticated recipients entering an
+// access code on a public /doc/[token] page — it gates itself via the
+// access_code check against the document row.
+// /api/doc/sign is called by the same unauthenticated recipients when
+// submitting their signature. It re-runs the same access_code gate and
+// then uploads drawn signatures to document-media via the service-role
+// client.
+const PUBLIC_PREFIXES = [
+  '/auth',
+  '/doc/',
+  '/api/auth/login',
+  '/api/auth/seed',
+  '/api/doc/verify-code',
+  '/api/doc/sign',
+  '/setup',
+];
 
 // Map URL path segments to section keys
 function sectionFromPath(pathname: string): { mode: 'personal' | 'agency'; section: string } | null {
@@ -43,28 +58,21 @@ export async function proxy(request: NextRequest) {
   // ── Authenticated: redirect root and login page to correct home ──
   if (pathname === '/' || pathname === '/auth/login' || pathname === '/auth') {
     const url = request.nextUrl.clone();
-    url.pathname = session.role === 'superadmin'
-      ? '/dashboard/personal/home'
-      : getDefaultRoute(session);
+    url.pathname = getDefaultRoute(session);
     return NextResponse.redirect(url);
   }
 
-  // ── Section-level access control for non-superadmin ──
-  // Access logic lives in lib/auth/access.ts — shared with use-auth.ts.
-  if (session.role !== 'superadmin') {
-    const target = sectionFromPath(pathname);
-    if (target) {
-      const hasAccess = canAccessSection(session, target.mode, target.section);
-
-      if (!hasAccess) {
-        if (pathname.startsWith('/api/')) {
-          return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-        }
-        const url = request.nextUrl.clone();
-        url.pathname = '/403';
-        return NextResponse.redirect(url);
-      }
+  // ── Section-level access control ──
+  // Uses the shared canAccessSection helper — the same function that
+  // gates the client sidebar in use-auth.ts and server checks in session.ts.
+  const target = sectionFromPath(pathname);
+  if (target && !canAccessSection(session, target.mode, target.section)) {
+    if (pathname.startsWith('/api/')) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
+    const url = request.nextUrl.clone();
+    url.pathname = '/403';
+    return NextResponse.redirect(url);
   }
 
   // Forward the verified session as a header for Server Components
