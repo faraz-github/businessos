@@ -179,9 +179,16 @@ const coercedNumber = z.preprocess((v) => {
 }, z.number());
 
 export const proposalRequiredSchema = z.object({
-  client_name:   z.string().min(1, 'Client name is missing'),
-  project_title: z.string().min(1, 'Project title is missing'),
-  overview:      z.string().min(1, 'Overview is missing'),
+  // Proposals require only `overview` in the fields blob. The client
+  // and project name live outside `fields`:
+  //   - client identity → documents.client_id FK (enforced at send-modal
+  //     level: the send UI won't open without a client attached).
+  //   - project name    → documents.title column (enforced at create
+  //     time: the create form's Save button is disabled without a title).
+  // Checking fields.client_name / fields.project_title here was wrong —
+  // the proposal editor never writes those keys (they're invoice/
+  // SOW-only), so validation always tripped on them.
+  overview: z.string().min(1, 'Overview is missing'),
 }).passthrough();
 
 export const contractRequiredSchema = z.object({
