@@ -1,11 +1,11 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useBrand } from '@/lib/brand';
 import { useCurrentUser } from '@/lib/auth/use-auth';
 import { createClient } from '@/lib/supabase/client';
 import { PageTransition } from '@/components/dashboard/PageTransition';
-import { Button, Modal, Input, Textarea, Select } from '@/components/ui';
+import { Button, Modal, Input, Textarea, Select, OverflowMenu, LoadMore, useLoadMore } from '@/components/ui';
 import { toast } from '@/components/ui/Toast';
 import {
   createLabProject,
@@ -152,6 +152,28 @@ export default function LabPage() {
   const toolBurn       = tools.filter(t => t.status === 'using')
     .reduce((s, t) => s + Number(t.monthly_cost || 0), 0);
 
+  // Pagination — sort each list by status priority, then paginate flat.
+  // Display still groups by status; LoadMore advances through the
+  // full ordered list so users walk down naturally from active items
+  // to idle ones.
+  const PROJECT_ORDER: ProjectStatus[] = ['active', 'idea', 'paused', 'shipped', 'archived'];
+  const TOOL_ORDER:    ToolStatus[]    = ['using', 'evaluating', 'dropped'];
+  const SKILL_ORDER                    = ['learning', 'proficient', 'mastered'];
+
+  const orderedProjects = useMemo(() =>
+    PROJECT_ORDER.flatMap(st => projects.filter(p => p.status === st))
+  , [projects]);
+  const orderedTools = useMemo(() =>
+    TOOL_ORDER.flatMap(st => tools.filter(t => t.status === st))
+  , [tools]);
+  const orderedSkills = useMemo(() =>
+    SKILL_ORDER.flatMap(st => skills.filter(s => s.status === st))
+  , [skills]);
+
+  const projectsPage = useLoadMore(orderedProjects, { pageSize: 20 });
+  const toolsPage    = useLoadMore(orderedTools,    { pageSize: 20 });
+  const skillsPage   = useLoadMore(orderedSkills,   { pageSize: 20 });
+
   const addLabel = { projects: 'Add Project', tools: 'Add Tool', skills: 'Add Skill' }[activeTab];
 
   const TABS = [
@@ -174,7 +196,7 @@ export default function LabPage() {
         </div>
 
         {/* Stats */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+        <div className="rgrid-4" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
           {([
             { label: 'Active Projects',  value: activeProjects, color: 'var(--accent-green)',  icon: <FlaskConical size={14} /> },
             { label: 'Ideas in Backlog', value: ideasBacklog,   color: 'var(--accent-violet)', icon: <Lightbulb size={14} /> },
@@ -192,7 +214,7 @@ export default function LabPage() {
         </div>
 
         {/* Underline tabs */}
-        <div style={{ display: 'flex', borderBottom: '1px solid var(--border-subtle)' }}>
+        <div className="tabs-scroll" style={{ display: 'flex', borderBottom: '1px solid var(--border-subtle)' }}>
           {TABS.map(tab => (
             <button key={tab.value} onClick={() => setActiveTab(tab.value)}
               style={{
@@ -230,7 +252,7 @@ export default function LabPage() {
               </div>
             ) : (
               (['active', 'idea', 'paused', 'shipped', 'archived'] as ProjectStatus[]).flatMap(status => {
-                const group = projects.filter(p => p.status === status);
+                const group = projectsPage.paginated.filter(p => p.status === status);
                 if (group.length === 0) return [];
                 const cfg = PROJECT_STATUS[status];
                 return [(
@@ -240,81 +262,103 @@ export default function LabPage() {
                       <span className="t-2xs text-tertiary">({group.length})</span>
                     </div>
                     {group.map(project => (
-                      <div key={project.id} className="card"
-                        style={{ padding: '14px 18px', opacity: status === 'archived' ? 0.55 : 1, transition: 'background 150ms' }}
+                      <div key={project.id} className="card dense-row"
+                        style={{ padding: '14px 18px', opacity: status === 'archived' ? 0.55 : 1 }}
                         onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
                         onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = ''; }}>
-                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
-                          {/* Status dot */}
-                          <div style={{ width: 8, height: 8, borderRadius: '50%', background: cfg.color, flexShrink: 0, marginTop: 6 }} />
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: project.description ? 4 : 0 }}>
-                              <span className="t-sm-semibold">{project.title}</span>
-                              {project.tech_stack && (
-                                <span style={{ fontSize: 10, color: 'var(--text-tertiary)', background: 'var(--bg-hover)', padding: '2px 7px', borderRadius: 100, fontFamily: 'var(--font-mono)', flexShrink: 0 }}>{project.tech_stack}</span>
-                              )}
-                            </div>
-                            {project.description && (
-                              <p className="t-xs text-secondary" style={{ marginBottom: 6 }}>{project.description}</p>
+                        {/* Status dot */}
+                        <div className="dense-row__lead" style={{ width: 8, height: 8, borderRadius: '50%', background: cfg.color, marginTop: 6 }} />
+                        <div className="dense-row__body">
+                          <div className="dense-row__title">
+                            <span className="t-sm-semibold dense-row__name">{project.title}</span>
+                            {project.tech_stack && (
+                              <span className="chip-opt-out" style={{ fontSize: 10, color: 'var(--text-tertiary)', background: 'var(--bg-hover)', padding: '2px 7px', borderRadius: 100, fontFamily: 'var(--font-mono)', flexShrink: 0 }}>{project.tech_stack}</span>
                             )}
-                            <p className="t-2xs text-tertiary">Updated {formatRelative(project.updated_at)}</p>
                           </div>
-                          {/* Actions */}
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                            {project.url && (
-                              <a href={project.url} target="_blank" rel="noopener noreferrer"
-                                style={{ display: 'flex', padding: '5px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-default)', color: 'var(--text-tertiary)', transition: 'color 150ms' }}
-                                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--accent-blue)'; }}
-                                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)'; }}>
-                                <Globe size={13} />
-                              </a>
-                            )}
-                            {project.repo_url && (
-                              <a href={project.repo_url} target="_blank" rel="noopener noreferrer"
-                                style={{ display: 'flex', padding: '5px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-default)', color: 'var(--text-tertiary)', transition: 'color 150ms' }}
-                                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-primary)'; }}
-                                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)'; }}>
-                                <Github size={13} />
-                              </a>
-                            )}
-                            {/* Quick promote: idea → active */}
-                            {status === 'idea' && (
-                              <button onClick={() => updateProjectStatus(project.id, 'active')}
-                                title="Move to Active"
-                                style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 9px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--accent-green)', background: 'var(--accent-green-dim)', color: 'var(--accent-green)', fontSize: 10, fontWeight: 600, fontFamily: 'var(--font-body)', cursor: 'pointer', transition: 'all 150ms', whiteSpace: 'nowrap' }}
-                                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--accent-green)'; (e.currentTarget as HTMLElement).style.color = '#fff'; }}
-                                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'var(--accent-green-dim)'; (e.currentTarget as HTMLElement).style.color = 'var(--accent-green)'; }}>
-                                → Activate
-                              </button>
-                            )}
-                            {status === 'active' && (
-                              <button onClick={() => updateProjectStatus(project.id, 'shipped')}
-                                title="Mark as Shipped"
-                                style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 9px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--accent-blue)', background: 'var(--accent-blue-dim)', color: 'var(--accent-blue)', fontSize: 10, fontWeight: 600, fontFamily: 'var(--font-body)', cursor: 'pointer', transition: 'all 150ms', whiteSpace: 'nowrap' }}
-                                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--accent-blue)'; (e.currentTarget as HTMLElement).style.color = '#fff'; }}
-                                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'var(--accent-blue-dim)'; (e.currentTarget as HTMLElement).style.color = 'var(--accent-blue)'; }}>
-                                ✓ Ship
-                              </button>
-                            )}
-                            <button onClick={() => setEditingItem({ type: 'project', data: project })}
-                              style={{ display: 'flex', padding: '5px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-default)', background: 'transparent', color: 'var(--text-tertiary)', cursor: 'pointer', transition: 'all 150ms' }}
-                              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--accent-blue)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--accent-blue)'; }}
-                              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--border-default)'; }}>
-                              <Pencil size={12} />
-                            </button>
-                            <button onClick={() => deleteProject(project.id)}
-                              style={{ display: 'flex', padding: '5px', borderRadius: 'var(--radius-sm)', border: 'none', background: 'transparent', color: 'var(--text-tertiary)', cursor: 'pointer', transition: 'color 150ms' }}
-                              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--accent-red)'; }}
+                          {project.description && (
+                            <p className="t-xs text-secondary chip-opt-out" style={{ marginBottom: 6 }}>{project.description}</p>
+                          )}
+                          <div className="dense-row__meta">
+                            <span className="t-2xs text-tertiary">Updated {formatRelative(project.updated_at)}</span>
+                          </div>
+                        </div>
+                        {/* Actions */}
+                        <div className="dense-row__actions">
+                          {project.url && (
+                            <a href={project.url} target="_blank" rel="noopener noreferrer"
+                              aria-label="Project website"
+                              className="hide-on-mobile-row"
+                              style={{ display: 'flex', padding: '5px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-default)', color: 'var(--text-tertiary)', transition: 'color 150ms' }}
+                              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--accent-blue)'; }}
                               onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)'; }}>
-                              <Trash2 size={12} />
+                              <Globe size={13} />
+                            </a>
+                          )}
+                          {project.repo_url && (
+                            <a href={project.repo_url} target="_blank" rel="noopener noreferrer"
+                              aria-label="GitHub repo"
+                              className="hide-on-mobile-row"
+                              style={{ display: 'flex', padding: '5px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-default)', color: 'var(--text-tertiary)', transition: 'color 150ms' }}
+                              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-primary)'; }}
+                              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)'; }}>
+                              <Github size={13} />
+                            </a>
+                          )}
+                          {/* Quick promote: idea → active */}
+                          {status === 'idea' && (
+                            <button onClick={() => updateProjectStatus(project.id, 'active')}
+                              title="Move to Active"
+                              className="row-btn-primary"
+                              style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 9px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--accent-green)', background: 'var(--accent-green-dim)', color: 'var(--accent-green)', fontSize: 10, fontWeight: 600, fontFamily: 'var(--font-body)', cursor: 'pointer', transition: 'all 150ms' }}
+                              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--accent-green)'; (e.currentTarget as HTMLElement).style.color = '#fff'; }}
+                              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'var(--accent-green-dim)'; (e.currentTarget as HTMLElement).style.color = 'var(--accent-green)'; }}>
+                              <span className="row-btn-label">→ Activate</span>
+                              <span className="hide-tablet" style={{ display: 'none' }}>→</span>
                             </button>
-                          </div>
+                          )}
+                          {status === 'active' && (
+                            <button onClick={() => updateProjectStatus(project.id, 'shipped')}
+                              title="Mark as Shipped"
+                              className="row-btn-primary"
+                              style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 9px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--accent-blue)', background: 'var(--accent-blue-dim)', color: 'var(--accent-blue)', fontSize: 10, fontWeight: 600, fontFamily: 'var(--font-body)', cursor: 'pointer', transition: 'all 150ms' }}
+                              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--accent-blue)'; (e.currentTarget as HTMLElement).style.color = '#fff'; }}
+                              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'var(--accent-blue-dim)'; (e.currentTarget as HTMLElement).style.color = 'var(--accent-blue)'; }}>
+                              <span className="row-btn-label">✓ Ship</span>
+                              <span className="hide-tablet" style={{ display: 'none' }}>✓</span>
+                            </button>
+                          )}
+                          <button onClick={() => setEditingItem({ type: 'project', data: project })}
+                            aria-label="Edit project"
+                            style={{ display: 'flex', padding: '5px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-default)', background: 'transparent', color: 'var(--text-tertiary)', cursor: 'pointer', transition: 'all 150ms' }}
+                            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--accent-blue)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--accent-blue)'; }}
+                            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--border-default)'; }}>
+                            <Pencil size={12} />
+                          </button>
+                          <button onClick={() => deleteProject(project.id)}
+                            aria-label="Delete project"
+                            className="hide-on-mobile-row"
+                            style={{ display: 'flex', padding: '5px', borderRadius: 'var(--radius-sm)', border: 'none', background: 'transparent', color: 'var(--text-tertiary)', cursor: 'pointer', transition: 'color 150ms' }}
+                            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--accent-red)'; }}
+                            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)'; }}>
+                            <Trash2 size={12} />
+                          </button>
+                          <OverflowMenu
+                            items={[
+                              ...(project.url ? [{ label: 'Open website', icon: <Globe size={14} />, onClick: () => window.open(project.url!, '_blank', 'noopener,noreferrer') }] : []),
+                              ...(project.repo_url ? [{ label: 'Open repo', icon: <Github size={14} />, onClick: () => window.open(project.repo_url!, '_blank', 'noopener,noreferrer') }] : []),
+                              { label: 'Delete project', icon: <Trash2 size={14} />, onClick: () => deleteProject(project.id), destructive: true },
+                            ]}
+                          />
                         </div>
                       </div>
                     ))}
                   </div>
                 )];
               })
+            )}
+            {projects.length > 0 && (
+              <LoadMore hasMore={projectsPage.hasMore} onLoadMore={projectsPage.loadMore}
+                shown={projectsPage.shown} total={projectsPage.total} />
             )}
           </div>
         )}
@@ -333,7 +377,7 @@ export default function LabPage() {
               </div>
             ) : (
               (['using', 'evaluating', 'dropped'] as ToolStatus[]).flatMap(status => {
-                const group = tools.filter(t => t.status === status);
+                const group = toolsPage.paginated.filter(t => t.status === status);
                 if (group.length === 0) return [];
                 const cfg = TOOL_STATUS[status];
                 return [(
@@ -342,50 +386,59 @@ export default function LabPage() {
                       <span className="t-label" style={{ color: cfg.color }}>{cfg.label}</span>
                       <span className="t-2xs text-tertiary">({group.length})</span>
                     </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                    <div className="rgrid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                       {group.map(tool => (
-                        <div key={tool.id} className="card"
-                          style={{ padding: '14px 16px', opacity: status === 'dropped' ? 0.55 : 1, transition: 'background 150ms' }}
+                        <div key={tool.id} className="card dense-row"
+                          style={{ padding: '14px 16px', opacity: status === 'dropped' ? 0.55 : 1 }}
                           onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
                           onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = ''; }}>
-                          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
-                                <p className="t-sm-semibold">{tool.name}</p>
-                                {tool.monthly_cost === 0 && (
-                                  <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--accent-green)', background: 'var(--accent-green-dim)', padding: '1px 6px', borderRadius: 100 }}>FREE</span>
-                                )}
-                              </div>
-                              <p className="t-2xs text-tertiary" style={{ marginBottom: tool.notes ? 6 : 0 }}>{tool.category}</p>
-                              {tool.notes && <p className="t-xs text-secondary" style={{ lineHeight: 1.5 }}>{tool.notes}</p>}
-                            </div>
-                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, flexShrink: 0 }}>
-                              {tool.monthly_cost != null && tool.monthly_cost > 0 && (
-                                <span style={{ fontSize: 12, fontFamily: 'var(--font-mono)', color: 'var(--accent-amber)', fontWeight: 600 }}>₹{tool.monthly_cost}/mo</span>
+                          <div className="dense-row__body">
+                            <div className="dense-row__title">
+                              <span className="t-sm-semibold dense-row__name">{tool.name}</span>
+                              {tool.monthly_cost === 0 && (
+                                <span className="chip-opt-out" style={{ fontSize: 9, fontWeight: 700, color: 'var(--accent-green)', background: 'var(--accent-green-dim)', padding: '1px 6px', borderRadius: 100, flexShrink: 0 }}>FREE</span>
                               )}
-                              <div style={{ display: 'flex', gap: 4 }}>
-                                {tool.url && (
-                                  <a href={tool.url} target="_blank" rel="noopener noreferrer"
-                                    style={{ display: 'flex', padding: '4px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-default)', color: 'var(--text-tertiary)', transition: 'color 150ms' }}
-                                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--accent-blue)'; }}
-                                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)'; }}>
-                                    <ExternalLink size={11} />
-                                  </a>
-                                )}
-                                <button onClick={() => setEditingItem({ type: 'tool', data: tool })}
-                                  style={{ display: 'flex', padding: '4px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-default)', background: 'transparent', color: 'var(--text-tertiary)', cursor: 'pointer', transition: 'all 150ms' }}
-                                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--accent-blue)'; }}
-                                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)'; }}>
-                                  <Pencil size={11} />
-                                </button>
-                                <button onClick={() => deleteTool(tool.id)}
-                                  style={{ display: 'flex', padding: '4px', borderRadius: 'var(--radius-sm)', border: 'none', background: 'transparent', color: 'var(--text-tertiary)', cursor: 'pointer', transition: 'color 150ms' }}
-                                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--accent-red)'; }}
-                                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)'; }}>
-                                  <Trash2 size={11} />
-                                </button>
-                              </div>
                             </div>
+                            <div className="dense-row__meta">
+                              <span className="t-2xs text-tertiary">{tool.category}</span>
+                            </div>
+                            {tool.notes && <p className="t-xs text-secondary chip-opt-out" style={{ lineHeight: 1.5, marginTop: 6 }}>{tool.notes}</p>}
+                          </div>
+                          <div className="dense-row__actions">
+                            {tool.monthly_cost != null && tool.monthly_cost > 0 && (
+                              <span className="chip-opt-out" style={{ fontSize: 12, fontFamily: 'var(--font-mono)', color: 'var(--accent-amber)', fontWeight: 600 }}>₹{tool.monthly_cost}/mo</span>
+                            )}
+                            {tool.url && (
+                              <a href={tool.url} target="_blank" rel="noopener noreferrer"
+                                aria-label="Open tool website"
+                                className="hide-on-mobile-row"
+                                style={{ display: 'flex', padding: '4px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-default)', color: 'var(--text-tertiary)', transition: 'color 150ms' }}
+                                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--accent-blue)'; }}
+                                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)'; }}>
+                                <ExternalLink size={11} />
+                              </a>
+                            )}
+                            <button onClick={() => setEditingItem({ type: 'tool', data: tool })}
+                              aria-label="Edit tool"
+                              style={{ display: 'flex', padding: '4px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-default)', background: 'transparent', color: 'var(--text-tertiary)', cursor: 'pointer', transition: 'all 150ms' }}
+                              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--accent-blue)'; }}
+                              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)'; }}>
+                              <Pencil size={11} />
+                            </button>
+                            <button onClick={() => deleteTool(tool.id)}
+                              aria-label="Delete tool"
+                              className="hide-on-mobile-row"
+                              style={{ display: 'flex', padding: '4px', borderRadius: 'var(--radius-sm)', border: 'none', background: 'transparent', color: 'var(--text-tertiary)', cursor: 'pointer', transition: 'color 150ms' }}
+                              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--accent-red)'; }}
+                              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)'; }}>
+                              <Trash2 size={11} />
+                            </button>
+                            <OverflowMenu
+                              items={[
+                                ...(tool.url ? [{ label: 'Open website', icon: <ExternalLink size={14} />, onClick: () => window.open(tool.url!, '_blank', 'noopener,noreferrer') }] : []),
+                                { label: 'Delete tool', icon: <Trash2 size={14} />, onClick: () => deleteTool(tool.id), destructive: true },
+                              ]}
+                            />
                           </div>
                         </div>
                       ))}
@@ -393,6 +446,10 @@ export default function LabPage() {
                   </div>
                 )];
               })
+            )}
+            {tools.length > 0 && (
+              <LoadMore hasMore={toolsPage.hasMore} onLoadMore={toolsPage.loadMore}
+                shown={toolsPage.shown} total={toolsPage.total} />
             )}
           </div>
         )}
@@ -411,7 +468,7 @@ export default function LabPage() {
               </div>
             ) : (
               (['learning', 'practicing', 'solid'] as SkillStatus[]).flatMap(status => {
-                const group = skills.filter(s => s.status === status);
+                const group = skillsPage.paginated.filter(s => s.status === status);
                 if (group.length === 0) return [];
                 const cfg = SKILL_STATUS[status];
                 return [(
@@ -421,46 +478,56 @@ export default function LabPage() {
                       <span className="t-2xs text-tertiary">({group.length})</span>
                     </div>
                     {group.map(skill => (
-                      <div key={skill.id} className="card"
-                        style={{ padding: '12px 16px', transition: 'background 150ms' }}
+                      <div key={skill.id} className="card dense-row"
+                        style={{ padding: '12px 16px' }}
                         onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
                         onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = ''; }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                          {/* Status indicator */}
-                          <div style={{ width: 32, height: 32, borderRadius: 'var(--radius-sm)', background: cfg.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                            <CheckCircle2 size={14} style={{ color: cfg.color }} />
+                        {/* Status indicator */}
+                        <div className="dense-row__lead" style={{ width: 32, height: 32, borderRadius: 'var(--radius-sm)', background: cfg.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <CheckCircle2 size={14} style={{ color: cfg.color }} />
+                        </div>
+                        <div className="dense-row__body">
+                          <div className="dense-row__title">
+                            <span className="t-sm-semibold dense-row__name">{skill.name}</span>
+                            <span className="chip-opt-out" style={{ fontSize: 10, color: 'var(--text-tertiary)', background: 'var(--bg-hover)', padding: '1px 7px', borderRadius: 100, flexShrink: 0 }}>{skill.category}</span>
                           </div>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
-                              <span className="t-sm-semibold">{skill.name}</span>
-                              <span style={{ fontSize: 10, color: 'var(--text-tertiary)', background: 'var(--bg-hover)', padding: '1px 7px', borderRadius: 100 }}>{skill.category}</span>
-                            </div>
-                            {skill.resource && (
-                              <p className="t-2xs" style={{ color: 'var(--accent-blue)', marginBottom: skill.notes ? 2 : 0 }}>📚 {skill.resource}</p>
-                            )}
-                            {skill.notes && <p className="t-2xs text-tertiary">{skill.notes}</p>}
-                          </div>
-                          <div style={{ display: 'flex', gap: 5, flexShrink: 0 }}>
-                            <StatusPill label={cfg.label} color={cfg.color} bg={cfg.bg} />
-                            <button onClick={() => setEditingItem({ type: 'skill', data: skill })}
-                              style={{ display: 'flex', padding: '5px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-default)', background: 'transparent', color: 'var(--text-tertiary)', cursor: 'pointer', transition: 'all 150ms' }}
-                              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--accent-blue)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--accent-blue)'; }}
-                              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--border-default)'; }}>
-                              <Pencil size={12} />
-                            </button>
-                            <button onClick={() => deleteSkill(skill.id)}
-                              style={{ display: 'flex', padding: '5px', borderRadius: 'var(--radius-sm)', border: 'none', background: 'transparent', color: 'var(--text-tertiary)', cursor: 'pointer', transition: 'color 150ms' }}
-                              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--accent-red)'; }}
-                              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)'; }}>
-                              <Trash2 size={12} />
-                            </button>
-                          </div>
+                          {skill.resource && (
+                            <p className="t-2xs chip-opt-out" style={{ color: 'var(--accent-blue)', marginTop: 2 }}>📚 {skill.resource}</p>
+                          )}
+                          {skill.notes && <p className="t-2xs text-tertiary chip-opt-out" style={{ marginTop: 2 }}>{skill.notes}</p>}
+                        </div>
+                        <div className="dense-row__actions">
+                          <StatusPill label={cfg.label} color={cfg.color} bg={cfg.bg} />
+                          <button onClick={() => setEditingItem({ type: 'skill', data: skill })}
+                            aria-label="Edit skill"
+                            style={{ display: 'flex', padding: '5px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-default)', background: 'transparent', color: 'var(--text-tertiary)', cursor: 'pointer', transition: 'all 150ms' }}
+                            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--accent-blue)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--accent-blue)'; }}
+                            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--border-default)'; }}>
+                            <Pencil size={12} />
+                          </button>
+                          <button onClick={() => deleteSkill(skill.id)}
+                            aria-label="Delete skill"
+                            className="hide-on-mobile-row"
+                            style={{ display: 'flex', padding: '5px', borderRadius: 'var(--radius-sm)', border: 'none', background: 'transparent', color: 'var(--text-tertiary)', cursor: 'pointer', transition: 'color 150ms' }}
+                            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--accent-red)'; }}
+                            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)'; }}>
+                            <Trash2 size={12} />
+                          </button>
+                          <OverflowMenu
+                            items={[
+                              { label: 'Delete skill', icon: <Trash2 size={14} />, onClick: () => deleteSkill(skill.id), destructive: true },
+                            ]}
+                          />
                         </div>
                       </div>
                     ))}
                   </div>
                 )];
               })
+            )}
+            {skills.length > 0 && (
+              <LoadMore hasMore={skillsPage.hasMore} onLoadMore={skillsPage.loadMore}
+                shown={skillsPage.shown} total={skillsPage.total} />
             )}
           </div>
         )}
@@ -545,12 +612,12 @@ function ProjectForm({ currentUser, existing, onClose, onSaved }: any) {
       <Input label="Project Name" value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g., AI invoice parser" autoFocus />
       <Textarea label="Description" value={description} onChange={e => setDescription(e.target.value)}
         placeholder="What is it, why are you building it..." style={{ minHeight: 80 }} />
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+      <div className="rgrid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <Select label="Status" value={status} onChange={e => setStatus(e.target.value as ProjectStatus)}
           options={Object.entries(PROJECT_STATUS).map(([v, c]) => ({ value: v, label: c.label }))} />
         <Input label="Tech Stack" value={techStack} onChange={e => setTechStack(e.target.value)} placeholder="React, Node, etc." />
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+      <div className="rgrid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <Input label="Live URL" value={url} onChange={e => setUrl(e.target.value)} placeholder="https://..." />
         <Input label="Repo URL" value={repoUrl} onChange={e => setRepoUrl(e.target.value)} placeholder="https://github.com/..." />
       </div>
@@ -591,12 +658,12 @@ function ToolForm({ currentUser, existing, onClose, onSaved }: any) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+      <div className="rgrid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <Input label="Tool Name" value={name} onChange={e => setName(e.target.value)} placeholder="e.g., Cursor, Claude, Vercel" autoFocus />
         <Select label="Category" value={category} onChange={e => setCategory(e.target.value)}
           options={TOOL_CATEGORIES.map(c => ({ value: c, label: c }))} />
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+      <div className="rgrid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <Select label="Status" value={status} onChange={e => setStatus(e.target.value as ToolStatus)}
           options={[{ value: 'evaluating', label: 'Evaluating' }, { value: 'using', label: 'Using' }, { value: 'dropped', label: 'Dropped' }]} />
         <Input label="Monthly Cost (₹, 0 = free)" type="number" value={monthlyCost} onChange={e => setMonthlyCost(e.target.value)} placeholder="0" />
@@ -640,7 +707,7 @@ function SkillForm({ currentUser, existing, onClose, onSaved }: any) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+      <div className="rgrid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <Input label="Skill / Topic" value={name} onChange={e => setName(e.target.value)} placeholder="e.g., React Server Components" autoFocus />
         <Select label="Category" value={category} onChange={e => setCategory(e.target.value)}
           options={SKILL_CATEGORIES.map(c => ({ value: c, label: c }))} />

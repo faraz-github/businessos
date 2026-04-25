@@ -247,3 +247,663 @@ input, select, textarea { font-family: var(--font-body); }
 .metric-header-gap { margin-bottom: 10px; }
 /* Gap utilities to ensure Tailwind scanning */
 .gap-9 { gap: 36px; }
+
+/* ================================================================
+   RESPONSIVE SYSTEM — v3.5.3
+   Mobile-first breakpoints aligned with Tailwind v4:
+     sm: 640   md: 768   lg: 1024   xl: 1280
+   Strategy: keep existing inline styles intact; add parallel
+   className-driven responsive behavior via media queries below.
+   ================================================================ */
+
+:root {
+  --content-pad-x-mobile:  16px;
+  --content-pad-x-tablet:  24px;
+  --content-pad-x-desktop: 40px;
+  --sidebar-width-mobile:  280px; /* drawer width on phones */
+}
+
+/* ── Visibility helpers ── */
+.show-mobile  { display: none; }   /* shown < md */
+.show-tablet  { display: none; }   /* shown < lg */
+.hide-mobile  { }                   /* hidden < md */
+.hide-tablet  { }                   /* hidden < lg */
+
+@media (max-width: 767px) {
+  .hide-mobile { display: none !important; }
+  .show-mobile { display: initial; }
+  .show-mobile.flex   { display: flex !important; }
+  .show-mobile.block  { display: block !important; }
+  .show-mobile.inline-flex { display: inline-flex !important; }
+}
+@media (max-width: 1023px) {
+  .hide-tablet { display: none !important; }
+  .show-tablet { display: initial; }
+  .show-tablet.flex  { display: flex !important; }
+  .show-tablet.block { display: block !important; }
+  .show-tablet.inline-flex { display: inline-flex !important; }
+}
+
+/* ── Page container padding ──
+   Use via className on the <main> element or page roots.
+   Replaces hard-coded "padding: 28px 40px 48px".                 */
+.page-pad {
+  padding-left:   var(--content-pad-x-desktop);
+  padding-right:  var(--content-pad-x-desktop);
+  padding-top:    28px;
+  padding-bottom: 48px;
+}
+@media (max-width: 1023px) {
+  .page-pad {
+    padding-left:  var(--content-pad-x-tablet);
+    padding-right: var(--content-pad-x-tablet);
+  }
+}
+@media (max-width: 767px) {
+  .page-pad {
+    padding-left:  var(--content-pad-x-mobile);
+    padding-right: var(--content-pad-x-mobile);
+    padding-top:    16px;
+    /* Extra bottom padding leaves room for Android browser chrome
+       and future bottom-nav/install banner. safe-area-inset honors
+       iOS home-indicator on installed PWA. */
+    padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+/* ── Responsive grid helpers ──
+   Each helper assumes a default desktop layout and collapses at
+   the appropriate breakpoint. Pages keep their existing inline
+   `style={{ display: 'grid', gridTemplateColumns: ... }}` AND add
+   the matching class; the class wins at narrow widths via
+   higher specificity (inline style is overridden by !important). */
+
+/* 4-column metric grid — common for summary cards.
+   Desktop: 4 · Tablet: 2 · Mobile: 1 */
+.rgrid-4 { }
+@media (max-width: 1023px) {
+  .rgrid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+}
+@media (max-width: 639px) {
+  .rgrid-4 { grid-template-columns: 1fr !important; }
+}
+
+/* 3-column grid.  Desktop: 3 · Tablet: 2 · Mobile: 1 */
+.rgrid-3 { }
+@media (max-width: 1023px) {
+  .rgrid-3 { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+}
+@media (max-width: 639px) {
+  .rgrid-3 { grid-template-columns: 1fr !important; }
+}
+
+/* 2-column grid (1fr 1fr).  Desktop: 2 · Mobile: 1 */
+.rgrid-2 { }
+@media (max-width: 639px) {
+  .rgrid-2 { grid-template-columns: 1fr !important; }
+}
+
+/* Main + aside layout (e.g. home page: 1fr 296px).
+   Stacks below lg — aside appears below main. */
+.rgrid-main-aside { }
+@media (max-width: 1023px) {
+  .rgrid-main-aside {
+    grid-template-columns: 1fr !important;
+    gap: 20px !important;
+  }
+}
+
+/* Main + aside with aside ON THE LEFT (e.g. compose: 240px 1fr).
+   Stacks below lg — aside appears ABOVE main since it's first in
+   source order, which matches expectation when the aside is a
+   navigation or category list. */
+.rgrid-aside-main { }
+@media (max-width: 1023px) {
+  .rgrid-aside-main {
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+  }
+}
+
+/* 4-column compact (e.g. time-block type picker). Stays 2-col on
+   narrow phones rather than 1 — labels are too short to justify
+   a single column. */
+.rgrid-4-compact { }
+@media (max-width: 479px) {
+  .rgrid-4-compact { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+}
+
+/* Preserve grid (do NOT collapse). Use on inner grids that must
+   stay multi-column to avoid tall stacked forms, e.g. time-start /
+   time-end inputs that read better side-by-side even on mobile. */
+.rgrid-keep { }
+
+/* Form-row with trailing actions — e.g. `1fr auto auto` layouts
+   (text input + small input + add-button). On mobile, collapse
+   the main input to its own row and let the trailing controls
+   sit on a second row. Implemented via explicit track template. */
+.rgrid-form-row { }
+@media (max-width: 639px) {
+  .rgrid-form-row {
+    grid-template-columns: 1fr auto !important;
+    grid-auto-rows: auto;
+  }
+  /* The first child (the long text input) spans both columns
+     so it gets full width; remaining children (short input +
+     button) sit side-by-side below it. */
+  .rgrid-form-row > :first-child {
+    grid-column: 1 / -1;
+  }
+}
+
+/* Filter bar — horizontal flex row (search + pill filters + actions)
+   that gets squeezed on mobile. Apply this class on the flex row;
+   it wraps to multiple lines below sm so the search input claims
+   its own line and doesn't shrink below usability. */
+.filter-bar { }
+@media (max-width: 639px) {
+  .filter-bar { flex-wrap: wrap !important; }
+  /* When the filter bar wraps, its search input should claim
+     full width on its own row. Child with `flex: 1` already
+     stretches, but wrap lets it become full width. */
+  .filter-bar > *[style*="flex: 1"] {
+    min-width: 100% !important;
+    max-width: none !important;
+  }
+}
+
+/* ── Scroll containers for wide tables ──
+   Wrap wide row grids so they scroll horizontally inside the
+   card instead of forcing page overflow. */
+.scroll-x {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-gutter: stable;
+}
+.scroll-x > * {
+  /* Tables should retain their intrinsic min width inside the scroll area */
+  min-width: max-content;
+}
+
+/* ── Mobile: prevent iOS zoom-on-focus.
+   iOS Safari zooms when an input's font-size is below 16px. Raise
+   ONLY on mobile — desktop keeps the denser 13px design. */
+@media (max-width: 767px) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* ── Mobile: enlarge hit targets on sidebar + interactive rows.
+   The .sidebar-drawer class is applied to the <aside> at runtime;
+   desktop sidebar is unaffected. */
+@media (max-width: 1023px) {
+  .sidebar-drawer a,
+  .sidebar-drawer button {
+    min-height: 42px;
+  }
+}
+
+/* ── Sidebar drawer (< lg).
+   Desktop behavior is kept by the component's inline styles; at
+   tablet/mobile we override to fixed-position slide-in. */
+.sidebar-drawer-root {
+  /* Placeholder hook — the drawer is fully controlled by media
+     queries below acting on descendants. */
+}
+
+/* On narrow viewports the sidebar becomes a fixed drawer. */
+@media (max-width: 1023px) {
+  aside.ds-sidebar-responsive {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0;
+    bottom: 0;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    width: var(--sidebar-width-mobile) !important;
+    z-index: 120;
+    transform: translateX(-100%);
+    transition: transform 220ms cubic-bezier(0, 0, 0.2, 1);
+    box-shadow: 0 12px 48px rgba(0, 0, 0, 0.35);
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  aside.ds-sidebar-responsive.is-open {
+    transform: translateX(0);
+  }
+  /* Backdrop — rendered by the layout only when drawer is open. */
+  .sidebar-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 110;
+    background: rgba(0, 0, 0, 0.45);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    animation: ds-fade-in 180ms cubic-bezier(0, 0, 0.2, 1);
+  }
+}
+
+/* Desktop: explicitly hide the mobile-only hamburger + backdrop. */
+@media (min-width: 1024px) {
+  .mobile-only-hamburger { display: none !important; }
+  .sidebar-backdrop { display: none !important; }
+}
+
+/* ── Modal: full-viewport-safe on mobile ──
+   The Modal component keeps its inline maxWidth/maxHeight; these
+   rules apply via a `.ds-modal` class we attach so the card never
+   clips behind Android browser chrome or notches. */
+.ds-modal {
+  max-height: calc(100dvh - 32px) !important;
+}
+@media (max-width: 479px) {
+  .ds-modal {
+    max-height: calc(100dvh - 16px) !important;
+    max-width:  calc(100vw - 16px) !important;
+  }
+  .ds-modal-wrap {
+    padding: 8px !important;
+    /* Align to top so keyboard doesn't push content off-screen */
+    align-items: flex-start !important;
+    padding-top: calc(env(safe-area-inset-top, 0px) + 12px) !important;
+  }
+  /* Tighter internal padding on small phones — gives content
+     ~16–18px more horizontal room without feeling cramped. */
+  .ds-modal__header {
+    padding: 16px 16px 12px !important;
+  }
+  .ds-modal__body {
+    padding: 16px 16px 18px !important;
+  }
+}
+
+/* ── Toast: safe-area aware on mobile ── */
+.ds-toast-container {
+  /* Desktop position is set inline; these override on mobile. */
+}
+@media (max-width: 639px) {
+  .ds-toast-container {
+    left: 12px !important;
+    right: 12px !important;
+    bottom: calc(16px + env(safe-area-inset-bottom, 0px)) !important;
+    align-items: stretch !important;
+  }
+  .ds-toast-container > div {
+    max-width: none !important;
+  }
+}
+
+/* ── Touch-friendly tap targets on mobile ──
+   Applied via .touch-target class on interactive icons that
+   would otherwise be smaller than 40px square on phones. */
+@media (max-width: 767px) {
+  .touch-target { min-width: 40px; min-height: 40px; }
+}
+
+/* ── Overflow protection — avoid sideways page scroll on mobile ── */
+@media (max-width: 767px) {
+  html, body { overflow-x: hidden; }
+}
+
+/* ── TopBar: tighten horizontal padding on mobile.
+   The header's inline padding is '0 32px'; the .ds-topbar-mobile
+   class (applied to the <header>) triggers the override below
+   768px so the hamburger hugs the left edge and action buttons
+   fit comfortably. */
+@media (max-width: 767px) {
+  header.ds-topbar-mobile {
+    padding-left:  16px !important;
+    padding-right: 16px !important;
+  }
+}
+
+/* ================================================================
+   DENSE-ROW RESPONSIVE SYSTEM — v3.5.5
+   Structural reflow for list rows that combine:
+     avatar · title+meta · secondary-meta · status · actions
+   Desktop: unchanged (single-line flex row).
+   Tablet:  button labels collapse to icons (via .row-actions-compact).
+   Mobile:  two-row stacked layout — primary line above, meta chips
+            + actions below, destructive actions behind OverflowMenu.
+   ================================================================ */
+
+/* ── Root container ── */
+.dense-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  /* padding + background come from `.card` class applied alongside */
+  transition: background 150ms;
+}
+
+/* ── Slot: avatar / leading icon (fixed-size, stays top-left on mobile) ── */
+.dense-row__lead { flex-shrink: 0; }
+
+/* ── Slot: main body (title + meta) ── */
+.dense-row__body {
+  flex: 1;
+  min-width: 0; /* allow children to ellipsis / wrap */
+}
+
+/* ── Slot: primary title line ── */
+.dense-row__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 3px;
+  min-width: 0;
+}
+
+/* Name / title text — desktop: single-line ellipsis.
+   Mobile: allow wrapping up to 2 lines instead of truncating. */
+.dense-row__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+/* ── Slot: secondary meta line (company · date · category · etc.) ── */
+.dense-row__meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.dense-row__meta-sep {
+  color: var(--text-tertiary);
+  user-select: none;
+}
+
+/* ── Slot: trailing actions (buttons) ── */
+.dense-row__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+/* ================================================================
+   TABLET (768–1023): compress button labels to icons only.
+   Buttons opt into this by wrapping their text label in
+   <span className="row-btn-label">…</span>. Primary CTAs keep
+   their label via .row-btn-primary on the button itself.
+   ================================================================ */
+@media (max-width: 1023px) {
+  .dense-row__actions .row-btn-label { display: none; }
+  .dense-row__actions button.row-btn-primary .row-btn-label { display: inline; }
+  /* Tighten icon-only button padding so they don't look lopsided. */
+  .dense-row__actions button:not(.row-btn-primary) {
+    padding-left: 7px !important;
+    padding-right: 7px !important;
+    min-width: 34px;
+    justify-content: center;
+  }
+}
+
+/* ================================================================
+   MOBILE (< 768): restructure the row.
+   On mobile the row becomes a 2-row CSS grid:
+     Row 1: avatar + body (side-by-side)
+     Row 2: actions strip (full-width)
+   This keeps the avatar next to the title (natural reading order)
+   while letting actions wrap onto their own line. The .dense-row
+   itself switches from `display: flex` to `display: grid` below
+   the breakpoint.
+   ================================================================ */
+@media (max-width: 767px) {
+  .dense-row {
+    display: grid !important;
+    grid-template-columns: auto 1fr;
+    grid-template-areas:
+      "lead body"
+      "actions actions";
+    column-gap: 12px;
+    row-gap: 10px;
+    align-items: start;
+  }
+  .dense-row__lead    { grid-area: lead; }
+  .dense-row__body    { grid-area: body; min-width: 0; }
+  .dense-row__actions { grid-area: actions; }
+
+  /* The lead-body wrapper is a display:contents wrapper used ONLY
+     as a safety net so existing markup without explicit grid-area
+     classes still lays out sensibly. If present, it passes through
+     to its children. */
+  .dense-row__lead-body { display: contents; }
+
+  /* Wrapped name: stop ellipsis-truncating, allow 2 lines. */
+  .dense-row__name {
+    white-space: normal !important;
+    text-overflow: unset !important;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden !important;
+    line-height: 1.35;
+  }
+
+  /* Title row can wrap so pills don't overflow. */
+  .dense-row__title {
+    flex-wrap: wrap;
+    row-gap: 4px;
+  }
+
+  /* Meta chips: each direct text child becomes a subtle chip so
+     values remain individually legible when wrapped. */
+  .dense-row__meta { gap: 6px; flex-wrap: wrap; }
+  .dense-row__meta > .dense-row__meta-sep { display: none; }
+  .dense-row__meta > span:not(.dense-row__meta-sep):not(.chip-opt-out),
+  .dense-row__meta > p:not(.chip-opt-out) {
+    padding: 2px 8px;
+    background: var(--bg-hover);
+    border-radius: 100px;
+    font-size: 10px;
+    line-height: 1.4;
+    color: var(--text-secondary);
+    max-width: none !important;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Actions strip: full-width on its own row. Primary CTAs grow. */
+  .dense-row__actions {
+    width: 100%;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .dense-row__actions .row-btn-primary {
+    flex: 1;
+    justify-content: center;
+    padding: 8px 14px !important;
+    font-size: 12px !important;
+    min-height: 40px;
+  }
+  .dense-row__actions button:not(.row-btn-primary):not(.row-btn-keep-label) .row-btn-label {
+    display: none;
+  }
+  .dense-row__actions button:not(.row-btn-primary) {
+    min-width: 40px;
+    min-height: 40px;
+  }
+}
+
+/* ================================================================
+   CHIP — reusable pill used on mobile and for row-meta.
+   Can also be applied explicitly to desktop elements that should
+   always look like pills (e.g. service-type tags).
+   ================================================================ */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  background: var(--bg-hover);
+  border-radius: 100px;
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+.chip-opt-out { /* marker class: prevents mobile meta-chipping */ }
+
+/* ================================================================
+   OVERFLOW MENU — the trigger button + popover.
+   The popover itself is rendered by components/ui/OverflowMenu.tsx.
+   These styles give a consistent look across all list rows.
+   ================================================================ */
+.overflow-menu-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-default);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 150ms, color 150ms, border-color 150ms;
+}
+.overflow-menu-trigger:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+@media (max-width: 767px) {
+  .overflow-menu-trigger {
+    min-width: 40px;
+    min-height: 40px;
+  }
+}
+
+.overflow-menu-popover {
+  position: absolute;
+  z-index: 60;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-elevated);
+  padding: 4px;
+  min-width: 180px;
+  animation: ds-fade-up var(--duration-fast) var(--ease-out) both;
+}
+.overflow-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--text-primary);
+  cursor: pointer;
+  text-align: left;
+  transition: background 150ms, color 150ms;
+}
+.overflow-menu-item:hover {
+  background: var(--bg-hover);
+}
+.overflow-menu-item--danger:hover {
+  background: var(--accent-red-dim);
+  color: var(--accent-red);
+}
+.overflow-menu-item[disabled],
+.overflow-menu-item[aria-disabled="true"] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Hide overflow menu trigger on desktop where inline actions have room. */
+.overflow-menu-trigger.mobile-only {
+  display: none;
+}
+@media (max-width: 767px) {
+  .overflow-menu-trigger.mobile-only { display: flex; }
+  /* Conversely, buttons that should hide on mobile (they've been
+     moved into the overflow menu) opt in via .hide-on-mobile-row. */
+  .hide-on-mobile-row { display: none !important; }
+}
+
+/* ================================================================
+   PATCH v3.5.5.1 — issue fixes
+   ================================================================ */
+
+/* ── 1) Tabs that horizontally scroll on narrow screens ──
+   Apply `.tabs-scroll` to a tab strip whose buttons would otherwise
+   overflow. Each tab keeps its own width (no shrinking) and stays
+   on a single line. The strip becomes swipeable on touch screens.
+   Scrollbar is visually suppressed but accessibility/keyboard
+   focus still works for keyboard users. */
+.tabs-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;          /* Firefox */
+  scroll-snap-type: x proximity;
+  /* Subtle fade at right edge to hint there's more — only at narrow
+     widths where overflow is actually likely. */
+}
+.tabs-scroll::-webkit-scrollbar { display: none; }
+.tabs-scroll > * {
+  flex-shrink: 0 !important;       /* never let a tab squeeze */
+  white-space: nowrap !important;  /* prevent "Scope of Work" wrapping */
+  scroll-snap-align: start;
+}
+
+/* ── 2) Center icon buttons inside dense-row __actions on mobile ──
+   The mobile rule forces 40×40 minimum for tap targets, but inline
+   `display: flex` on most action buttons doesn't center the icon.
+   This catches all of them at once without touching every page. */
+@media (max-width: 767px) {
+  .dense-row__actions button:not(.row-btn-primary) {
+    align-items: center !important;
+    justify-content: center !important;
+  }
+}
+
+/* ── 3) Mobile rgrid columns must use minmax(0, 1fr) so wide
+   children can't blow out the grid column width. Implicit `1fr`
+   resolves to `minmax(auto, 1fr)`, where `auto` is the min-content
+   size — that's how a long subscription name was forcing the
+   "Recent Transactions" / "Upcoming Renewals" cards wider than the
+   viewport on the Finance page. */
+@media (max-width: 1023px) {
+  .rgrid-3 { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+}
+@media (max-width: 639px) {
+  .rgrid-4 { grid-template-columns: minmax(0, 1fr) !important; }
+  .rgrid-3 { grid-template-columns: minmax(0, 1fr) !important; }
+  .rgrid-2 { grid-template-columns: minmax(0, 1fr) !important; }
+}
+@media (max-width: 1023px) {
+  .rgrid-main-aside { grid-template-columns: minmax(0, 1fr) !important; gap: 20px !important; }
+  .rgrid-aside-main { grid-template-columns: minmax(0, 1fr) !important; gap: 20px !important; }
+}
+
+/* ── 4) Stacked signature controls on small phones ──
+   On mobile the signature preview (160×90) plus a flex:1 controls
+   column squeezes the tab strip and the description+Remove row
+   off-screen. Below 480px we stack the controls below the preview
+   so each gets full width. */
+.signature-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+}
+@media (max-width: 479px) {
+  .signature-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 14px;
+  }
+}

@@ -42,9 +42,9 @@ export function Modal({ open, onClose, title, description, children, size = 'md'
             transition={{ duration: 0.18 }}
             onClick={onClose}
           />
-          <div className="fixed inset-0 z-[101] flex items-center justify-center p-5">
+          <div className="ds-modal-wrap fixed inset-0 z-[101] flex items-center justify-center p-5">
             <motion.div
-              className="card-elevated flex flex-col overflow-hidden w-full"
+              className="ds-modal card-elevated flex flex-col overflow-hidden w-full"
               style={{ maxWidth: sizeMap[size], maxHeight: '88vh', boxShadow: 'var(--shadow-modal)' }}
               initial={{ opacity: 0, scale: 0.96, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -54,14 +54,16 @@ export function Modal({ open, onClose, title, description, children, size = 'md'
             >
               {/* Header */}
               {(title || description) && (
-                <div className="flex items-center justify-between shrink-0"
+                <div className="ds-modal__header flex items-center justify-between shrink-0"
                   style={{ padding: '20px 24px 16px' }}>
-                  <div>
+                  <div style={{ minWidth: 0, flex: 1 }}>
                     {title && <h2 className="t-h2">{title}</h2>}
                     {description && <p className="t-xs mt-1">{description}</p>}
                   </div>
                   <button
                     onClick={onClose}
+                    aria-label="Close"
+                    className="touch-target"
                     style={{
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                       width: 28, height: 28, borderRadius: 'var(--radius-sm)',
@@ -88,7 +90,7 @@ export function Modal({ open, onClose, title, description, children, size = 'md'
                 <div style={{ height: 1, background: 'var(--border-subtle)', flexShrink: 0 }} />
               )}
               {/* Body */}
-              <div className="flex-1 overflow-y-auto" style={{ padding: '20px 24px 24px' }}>{children}</div>
+              <div className="ds-modal__body flex-1 overflow-y-auto" style={{ padding: '20px 24px 24px' }}>{children}</div>
             </motion.div>
           </div>
         </>

@@ -1,11 +1,11 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useBrand } from '@/lib/brand';
 import { useCurrentUser } from '@/lib/auth/use-auth';
 import { createClient } from '@/lib/supabase/client';
 import { PageTransition } from '@/components/dashboard/PageTransition';
-import { Button, Modal, Input, Textarea, Select } from '@/components/ui';
+import { Button, Modal, Input, Textarea, Select, OverflowMenu, LoadMore, useLoadMore } from '@/components/ui';
 import { toast } from '@/components/ui/Toast';
 import { formatDate, buildMailtoLink, buildWhatsAppLink } from '@/lib/utils';
 import {
@@ -78,16 +78,20 @@ export default function PersonalFeedbackPage() {
   // Stats
   const portfolioCount  = testimonials.filter(t => t.portfolio_usable).length;
   const uniqueClients   = new Set(testimonials.map(t => t.client_id)).size;
-  const eligibleClients = clients.filter(c =>
+  const eligibleClients = useMemo(() => clients.filter(c =>
     FEEDBACK_ELIGIBLE_STAGES.includes(c.current_stage || '')
-  );
+  ), [clients]);
 
   // Filter testimonials
-  const filtered = testimonials.filter(t => {
+  const filtered = useMemo(() => testimonials.filter(t => {
     if (filterMode === 'portfolio') return t.portfolio_usable;
     if (filterMode === 'private')   return !t.portfolio_usable;
     return true;
-  });
+  }), [testimonials, filterMode]);
+
+  // Pagination
+  const testimonialsPage = useLoadMore(filtered,        { pageSize: 20 });
+  const eligiblePage     = useLoadMore(eligibleClients, { pageSize: 10 });
 
   return (
     <PageTransition>
@@ -103,7 +107,7 @@ export default function PersonalFeedbackPage() {
         </div>
 
         {/* Stats */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+        <div className="rgrid-3" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
           {[
             { label: 'Total', value: testimonials.length, color: 'var(--accent-violet)', sub: 'testimonials collected' },
             { label: 'Portfolio-ready', value: portfolioCount, color: 'var(--accent-green)', sub: 'approved for public use' },
@@ -130,28 +134,37 @@ export default function PersonalFeedbackPage() {
             </p>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {eligibleClients.map(client => (
-                <div key={client.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: 'var(--bg-hover)', borderRadius: 'var(--radius-md)', transition: 'background 150ms' }}
+              {eligiblePage.paginated.map(client => (
+                <div key={client.id} className="dense-row" style={{ padding: '10px 14px', background: 'var(--bg-hover)', borderRadius: 'var(--radius-md)' }}
                   onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-elevated)'; }}
                   onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}>
                   {/* Avatar */}
-                  <div style={{ width: 30, height: 30, borderRadius: '50%', background: 'var(--accent-violet-dim)', color: 'var(--accent-violet)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, fontFamily: 'var(--font-display)', flexShrink: 0 }}>
+                  <div className="dense-row__lead" style={{ width: 30, height: 30, borderRadius: '50%', background: 'var(--accent-violet-dim)', color: 'var(--accent-violet)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, fontFamily: 'var(--font-display)' }}>
                     {client.name[0].toUpperCase()}
                   </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <p className="t-xs-medium" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{client.name}</p>
-                    {client.contact_email && <p className="t-2xs text-tertiary" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{client.contact_email}</p>}
+                  <div className="dense-row__body">
+                    <div className="dense-row__title">
+                      <span className="t-xs-medium dense-row__name">{client.name}</span>
+                    </div>
+                    {client.contact_email && (
+                      <div className="dense-row__meta">
+                        <span className="t-2xs text-tertiary">{client.contact_email}</span>
+                      </div>
+                    )}
                   </div>
-                  <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                  <div className="dense-row__actions">
                     <button onClick={() => setComposingFor(client)}
-                      style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-default)', background: 'transparent', color: 'var(--text-secondary)', fontSize: 11, fontFamily: 'var(--font-body)', cursor: 'pointer', transition: 'all 150ms', whiteSpace: 'nowrap' }}
+                      className="row-btn-primary"
+                      style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-default)', background: 'transparent', color: 'var(--text-secondary)', fontSize: 11, fontFamily: 'var(--font-body)', cursor: 'pointer', transition: 'all 150ms' }}
                       onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--accent-violet)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--accent-violet)'; }}
                       onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-secondary)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--border-default)'; }}>
-                      <MessageCircle size={11} /> Request
+                      <MessageCircle size={11} /> <span className="row-btn-label">Request</span>
                     </button>
                   </div>
                 </div>
               ))}
+              <LoadMore hasMore={eligiblePage.hasMore} onLoadMore={eligiblePage.loadMore}
+                shown={eligiblePage.shown} total={eligiblePage.total} showFooter={false} />
             </div>
           )}
         </div>
@@ -188,71 +201,69 @@ export default function PersonalFeedbackPage() {
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {filtered.map(t => (
-                <div key={t.id} className="card" style={{ padding: '16px 20px', transition: 'background 150ms' }}
+              {testimonialsPage.paginated.map(t => (
+                <div key={t.id} className="card dense-row" style={{ padding: '16px 20px', alignItems: 'flex-start' }}
                   onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
                   onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = ''; }}>
 
-                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
-                    {/* Quote icon */}
-                    <div style={{ width: 32, height: 32, borderRadius: 'var(--radius-sm)', background: 'var(--accent-violet-dim)', color: 'var(--accent-violet)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>
-                      <Quote size={14} />
-                    </div>
+                  {/* Quote icon */}
+                  <div className="dense-row__lead" style={{ width: 32, height: 32, borderRadius: 'var(--radius-sm)', background: 'var(--accent-violet-dim)', color: 'var(--accent-violet)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: 1 }}>
+                    <Quote size={14} />
+                  </div>
 
-                    {/* Content */}
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <p className="t-sm text-primary" style={{ fontStyle: 'italic', lineHeight: 1.65, marginBottom: 10 }}>
-                        "{t.content}"
-                      </p>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                        {/* Client name */}
-                        <span className="t-xs-medium">{t.clients?.name}</span>
-                        <span className="t-2xs text-tertiary">·</span>
-                        {/* Date */}
-                        <span className="t-2xs text-tertiary">{formatDate(t.received_at)}</span>
-                        <span className="t-2xs text-tertiary">·</span>
-                        {/* Source */}
-                        <span style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', padding: '2px 7px', borderRadius: 100, border: '1px solid var(--border-default)', color: 'var(--text-secondary)' }}>
-                          {SOURCE_LABELS[t.source] || t.source}
+                  {/* Content */}
+                  <div className="dense-row__body">
+                    <p className="t-sm text-primary chip-opt-out" style={{ fontStyle: 'italic', lineHeight: 1.65, marginBottom: 10 }}>
+                      "{t.content}"
+                    </p>
+                    <div className="dense-row__meta">
+                      <span className="t-xs-medium">{t.clients?.name}</span>
+                      <span className="t-2xs text-tertiary">{formatDate(t.received_at)}</span>
+                      <span className="chip-opt-out" style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', padding: '2px 7px', borderRadius: 100, border: '1px solid var(--border-default)', color: 'var(--text-secondary)' }}>
+                        {SOURCE_LABELS[t.source] || t.source}
+                      </span>
+                      {t.portfolio_usable && (
+                        <span className="chip-opt-out" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', padding: '2px 8px', borderRadius: 100, background: 'var(--accent-green-dim)', color: 'var(--accent-green)' }}>
+                          <Star size={9} /> Portfolio
                         </span>
-                        {/* Portfolio badge */}
-                        {t.portfolio_usable && (
-                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', padding: '2px 8px', borderRadius: 100, background: 'var(--accent-green-dim)', color: 'var(--accent-green)' }}>
-                            <Star size={9} /> Portfolio
-                          </span>
-                        )}
-                      </div>
+                      )}
                     </div>
+                  </div>
 
-                    {/* Actions */}
-                    <div style={{ display: 'flex', gap: 5, flexShrink: 0, marginTop: 1 }}>
-                      <button onClick={() => handleCopy(t.content, t.id)} title="Copy testimonial"
-                        style={{ display: 'flex', padding: '5px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-default)', background: 'transparent', color: copied === t.id ? 'var(--accent-green)' : 'var(--text-tertiary)', cursor: 'pointer', transition: 'all 150ms' }}
-                        onMouseEnter={e => { if (copied !== t.id) { (e.currentTarget as HTMLElement).style.color = 'var(--text-primary)'; } }}
-                        onMouseLeave={e => { if (copied !== t.id) { (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)'; } }}>
-                        {copied === t.id ? <Check size={12} /> : <Copy size={12} />}
-                      </button>
-                      <button onClick={() => setEditingT(t)} title="Edit"
-                        style={{ display: 'flex', padding: '5px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-default)', background: 'transparent', color: 'var(--text-tertiary)', cursor: 'pointer', transition: 'all 150ms' }}
-                        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--accent-blue)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--accent-blue)'; }}
-                        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--border-default)'; }}>
-                        <Pencil size={12} />
-                      </button>
-                      <button onClick={() => handleDelete(t.id)} title="Delete"
-                        style={{ display: 'flex', padding: '5px', borderRadius: 'var(--radius-sm)', border: 'none', background: 'transparent', color: 'var(--text-tertiary)', cursor: 'pointer', transition: 'color 150ms' }}
-                        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--accent-red)'; }}
-                        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)'; }}>
-                        <Trash2 size={12} />
-                      </button>
-                    </div>
+                  {/* Actions */}
+                  <div className="dense-row__actions" style={{ marginTop: 1 }}>
+                    <button onClick={() => handleCopy(t.content, t.id)} aria-label="Copy testimonial"
+                      style={{ display: 'flex', padding: '5px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-default)', background: 'transparent', color: copied === t.id ? 'var(--accent-green)' : 'var(--text-tertiary)', cursor: 'pointer', transition: 'all 150ms' }}
+                      onMouseEnter={e => { if (copied !== t.id) { (e.currentTarget as HTMLElement).style.color = 'var(--text-primary)'; } }}
+                      onMouseLeave={e => { if (copied !== t.id) { (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)'; } }}>
+                      {copied === t.id ? <Check size={12} /> : <Copy size={12} />}
+                    </button>
+                    <button onClick={() => setEditingT(t)} aria-label="Edit"
+                      style={{ display: 'flex', padding: '5px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-default)', background: 'transparent', color: 'var(--text-tertiary)', cursor: 'pointer', transition: 'all 150ms' }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--accent-blue)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--accent-blue)'; }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--border-default)'; }}>
+                      <Pencil size={12} />
+                    </button>
+                    <button onClick={() => handleDelete(t.id)} aria-label="Delete"
+                      className="hide-on-mobile-row"
+                      style={{ display: 'flex', padding: '5px', borderRadius: 'var(--radius-sm)', border: 'none', background: 'transparent', color: 'var(--text-tertiary)', cursor: 'pointer', transition: 'color 150ms' }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--accent-red)'; }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)'; }}>
+                      <Trash2 size={12} />
+                    </button>
+                    <OverflowMenu
+                      items={[
+                        { label: 'Delete testimonial', icon: <Trash2 size={14} />, onClick: () => handleDelete(t.id), destructive: true },
+                      ]}
+                    />
                   </div>
                 </div>
               ))}
+              <LoadMore hasMore={testimonialsPage.hasMore} onLoadMore={testimonialsPage.loadMore}
+                shown={testimonialsPage.shown} total={testimonialsPage.total} />
             </div>
           )}
         </div>
-
-        {/* Modals */}
         {showAdd && (
           <TestimonialModal mode={mode} clients={clients} currentUser={currentUser}
             onClose={() => setShowAdd(false)}
@@ -327,7 +338,7 @@ function TestimonialModal({ mode, clients, currentUser, existing, onClose, onSav
           value={clientId} onChange={e => setClientId(e.target.value)} />
         <Textarea label="What did they say?" value={content} onChange={e => setContent(e.target.value)}
           placeholder="Paste the testimonial or write what they said..." style={{ minHeight: 120 }} />
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <div className="rgrid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <Select label="Source" options={[
             { value: 'direct', label: 'Direct (in-person / call)' },
             { value: 'linkedin', label: 'LinkedIn' },

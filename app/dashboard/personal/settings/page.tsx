@@ -130,11 +130,11 @@ function MemberModal({ member, isSelfEdit, onClose, onSaved }: {
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', display: 'flex' }}><X size={18} /></button>
         </div>
         <div style={{ padding: '8px 24px 16px', display: 'flex', flexDirection: 'column', gap: 16, maxHeight: '70vh', overflowY: 'auto' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+          <div className="rgrid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
             <Input label="Full Name" value={name} onChange={e => setName(e.target.value)} placeholder="Jane Smith" />
             <Input label="Email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="jane@company.com" />
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+          <div className="rgrid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
             <Input label={isEdit ? 'New Password (leave blank to keep)' : 'Password'} type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Min 8 characters" />
             <Input label="Confirm Password" type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="Repeat password" />
           </div>
@@ -679,7 +679,7 @@ function BrandTab() {
             <p className="t-2xs text-tertiary" style={{ margin: 0 }}>Reusable signature or stamp for your {activeMode === 'personal' ? 'personal' : 'agency'} documents</p>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 20 }}>
+          <div className="signature-row">
             {/* Preview */}
             <div style={{
               width: 160, height: 90, borderRadius: 'var(--radius-md)',
@@ -796,7 +796,7 @@ function BrandTab() {
         {/* Section 1: Identity */}
         <div>
           <p className="t-label section-gap">Identity</p>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+          <div className="rgrid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
             <Input label="Business Name" {...register('business_name')} error={errors.business_name?.message} placeholder="Your name or business name" />
             <Input label="Tagline" {...register('tagline')} placeholder="What you do in one line" />
             <Input label="Email" type="email" {...register('email')} placeholder="hello@yourbrand.com" />
@@ -809,7 +809,7 @@ function BrandTab() {
         {/* Section 2: Brand */}
         <div>
           <p className="t-label section-gap">Brand</p>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 20 }}>
+          <div className="rgrid-3" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 20 }}>
             <ColorPicker label="Primary Colour" value={primaryColour} onChange={v => setValue('primary_colour', v)} />
             <ColorPicker label="Secondary Colour" value={secondaryColour} onChange={v => setValue('secondary_colour', v)} />
             <Select label="Tone of Voice" {...register('tone')} options={[
@@ -823,7 +823,7 @@ function BrandTab() {
         {/* Section 3: Payment */}
         <div>
           <p className="t-label section-gap">Payment Details</p>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+          <div className="rgrid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
             <Input label="Bank Name" {...register('bank_name')} placeholder="HDFC / SBI / ICICI..." />
             <Input label="Account Number" {...register('bank_account_number')} placeholder="Account number" />
             <Input label="IFSC Code" {...register('bank_ifsc')} placeholder="HDFC0001234" />
@@ -1372,7 +1372,7 @@ export default function SettingsPage() {
         </div>
 
         {/* Tab switcher — underline style, not pill */}
-        <div style={{ display: 'flex', borderBottom: '1px solid var(--border-subtle)', gap: 0 }}>
+        <div className="tabs-scroll" style={{ display: 'flex', borderBottom: '1px solid var(--border-subtle)', gap: 0 }}>
           {tabs.map(tab => (
             <button
               key={tab.value}

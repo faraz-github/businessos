@@ -515,6 +515,7 @@ export interface Database {
           title: string | null;
           content: string | null;
           planned_date: string | null;
+          posted_at: string | null;
           status: DbSocialPostStatus;
           engagement_notes: string | null;
           created_at: string;
@@ -528,6 +529,7 @@ export interface Database {
           title?: string | null;
           content?: string | null;
           planned_date?: string | null;
+          posted_at?: string | null;
           status?: DbSocialPostStatus;
           engagement_notes?: string | null;
           created_at?: string;
@@ -541,6 +543,7 @@ export interface Database {
           title?: string | null;
           content?: string | null;
           planned_date?: string | null;
+          posted_at?: string | null;
           status?: DbSocialPostStatus;
           engagement_notes?: string | null;
           created_at?: string;

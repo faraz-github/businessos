@@ -7,6 +7,7 @@ import { Modal } from '@/components/ui/Modal';
 import { Select } from '@/components/ui/Select';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
+import { LoadMore, useLoadMore } from '@/components/ui/LoadMore';
 import { toast } from '@/components/ui/Toast';
 import { Sparkline } from '@/components/charts/Sparkline';
 import { PageTransition } from '@/components/dashboard/PageTransition';
@@ -127,6 +128,13 @@ export function PersonalHomeClient({ attentionItems, stats, priorities: initialP
   const [showAddBlock, setShowAddBlock]     = useState(false);
   const [currentTime, setCurrentTime]       = useState(new Date());
 
+  // Pagination — both lists generate quickly; cap initial render
+  // so users with lots of overdue invoices / quick-logs aren't
+  // forced to scroll through everything to reach the rest of the
+  // dashboard.
+  const attention = useLoadMore(attentionItems, { pageSize: 20 });
+  const logs      = useLoadMore(recentLogs,     { pageSize: 20 });
+
   // Update current time every minute for accurate block highlighting
   useEffect(() => {
     const t = setInterval(() => setCurrentTime(new Date()), 60000);
@@ -246,7 +254,7 @@ export function PersonalHomeClient({ attentionItems, stats, priorities: initialP
         </div>
 
         {/* Two-column layout */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 296px', gap: 28, alignItems: 'start' }}>
+        <div className="rgrid-main-aside" style={{ display: 'grid', gridTemplateColumns: '1fr 296px', gap: 28, alignItems: 'start' }}>
 
           {/* ── LEFT ── */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
@@ -264,15 +272,19 @@ export function PersonalHomeClient({ attentionItems, stats, priorities: initialP
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {attentionItems.map((item, i) => <AttentionCard key={item.id} item={item} index={i} />)}
+                  {attention.paginated.map((item, i) => <AttentionCard key={item.id} item={item} index={i} />)}
                 </div>
+              )}
+              {attentionItems.length > 0 && (
+                <LoadMore hasMore={attention.hasMore} onLoadMore={attention.loadMore}
+                  shown={attention.shown} total={attention.total} />
               )}
             </div>
 
             {/* Business Health */}
             <div>
               <p className="t-label" style={{ marginBottom: 12 }}>Business Health</p>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div className="rgrid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
 
                 {/* Money */}
                 <MetricCard icon={<IndianRupee size={15} />} iconColor="var(--accent-green)"
@@ -414,9 +426,9 @@ export function PersonalHomeClient({ attentionItems, stats, priorities: initialP
                 </p>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
-                  {recentLogs.map((log, i) => (
+                  {logs.paginated.map((log, i) => (
                     <div key={log.id}
-                      style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '8px 0', borderBottom: i < recentLogs.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}
+                      style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '8px 0', borderBottom: i < logs.paginated.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}
                       onMouseEnter={e => { (e.currentTarget.querySelector('.log-del') as HTMLElement | null)?.style.setProperty('opacity', '1'); }}
                       onMouseLeave={e => { (e.currentTarget.querySelector('.log-del') as HTMLElement | null)?.style.setProperty('opacity', '0'); }}>
                       <div style={{ flex: 1, minWidth: 0 }}>
@@ -432,6 +444,10 @@ export function PersonalHomeClient({ attentionItems, stats, priorities: initialP
                     </div>
                   ))}
                 </div>
+              )}
+              {recentLogs.length > 0 && (
+                <LoadMore hasMore={logs.hasMore} onLoadMore={logs.loadMore}
+                  shown={logs.shown} total={logs.total} />
               )}
             </div>
           </div>
@@ -469,7 +485,7 @@ function AddTimeBlockModal({ open, onClose, onAdd }: {
         {/* Block type — visual picker */}
         <div>
           <label className="t-label" style={{ display: 'block', marginBottom: 8 }}>Block Type</label>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
+          <div className="rgrid-4-compact" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
             {[
               { value: 'deep',     label: 'Deep Work',  color: 'var(--accent-blue)' },
               { value: 'outreach', label: 'Outreach',   color: 'var(--accent-green)' },

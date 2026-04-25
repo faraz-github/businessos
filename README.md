@@ -1,95 +1,31 @@
-# Business OS
+# Business OS v3.5.6
 
-Personal & Agency Business Operating System — built for a freelance developer and designer transitioning into an agency.
+Two new features on top of v3.5.5.1:
 
-## Stack
+1. **Load More across every long list** — Home, Social, Finance, Clients, Lab, Feedback, Support, BD Pipeline. Default page size 20 (or 10 for slower-growing lists). Includes a search/filter-aware reset so the page counter doesn't go stale after filtering.
+2. **"Posted Date and Time" on Content Calendar posts** — appears conditionally when status is set to Published; auto-fills to current time on first transition; quick-publish (✓ icon) auto-stamps server-side.
 
-- **Framework:** Next.js 16 (App Router)
-- **Language:** TypeScript 5
-- **Styling:** Tailwind CSS 4 + Custom Design System (DASH.DS)
-- **Database:** Supabase (PostgreSQL + Auth + Storage + Realtime)
-- **Auth:** @supabase/ssr (server-side sessions)
-- **Forms:** React Hook Form + Zod
-- **Charts:** Recharts
-- **Animation:** Framer Motion
-- **Package Manager:** pnpm
+See `RELEASE-NOTES-v3.5.6.md` for full details, file list, design rationale, and verification steps.
 
-## Getting Started
+## Applying
 
-### 1. Install dependencies
-
-```bash
-pnpm install
+```
+unzip business-os-v3.5.6.zip -d /path/to/business-os/
 ```
 
-### 2. Set up Supabase
+**Important: run the database migration first.**
 
-Create a Supabase project at [supabase.com](https://supabase.com). Copy your project URL and anon key.
+`supabase/migrations-incremental/022_social_posts_posted_at.sql` adds the `posted_at` column to `social_posts`, backfills existing published posts from `planned_date`, and adds an index for sorting by publication time. It's idempotent (`IF NOT EXISTS` guards).
 
-```bash
-cp .env.local.example .env.local
-# Edit .env.local with your Supabase credentials
+If you use the Supabase CLI:
 ```
-
-### 3. Run migrations
-
-Using Supabase CLI:
-
-```bash
 supabase db push
 ```
 
-Or run the SQL files manually in the Supabase SQL editor:
-1. `supabase/migrations/001_schema.sql` — Tables, indexes, triggers
-2. `supabase/migrations/002_rls_policies.sql` — RLS policies, storage bucket
+Or paste it into the Supabase SQL editor and run.
 
-### 4. Start development server
+After the migration is applied, the new code reads/writes `posted_at` automatically. Existing posts will show a sensible "Posted" date thanks to the backfill.
 
-```bash
-pnpm dev
-```
+## Total scope
 
-Open [http://localhost:3000](http://localhost:3000).
-
-## Architecture
-
-### Two Modes
-- **Personal** — Private workspace for the owner
-- **Agency** — Supports role-based access (owner + BD)
-
-### Key Features
-- Brand Settings (Personal + Agency profiles)
-- Attention Feed (auto-generated action items)
-- Client Pipeline (17-stage project lifecycle)
-- Document Engine (6 doc types with PDF + e-signature)
-- Composers (Email + WhatsApp templates)
-- Social Brand Management (LinkedIn + GitHub)
-- Finance (Invoices, Transactions, Subscriptions)
-- BD Pipeline (Kanban with Supabase Realtime)
-
-### Data Isolation
-All data is scoped by `user_id` and `mode` (personal/agency). RLS policies enforce this at the database level.
-
-## File Structure
-
-```
-app/
-  dashboard/
-    personal/     — Personal dashboard pages
-    agency/       — Agency dashboard pages
-    actions/      — Server actions
-  auth/           — Login + callback
-  doc/[token]/    — Public document view + e-signature
-components/
-  ui/             — Primitives (Button, Input, Card, Modal, etc.)
-  dashboard/      — Layout (Sidebar, TopBar, ModeSwitch)
-  charts/         — Recharts wrappers
-lib/
-  supabase/       — Client, server, middleware
-  brand/          — Brand context + hooks
-  utils/          — Formatting, dates, currency
-types/            — TypeScript types + Zod schemas
-hooks/            — Custom React hooks
-supabase/
-  migrations/     — SQL migration files
-```
+32 files (3 new, 29 modified). Includes all carry-over content from v3.5.4, v3.5.5, and v3.5.5.1, so this is a self-contained drop-in replacement on any v3.5.x base.

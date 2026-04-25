@@ -4,11 +4,12 @@ import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useBrand } from '@/lib/brand';
 import { useCurrentUser, userCanAccess, clearUserCache } from '@/lib/auth/use-auth';
+import { useMobileNav } from './MobileNavContext';
 import { ModeSwitch } from './ModeSwitch';
 import {
   Home, Linkedin, Users, FileText, MessageSquare, MessageCircle,
   Shield, IndianRupee, Settings, Kanban, LogOut,
-  FlaskConical, Share2, Calendar,
+  FlaskConical, Share2, Calendar, X,
 } from 'lucide-react';
 
 interface NavItem { label: string; href: string; icon: React.ReactNode; section: string; }
@@ -89,6 +90,7 @@ export function Sidebar() {
   const router   = useRouter();
   const { mode, brand } = useBrand();
   const { user } = useCurrentUser();
+  const { open: navOpen, setOpen: setNavOpen } = useMobileNav();
   const isSuperAdmin = user?.role === 'superadmin';
 
   const allSections = mode === 'personal' ? getPersonalNav() : getAgencyNav();
@@ -110,7 +112,7 @@ export function Sidebar() {
 
   return (
     <aside
-      className="flex flex-col bg-surface shrink-0 sticky top-0 overflow-y-auto"
+      className={`ds-sidebar-responsive sidebar-drawer flex flex-col bg-surface shrink-0 sticky top-0 overflow-y-auto${navOpen ? ' is-open' : ''}`}
       style={{ width: 'var(--sidebar-width)', minHeight: '100vh', maxHeight: '100vh', borderRight: '1px solid var(--border-subtle)' }}
     >
       {/* Brand row — mirrors topbar height */}
@@ -123,9 +125,24 @@ export function Sidebar() {
             {initial}
           </div>
         )}
-        <span className="t-sm-semibold truncate">
+        <span className="t-sm-semibold truncate" style={{ flex: 1 }}>
           {brand?.business_name || (mode === 'personal' ? 'Personal' : 'Agency')}
         </span>
+        {/* Close button — only visible on tablet/mobile when the drawer is open.
+            The .hide-tablet class hides it at >= lg via globals.css. */}
+        <button
+          className="show-tablet inline-flex touch-target"
+          onClick={() => setNavOpen(false)}
+          aria-label="Close navigation"
+          style={{
+            alignItems: 'center', justifyContent: 'center',
+            width: 32, height: 32, borderRadius: 'var(--radius-sm)',
+            background: 'transparent', border: '1px solid var(--border-subtle)',
+            color: 'var(--text-secondary)', cursor: 'pointer', flexShrink: 0,
+          }}
+        >
+          <X size={14} />
+        </button>
       </div>
 
       {/* Mode switch */}

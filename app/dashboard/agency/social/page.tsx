@@ -2,14 +2,14 @@
 // Contacts pipeline is handled inside BD Pipeline (Contacts tab).
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useBrand } from '@/lib/brand';
 import { useCurrentUser } from '@/lib/auth/use-auth';
 import { createClient } from '@/lib/supabase/client';
 import { PageTransition } from '@/components/dashboard/PageTransition';
-import { Button, Input, Textarea, Select, Modal } from '@/components/ui';
+import { Button, Input, Textarea, Select, Modal, OverflowMenu, LoadMore, useLoadMore } from '@/components/ui';
 import { toast } from '@/components/ui/Toast';
-import { formatDate } from '@/lib/utils';
+import { formatDate, formatDateTime } from '@/lib/utils';
 import {
   Plus, Calendar, Lightbulb, Check, Pencil, Trash2, ArrowRight,
   Linkedin, Instagram, Share2,
@@ -84,6 +84,12 @@ export default function AgencyContentPage() {
   const drafts    = posts.filter(p => p.status === 'draft').length;
   const ideas     = posts.filter(p => p.status === 'idea').length;
 
+  // Memoized lists + pagination
+  const scheduledPosts = useMemo(() => posts.filter(p => p.status !== 'idea'), [posts]);
+  const ideaPosts      = useMemo(() => posts.filter(p => p.status === 'idea'), [posts]);
+  const scheduledPage  = useLoadMore(scheduledPosts, { pageSize: 20 });
+  const ideaPage       = useLoadMore(ideaPosts,      { pageSize: 10 });
+
   return (
     <PageTransition>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
@@ -98,7 +104,7 @@ export default function AgencyContentPage() {
         </div>
 
         {/* Stats */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
+        <div className="rgrid-4" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
           {([
             { label: 'Published this month', value: thisMonth, color: 'var(--accent-green)' },
             { label: 'Scheduled',            value: scheduled, color: 'var(--accent-blue)' },
@@ -113,7 +119,7 @@ export default function AgencyContentPage() {
         </div>
 
         {/* Calendar + Ideas layout */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: 24, alignItems: 'start' }}>
+        <div className="rgrid-main-aside" style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: 24, alignItems: 'start' }}>
 
           {/* Scheduled & Published — left */}
           <div>
@@ -131,58 +137,72 @@ export default function AgencyContentPage() {
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {posts.filter(p => p.status !== 'idea').map(post => {
+                {scheduledPage.paginated.map(post => {
                   const statusColor = post.status === 'published' ? 'var(--accent-green)'
                     : post.status === 'scheduled' ? 'var(--accent-blue)' : 'var(--accent-amber)';
                   const platCfg = PLATFORM_MAP[post.platform] || PLATFORM_MAP.other;
                   return (
-                    <div key={post.id} className="card"
-                      style={{ padding: '13px 18px', display: 'flex', alignItems: 'center', gap: 12, transition: 'background 150ms' }}
+                    <div key={post.id} className="card dense-row"
+                      style={{ padding: '13px 18px' }}
                       onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
                       onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = ''; }}>
-                      <div style={{ width: 3, alignSelf: 'stretch', borderRadius: 2, background: statusColor, flexShrink: 0 }} />
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
-                          <p className="t-xs-medium" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <div className="dense-row__lead" style={{ width: 3, alignSelf: 'stretch', borderRadius: 2, background: statusColor }} />
+                      <div className="dense-row__body">
+                        <div className="dense-row__title">
+                          <span className="t-xs-medium dense-row__name">
                             {post.title || 'Untitled'}
-                          </p>
-                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10, fontWeight: 600, color: platCfg.color, background: `${platCfg.color}14`, padding: '1px 7px', borderRadius: 100, flexShrink: 0 }}>
+                          </span>
+                          <span className="chip-opt-out" style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10, fontWeight: 600, color: platCfg.color, background: `${platCfg.color}14`, padding: '1px 7px', borderRadius: 100, flexShrink: 0 }}>
                             {platCfg.icon} {platCfg.label}
                           </span>
                         </div>
-                        <p className="t-2xs text-tertiary">
-                          {post.planned_date ? formatDate(post.planned_date) : 'No date set'}
-                        </p>
+                        <div className="dense-row__meta">
+                          <span className="t-2xs text-tertiary">
+                            {post.status === 'published' && post.posted_at
+                              ? `Posted ${formatDateTime(post.posted_at)}`
+                              : post.planned_date ? `Planned ${formatDate(post.planned_date)}` : 'No date set'}
+                          </span>
+                        </div>
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                        <span style={{ padding: '2px 8px', borderRadius: 100, fontSize: 10, fontWeight: 600, textTransform: 'capitalize' as const, background: `${statusColor}14`, color: statusColor }}>
+                      <div className="dense-row__actions">
+                        <span className="chip-opt-out" style={{ padding: '2px 8px', borderRadius: 100, fontSize: 10, fontWeight: 600, textTransform: 'capitalize' as const, background: `${statusColor}14`, color: statusColor }}>
                           {post.status}
                         </span>
                         {post.status !== 'published' && (
-                          <button onClick={() => updatePostStatus(post.id, 'published')} title="Mark published"
-                            style={{ display: 'flex', padding: 4, borderRadius: 'var(--radius-sm)', border: 'none', background: 'transparent', color: 'var(--text-tertiary)', cursor: 'pointer', transition: 'color 150ms' }}
+                          <button onClick={() => updatePostStatus(post.id, 'published')} aria-label="Mark published"
+                            style={{ display: 'flex', alignItems: 'center', gap: 4, padding: 4, borderRadius: 'var(--radius-sm)', border: 'none', background: 'transparent', color: 'var(--text-tertiary)', cursor: 'pointer', transition: 'color 150ms' }}
                             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--accent-green)'; }}
                             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)'; }}>
-                            <Check size={13} />
+                            <Check size={13} /><span className="row-btn-label">Publish</span>
                           </button>
                         )}
-                        <button onClick={() => setEditingPost(post)}
-                          style={{ display: 'flex', padding: 4, borderRadius: 'var(--radius-sm)', border: 'none', background: 'transparent', color: 'var(--text-tertiary)', cursor: 'pointer', transition: 'color 150ms' }}
+                        <button onClick={() => setEditingPost(post)} aria-label="Edit"
+                          style={{ display: 'flex', alignItems: 'center', gap: 4, padding: 4, borderRadius: 'var(--radius-sm)', border: 'none', background: 'transparent', color: 'var(--text-tertiary)', cursor: 'pointer', transition: 'color 150ms' }}
                           onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--accent-blue)'; }}
                           onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)'; }}>
-                          <Pencil size={13} />
+                          <Pencil size={13} /><span className="row-btn-label">Edit</span>
                         </button>
-                        <button onClick={() => deletePost(post.id)}
+                        <button onClick={() => deletePost(post.id)} aria-label="Delete"
+                          className="hide-on-mobile-row"
                           style={{ display: 'flex', padding: 4, borderRadius: 'var(--radius-sm)', border: 'none', background: 'transparent', color: 'var(--text-tertiary)', cursor: 'pointer', transition: 'color 150ms' }}
                           onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--accent-red)'; }}
                           onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)'; }}>
                           <Trash2 size={13} />
                         </button>
+                        <OverflowMenu
+                          items={[
+                            { label: 'Delete post', icon: <Trash2 size={14} />, onClick: () => deletePost(post.id), destructive: true },
+                          ]}
+                        />
                       </div>
                     </div>
                   );
                 })}
               </div>
+            )}
+            {scheduledPosts.length > 0 && (
+              <LoadMore hasMore={scheduledPage.hasMore} onLoadMore={scheduledPage.loadMore}
+                shown={scheduledPage.shown} total={scheduledPage.total} />
             )}
           </div>
 
@@ -190,10 +210,10 @@ export default function AgencyContentPage() {
           <div>
             <p className="t-label" style={{ marginBottom: 12 }}>Ideas Parking Lot</p>
             <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-              {posts.filter(p => p.status === 'idea').length === 0 ? (
+              {ideaPosts.length === 0 ? (
                 <p className="t-xs text-tertiary" style={{ fontStyle: 'italic' }}>Jot down content ideas here.</p>
               ) : (
-                posts.filter(p => p.status === 'idea').map((idea, i, arr) => (
+                ideaPage.paginated.map((idea, i, arr) => (
                   <div key={idea.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 0', borderBottom: i < arr.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}>
                     <Lightbulb size={13} style={{ color: 'var(--accent-amber)', flexShrink: 0, marginTop: 2 }} />
                     <span className="t-xs text-primary" style={{ flex: 1 }}>{idea.title || idea.content || 'Untitled idea'}</span>
@@ -213,6 +233,10 @@ export default function AgencyContentPage() {
                     </div>
                   </div>
                 ))
+              )}
+              {ideaPosts.length > 0 && (
+                <LoadMore hasMore={ideaPage.hasMore} onLoadMore={ideaPage.loadMore}
+                  shown={ideaPage.shown} total={ideaPage.total} />
               )}
               <AddIdeaInline onAdd={async (title) => {
                 if (!currentUser) return;
@@ -282,16 +306,37 @@ function PostForm({ currentUser, mode, existing, onClose, onSaved }: {
   const [date, setDate]         = useState(existing?.planned_date || '');
   const [status, setStatus]     = useState<SocialPostStatus>(existing?.status || 'idea');
   const [platform, setPlatform] = useState<SocialPlatform>(existing?.platform || 'linkedin');
+  const [postedAt, setPostedAt] = useState<string>(() => {
+    if (!existing?.posted_at) return '';
+    const d = new Date(existing.posted_at);
+    if (isNaN(d.getTime())) return '';
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  });
   const [saving, setSaving]     = useState(false);
+
+  // Auto-fill posted_at the first time the user picks "published".
+  function handleStatusChange(next: SocialPostStatus) {
+    if (next === 'published' && !postedAt) {
+      const d = new Date();
+      const pad = (n: number) => String(n).padStart(2, '0');
+      setPostedAt(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`);
+    }
+    setStatus(next);
+  }
 
   async function handleSave() {
     if (!currentUser) return;
     setSaving(true);
+    const postedAtIso = (status === 'published' && postedAt)
+      ? new Date(postedAt).toISOString()
+      : null;
     const res = existing
       ? await updateSocialPost(existing.id, {
           title,
           content,
           planned_date: date || null,
+          posted_at: postedAtIso,
           status,
           platform,
         })
@@ -301,6 +346,7 @@ function PostForm({ currentUser, mode, existing, onClose, onSaved }: {
           title,
           content,
           planned_date: date || null,
+          posted_at: postedAtIso,
           status,
         });
     setSaving(false);
@@ -326,14 +372,18 @@ function PostForm({ currentUser, mode, existing, onClose, onSaved }: {
           ))}
         </div>
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+      <div className="rgrid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <Input label="Planned Date" type="date" value={date} onChange={e => setDate(e.target.value)} />
-        <Select label="Status" value={status} onChange={e => setStatus(e.target.value as SocialPostStatus)}
+        <Select label="Status" value={status} onChange={e => handleStatusChange(e.target.value as SocialPostStatus)}
           options={[
             { value: 'idea', label: 'Idea' }, { value: 'draft', label: 'Draft' },
             { value: 'scheduled', label: 'Scheduled' }, { value: 'published', label: 'Published' },
           ]} />
       </div>
+      {status === 'published' && (
+        <Input label="Posted Date and Time" type="datetime-local"
+          value={postedAt} onChange={e => setPostedAt(e.target.value)} />
+      )}
       <div style={{ display: 'flex', gap: 10, paddingTop: 4 }}>
         <Button variant="secondary" onClick={onClose} style={{ flex: 1 }}>Cancel</Button>
         <Button onClick={handleSave} loading={saving} style={{ flex: 1 }}>{existing ? 'Save Changes' : 'Save'}</Button>

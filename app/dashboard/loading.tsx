@@ -30,7 +30,7 @@ export default function DashboardLoading() {
       </div>
 
       {/* ── Two-column layout — matches `1fr 296px, gap: 28` ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 296px', gap: 28, alignItems: 'start' }}>
+      <div className="rgrid-main-aside" style={{ display: 'grid', gridTemplateColumns: '1fr 296px', gap: 28, alignItems: 'start' }}>
 
         {/* ─── Left column ─── */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
@@ -65,7 +65,7 @@ export default function DashboardLoading() {
             <Skeleton style={{ height: 11, width: 128, marginBottom: 12 }} rounded="sm" />
 
             {/* 2×2 MetricCard grid — gap 12, card padding 16px 20px */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div className="rgrid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               {[0, 1, 2, 3].map(i => (
                 <div key={i} className="card" style={{ padding: '16px 20px' }}>
                   {/* Icon + label row — icon 28×28 + label */}

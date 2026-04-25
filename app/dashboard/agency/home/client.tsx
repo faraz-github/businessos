@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { Modal } from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
+import { LoadMore, useLoadMore } from '@/components/ui/LoadMore';
 import { toast } from '@/components/ui/Toast';
 import { Sparkline } from '@/components/charts/Sparkline';
 import { PageTransition } from '@/components/dashboard/PageTransition';
@@ -133,6 +134,10 @@ export function AgencyHomeClient({
   const [showAddBlock, setShowAddBlock]   = useState(false);
   const [currentTime, setCurrentTime]     = useState(new Date());
 
+  // Pagination
+  const attentionPage = useLoadMore(attentionItems, { pageSize: 20 });
+  const logsPage      = useLoadMore(logs,           { pageSize: 20 });
+
   // Update every minute for accurate "Now" block highlighting
   useEffect(() => {
     const t = setInterval(() => setCurrentTime(new Date()), 60000);
@@ -252,7 +257,7 @@ export function AgencyHomeClient({
         {/* BD Activity This Week */}
         <div>
           <p className="t-label" style={{ marginBottom: 12 }}>BD Activity This Week</p>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div className="rgrid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div className="card" style={{ padding: '16px 20px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
                 <Kanban size={14} style={{ color: 'var(--accent-violet)' }} />
@@ -271,7 +276,7 @@ export function AgencyHomeClient({
         </div>
 
         {/* Two-column layout */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 296px', gap: 28, alignItems: 'start' }}>
+        <div className="rgrid-main-aside" style={{ display: 'grid', gridTemplateColumns: '1fr 296px', gap: 28, alignItems: 'start' }}>
 
           {/* ── LEFT ── */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
@@ -289,15 +294,19 @@ export function AgencyHomeClient({
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {attentionItems.map((item, i) => <AttentionCard key={item.id} item={item} index={i} />)}
+                  {attentionPage.paginated.map((item, i) => <AttentionCard key={item.id} item={item} index={i} />)}
                 </div>
+              )}
+              {attentionItems.length > 0 && (
+                <LoadMore hasMore={attentionPage.hasMore} onLoadMore={attentionPage.loadMore}
+                  shown={attentionPage.shown} total={attentionPage.total} />
               )}
             </div>
 
             {/* Business Health */}
             <div>
               <p className="t-label" style={{ marginBottom: 12 }}>Business Health</p>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div className="rgrid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
 
                 {/* Money */}
                 <MetricCard icon={<IndianRupee size={15} />} iconColor="var(--accent-green)"
@@ -431,9 +440,9 @@ export function AgencyHomeClient({
                 <p className="t-xs text-tertiary" style={{ fontStyle: 'italic' }}>Nothing logged yet. Hit Quick Log to capture something fast.</p>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
-                  {logs.map((log, i) => (
+                  {logsPage.paginated.map((log, i) => (
                     <div key={log.id}
-                      style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '8px 0', borderBottom: i < logs.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}
+                      style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '8px 0', borderBottom: i < logsPage.paginated.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}
                       onMouseEnter={e => { (e.currentTarget.querySelector('.log-del') as HTMLElement | null)?.style.setProperty('opacity', '1'); }}
                       onMouseLeave={e => { (e.currentTarget.querySelector('.log-del') as HTMLElement | null)?.style.setProperty('opacity', '0'); }}>
                       <div style={{ flex: 1, minWidth: 0 }}>
@@ -449,6 +458,10 @@ export function AgencyHomeClient({
                     </div>
                   ))}
                 </div>
+              )}
+              {logs.length > 0 && (
+                <LoadMore hasMore={logsPage.hasMore} onLoadMore={logsPage.loadMore}
+                  shown={logsPage.shown} total={logsPage.total} />
               )}
             </div>
           </div>
@@ -483,7 +496,7 @@ function AddTimeBlockModal({ open, onClose, onAdd }: {
         {/* Type picker */}
         <div>
           <label className="t-label" style={{ display: 'block', marginBottom: 8 }}>Block Type</label>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
+          <div className="rgrid-4-compact" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
             {[
               { value: 'deep',     label: 'Deep Work',  color: 'var(--accent-blue)' },
               { value: 'outreach', label: 'Outreach',   color: 'var(--accent-green)' },

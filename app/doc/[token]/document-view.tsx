@@ -493,7 +493,7 @@ function DocumentBody({ doc, liveFields, brand, primary, bizName, signed, signer
         {canSign && (() => {
           const isProposal = doc.type === 'proposal';
           return (
-            <div style={{ margin: '0 56px 32px', padding: '20px 24px', background: '#f9fafb', borderRadius: 12, border: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 20 }} className="no-print">
+            <div className="no-print doc-sign-cta" style={{ margin: '0 56px 32px', padding: '20px 24px', background: '#f9fafb', borderRadius: 12, border: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 20 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <Shield size={16} style={{ color: primary, flexShrink: 0 }} />
                 <div>
@@ -662,6 +662,133 @@ function DocumentBody({ doc, liveFields, brand, primary, bizName, signed, signer
 
           .signed-banner { margin: 0 56px 8mm !important; padding: 10px 14px !important; }
         }
+
+        /* ─────────────────────────────────────────────────────
+           MOBILE RESPONSIVENESS (screen only)
+           The A4 sheet is 794px fixed — below ~820px it overflows
+           the viewport. These rules fluidize it for phones and
+           tablets without changing its print appearance (all the
+           print rules above use !important anyway).
+           ───────────────────────────────────────────────────── */
+        @media screen and (max-width: 820px) {
+          /* Outer page container — tighten the horizontal gutter. */
+          body > div {
+            padding: 20px 12px !important;
+          }
+          /* The sheet itself becomes fluid. */
+          .doc-page {
+            width: 100% !important;
+            max-width: 100% !important;
+          }
+          /* Reduce the generous 56px inline padding the header /
+             title / content / footer all use. A direct selector
+             approach would be cleaner, but these blocks set
+             padding inline — we target by class name and use
+             !important to override. */
+          .doc-hero,
+          .doc-title,
+          .doc-content,
+          .doc-footer {
+            padding-left:  22px !important;
+            padding-right: 22px !important;
+          }
+          .doc-hero {
+            padding-top:    24px !important;
+            padding-bottom: 20px !important;
+          }
+          .doc-title { padding-top: 20px !important; }
+          .doc-content {
+            padding-top: 18px !important;
+            gap: 22px !important;
+          }
+          /* Sign CTA + signed banner use margin: 0 56px ... —
+             shrink those to match the content gutter. */
+          .no-print[style*="margin: 0 56px"],
+          .signed-banner {
+            margin-left: 22px !important;
+            margin-right: 22px !important;
+          }
+          /* Footer: stack the left + right spans. */
+          .doc-footer {
+            flex-direction: column !important;
+            align-items: flex-start !important;
+            gap: 4px !important;
+          }
+          /* Sign CTA row: stack the label stack + button so the
+             button isn't crushed against the text on narrow screens. */
+          .doc-sign-cta {
+            flex-direction: column !important;
+            align-items: stretch !important;
+            gap: 12px !important;
+          }
+          .doc-sign-cta button {
+            width: 100% !important;
+            justify-content: center !important;
+          }
+          /* Stack the 2-col Parties grid. */
+          .doc-parties-grid {
+            grid-template-columns: 1fr !important;
+            gap: 14px !important;
+          }
+          /* Stack signatures. */
+          .signature-row {
+            flex-direction: column !important;
+            gap: 28px !important;
+          }
+          /* Invoice header: "Invoice To" + "Invoice #" stack. */
+          .doc-invoice-header {
+            flex-direction: column !important;
+            align-items: flex-start !important;
+            gap: 16px !important;
+          }
+          .doc-invoice-header > div:last-child {
+            text-align: left !important;
+            align-items: flex-start !important;
+          }
+          /* Invoice line-items table: allow horizontal scroll.
+             4 columns at 360px wide would crush the Description
+             column; horizontal scroll inside the card keeps the
+             table readable. */
+          .doc-invoice-table-wrap {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            margin: 0 -4px;
+          }
+          .doc-invoice-table-wrap table {
+            min-width: 480px;
+          }
+          /* Totals block: let the 220px min-width relax on phones. */
+          .doc-invoice-totals {
+            min-width: 0 !important;
+            width: 100% !important;
+          }
+          /* Title heading — tighten from 26px to fit phone widths. */
+          .doc-title h1 {
+            font-size: 22px !important;
+          }
+          /* The hero's header flex row (logo+name | type-pill+signed)
+             shouldn't wrap into a mess — allow it to wrap cleanly. */
+          .doc-hero > div {
+            flex-wrap: wrap !important;
+            gap: 12px !important;
+          }
+        }
+
+        /* Extra squeeze for very narrow phones (< 380px). */
+        @media screen and (max-width: 380px) {
+          .doc-hero,
+          .doc-title,
+          .doc-content,
+          .doc-footer {
+            padding-left:  16px !important;
+            padding-right: 16px !important;
+          }
+          .no-print[style*="margin: 0 56px"],
+          .signed-banner {
+            margin-left: 16px !important;
+            margin-right: 16px !important;
+          }
+        }
       `}</style>
     </div>
   );
@@ -802,7 +929,7 @@ function ContractSectionView({ type, fields, color }: { type: string; fields: an
     case 'parties':
       return fields.parties ? (
         <Section title="Parties" color={color}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+          <div className="doc-parties-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
             {fields.parties.client && <div><p style={{ fontSize: 11, color: '#9ca3af', margin: '0 0 3px', textTransform: 'uppercase' as const, fontWeight: 600, letterSpacing: '0.06em' }}>Client</p><p style={{ fontSize: 14, fontWeight: 600, color: '#111318', margin: 0 }}>{fields.parties.client}</p></div>}
             {fields.parties.freelancer && <div><p style={{ fontSize: 11, color: '#9ca3af', margin: '0 0 3px', textTransform: 'uppercase' as const, fontWeight: 600, letterSpacing: '0.06em' }}>Service Provider</p><p style={{ fontSize: 14, fontWeight: 600, color: '#111318', margin: 0 }}>{fields.parties.freelancer}</p></div>}
           </div>
@@ -1061,7 +1188,7 @@ function InvoiceView({ fields, color, brand }: { fields: any; color: string; bra
   return (
     <>
       {/* Header: Invoice To + Invoice # side by side */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+      <div className="doc-invoice-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
         <div>
           <p style={{ fontSize: 11, color: '#9ca3af', textTransform: 'uppercase' as const, fontWeight: 600, letterSpacing: '0.06em', margin: '0 0 4px' }}>Invoice To</p>
           <p style={{ fontSize: 16, fontWeight: 700, color: '#111318', margin: 0 }}>{fields.client_name || '—'}</p>
@@ -1089,6 +1216,7 @@ function InvoiceView({ fields, color, brand }: { fields: any; color: string; bra
 
       {/* Line items table */}
       {fields.line_items?.length > 0 && (
+        <div className="doc-invoice-table-wrap">
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead>
             <tr style={{ borderBottom: '2px solid #f3f4f6' }}>
@@ -1109,11 +1237,12 @@ function InvoiceView({ fields, color, brand }: { fields: any; color: string; bra
             ))}
           </tbody>
         </table>
+        </div>
       )}
 
       {/* Totals — derived fresh, not from stored fields */}
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 4 }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 5, minWidth: 220 }}>
+        <div className="doc-invoice-totals" style={{ display: 'flex', flexDirection: 'column', gap: 5, minWidth: 220 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#6b7280' }}>
             <span>Subtotal</span>
             <span style={{ fontFamily: 'DM Mono, monospace', fontSize: 12 }}>{formatINR(subtotal)}</span>

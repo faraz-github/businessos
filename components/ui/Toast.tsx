@@ -85,7 +85,9 @@ export function ToastContainer() {
   if (items.length === 0) return null;
 
   return (
-    <div style={{
+    <div
+      className="ds-toast-container"
+      style={{
       position: 'fixed', bottom: 24, right: 24, zIndex: 9999,
       display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-end',
       pointerEvents: 'none',

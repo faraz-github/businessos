@@ -1,11 +1,11 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useBrand } from '@/lib/brand';
 import { useCurrentUser } from '@/lib/auth/use-auth';
 import { createClient } from '@/lib/supabase/client';
 import { PageTransition } from '@/components/dashboard/PageTransition';
-import { Button, Modal, Input, Select } from '@/components/ui';
+import { Button, Modal, Input, Select, OverflowMenu, LoadMore, useLoadMore } from '@/components/ui';
 import { toast } from '@/components/ui/Toast';
 import { RevenueChart } from '@/components/charts/RevenueChart';
 import { formatINR, formatDate, isDueSoon, monthlyEquivalent } from '@/lib/utils';
@@ -387,16 +387,16 @@ export default function PersonalFinancePage() {
   }
 
   /* ── filtered data ── */
-  const filteredTx = transactions.filter(t => {
+  const filteredTx = useMemo(() => transactions.filter(t => {
     if (txFilter !== 'all' && t.type !== txFilter) return false;
     if (txSearch) {
       const q = txSearch.toLowerCase();
       return (t.description || '').toLowerCase().includes(q) || t.category.toLowerCase().includes(q);
     }
     return true;
-  });
+  }), [transactions, txFilter, txSearch]);
 
-  const filteredInvoices = invoices.filter(i => {
+  const filteredInvoices = useMemo(() => invoices.filter(i => {
     // "Unpaid" now includes overdue — an overdue invoice is still
     // unpaid from the owner's perspective. The separate "Overdue"
     // filter stays for when the user wants to drill into overdue-only.
@@ -404,12 +404,20 @@ export default function PersonalFinancePage() {
     if (invFilter === 'overdue') return i.status === 'overdue';
     if (invFilter === 'paid')    return i.status === 'paid';
     return true;
-  });
+  }), [invoices, invFilter]);
 
-  // Group transactions by month
+  // Pagination — apply to the flat filtered lists so Load More
+  // advances through the data in order without per-group buttons.
+  // Filtered lists are memoized above, so changing a filter value
+  // changes the array reference and the hook auto-resets to page 0.
+  const txPage  = useLoadMore(filteredTx,       { pageSize: 20 });
+  const invPage = useLoadMore(filteredInvoices, { pageSize: 20 });
+  const subPage = useLoadMore(subscriptions,    { pageSize: 20 });
+
+  // Group paginated transactions by month for display
   type TxGroup = { label: string; items: Transaction[] };
   const txGroups: TxGroup[] = [];
-  filteredTx.forEach(tx => {
+  txPage.paginated.forEach(tx => {
     const d = new Date(tx.date);
     const label = d.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
     const group = txGroups.find(g => g.label === label);
@@ -438,7 +446,7 @@ export default function PersonalFinancePage() {
         </div>
 
         {/* Summary cards */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+        <div className="rgrid-4" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
           {([
             { label: 'Income',       value: monthIncome,  prev: lastIncome,   color: 'var(--accent-green)',  icon: <TrendingUp size={13} /> },
             { label: 'Expenses',     value: monthExpense, prev: lastExpense,   color: 'var(--accent-red)',    icon: <TrendingDown size={13} /> },
@@ -491,7 +499,7 @@ export default function PersonalFinancePage() {
         )}
 
         {/* Tabs */}
-        <div style={{ display: 'flex', borderBottom: '1px solid var(--border-subtle)' }}>
+        <div className="tabs-scroll" style={{ display: 'flex', borderBottom: '1px solid var(--border-subtle)' }}>
           {TABS.map(tab => (
             <button key={tab} onClick={() => setActiveTab(tab)}
               style={{
@@ -514,7 +522,7 @@ export default function PersonalFinancePage() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
             {/* Outstanding + collected quick stat */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+            <div className="rgrid-3" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
               <div className="card" style={{ padding: '14px 18px' }}>
                 <p className="t-label" style={{ marginBottom: 6 }}>Outstanding</p>
                 <p style={{ fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 800, color: outstandingTotal > 0 ? 'var(--accent-amber)' : 'var(--text-secondary)' }}>{formatINR(outstandingTotal)}</p>
@@ -541,7 +549,7 @@ export default function PersonalFinancePage() {
             </div>
 
             {/* Recent transactions + upcoming renewals */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div className="rgrid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div className="card">
                 <SectionHeader title="Recent Transactions"
                   action={<button onClick={() => setActiveTab('transactions')} style={{ fontSize: 11, color: 'var(--accent-blue)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-body)' }}>See all →</button>} />
@@ -583,7 +591,7 @@ export default function PersonalFinancePage() {
                             <RotateCw size={12} style={{ color: soon ? 'var(--accent-amber)' : 'var(--text-tertiary)' }} />
                           </div>
                           <div style={{ flex: 1, minWidth: 0 }}>
-                            <p className="t-xs-medium">{sub.name}</p>
+                            <p className="t-xs-medium" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sub.name}</p>
                             <p className="t-2xs text-tertiary">{formatDate(sub.next_renewal_at)}</p>
                           </div>
                           <span className="t-xs-medium" style={{ color: soon ? 'var(--accent-amber)' : 'var(--text-secondary)', flexShrink: 0 }}>{formatINR(Number(sub.cost))}</span>
@@ -601,7 +609,7 @@ export default function PersonalFinancePage() {
         {activeTab === 'invoices' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {/* Filter bar */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div className="filter-bar" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <div style={{ display: 'flex', background: 'var(--bg-hover)', padding: 3, borderRadius: 'var(--radius-md)', gap: 2 }}>
                 {(['all', 'unpaid', 'overdue', 'paid'] as const).map(f => (
                   <button key={f} onClick={() => setInvFilter(f)}
@@ -635,41 +643,45 @@ export default function PersonalFinancePage() {
                   {invFilter !== 'all' ? 'Try changing the filter above.' : 'Create invoices in Paperwork and link them to clients.'}
                 </p>
               </div>
-            ) : filteredInvoices.map(inv => {
+            ) : invPage.paginated.map(inv => {
               const cfg = INVOICE_STATUS[inv.status] || INVOICE_STATUS.draft;
               return (
-                <div key={inv.id} className="card" style={{ padding: '12px 18px', display: 'flex', alignItems: 'center', gap: 14, transition: 'background 150ms' }}
+                <div key={inv.id} className="card dense-row" style={{ padding: '12px 18px' }}
                   onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
                   onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = ''; }}>
                   {/* Invoice icon */}
-                  <div style={{ width: 34, height: 34, borderRadius: 'var(--radius-md)', background: 'var(--bg-hover)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <div className="dense-row__lead" style={{ width: 34, height: 34, borderRadius: 'var(--radius-md)', background: 'var(--bg-hover)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <Receipt size={14} style={{ color: 'var(--text-tertiary)' }} />
                   </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3, flexWrap: 'wrap' }}>
-                      <span style={{ fontSize: 12, fontFamily: 'var(--font-mono)', color: 'var(--accent-blue)', fontWeight: 500 }}>{inv.number}</span>
-                      {inv.clients?.name && <span className="t-xs text-secondary">{inv.clients.name}</span>}
+                  <div className="dense-row__body">
+                    <div className="dense-row__title">
+                      <span className="dense-row__name" style={{ fontSize: 12, fontFamily: 'var(--font-mono)', color: 'var(--accent-blue)', fontWeight: 500 }}>{inv.number}</span>
                       <StatusPill status={cfg.label} color={cfg.color} />
                     </div>
-                    <p className="t-2xs text-tertiary">
-                      {inv.status === 'paid' && inv.paid_date
-                        ? `Paid ${formatDate(inv.paid_date)}`
-                        : `Due ${inv.due_date ? formatDate(inv.due_date) : '—'}`}
-                    </p>
+                    <div className="dense-row__meta">
+                      {inv.clients?.name && <span className="t-xs text-secondary">{inv.clients.name}</span>}
+                      <span className="t-2xs text-tertiary">
+                        {inv.status === 'paid' && inv.paid_date
+                          ? `Paid ${formatDate(inv.paid_date)}`
+                          : `Due ${inv.due_date ? formatDate(inv.due_date) : '—'}`}
+                      </span>
+                    </div>
                   </div>
-                  <span style={{ fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', flexShrink: 0 }}>{formatINR(Number(inv.total))}</span>
-                  <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                  <div className="dense-row__actions">
+                    <span className="chip-opt-out" style={{ fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 700, color: 'var(--text-primary)' }}>{formatINR(Number(inv.total))}</span>
                     {inv.status !== 'paid' && (
                       <button onClick={() => setMarkingPaid(inv)}
-                        style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--accent-green)', background: 'var(--accent-green-dim)', color: 'var(--accent-green)', fontSize: 11, fontFamily: 'var(--font-body)', fontWeight: 500, cursor: 'pointer', transition: 'all 150ms', whiteSpace: 'nowrap' }}
+                        className="row-btn-primary"
+                        style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--accent-green)', background: 'var(--accent-green-dim)', color: 'var(--accent-green)', fontSize: 11, fontFamily: 'var(--font-body)', fontWeight: 500, cursor: 'pointer', transition: 'all 150ms' }}
                         onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--accent-green)'; (e.currentTarget as HTMLElement).style.color = '#fff'; }}
                         onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'var(--accent-green-dim)'; (e.currentTarget as HTMLElement).style.color = 'var(--accent-green)'; }}>
-                        <CheckCircle2 size={11} /> Mark Paid
+                        <CheckCircle2 size={11} /> <span className="row-btn-label">Mark Paid</span>
                       </button>
                     )}
                     {inv.share_token && (
                       <button onClick={() => window.open(`/doc/${inv.share_token}`, '_blank')}
-                        title="Preview"
+                        aria-label="Preview"
+                        className="hide-on-mobile-row"
                         style={{ display: 'flex', padding: '5px 7px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-default)', background: 'transparent', color: 'var(--text-tertiary)', cursor: 'pointer', transition: 'color 150ms' }}
                         onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--accent-blue)'; }}
                         onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)'; }}>
@@ -677,15 +689,27 @@ export default function PersonalFinancePage() {
                       </button>
                     )}
                     <button onClick={() => deleteInvoice(inv.id)}
+                      aria-label="Delete invoice"
+                      className="hide-on-mobile-row"
                       style={{ display: 'flex', padding: '5px 7px', borderRadius: 'var(--radius-sm)', border: 'none', background: 'transparent', color: 'var(--text-tertiary)', cursor: 'pointer', transition: 'color 150ms' }}
                       onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--accent-red)'; }}
                       onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)'; }}>
                       <Trash2 size={13} />
                     </button>
+                    <OverflowMenu
+                      items={[
+                        ...(inv.share_token ? [{ label: 'Preview link', icon: <ExternalLink size={14} />, onClick: () => window.open(`/doc/${inv.share_token}`, '_blank') }] : []),
+                        { label: 'Delete invoice', icon: <Trash2 size={14} />, onClick: () => deleteInvoice(inv.id), destructive: true },
+                      ]}
+                    />
                   </div>
                 </div>
               );
             })}
+            {filteredInvoices.length > 0 && (
+              <LoadMore hasMore={invPage.hasMore} onLoadMore={invPage.loadMore}
+                shown={invPage.shown} total={invPage.total} />
+            )}
           </div>
         )}
 
@@ -693,7 +717,7 @@ export default function PersonalFinancePage() {
         {activeTab === 'transactions' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {/* Filter bar */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div className="filter-bar" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <div style={{ position: 'relative', flex: 1, maxWidth: 300 }}>
                 <Search size={12} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-tertiary)', pointerEvents: 'none' }} />
                 <input value={txSearch} onChange={e => setTxSearch(e.target.value)} placeholder="Search..."
@@ -739,27 +763,41 @@ export default function PersonalFinancePage() {
                       </div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                         {group.items.map(tx => (
-                          <div key={tx.id} className="card" style={{ padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 12, transition: 'background 150ms' }}
+                          <div key={tx.id} className="card dense-row" style={{ padding: '10px 16px' }}
                             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
                             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = ''; }}>
-                            <div style={{ width: 30, height: 30, borderRadius: '50%', background: tx.type === 'income' ? 'var(--accent-green-dim)' : 'var(--accent-red-dim)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                            <div className="dense-row__lead" style={{ width: 30, height: 30, borderRadius: '50%', background: tx.type === 'income' ? 'var(--accent-green-dim)' : 'var(--accent-red-dim)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                               {tx.type === 'income'
                                 ? <TrendingUp size={13} style={{ color: 'var(--accent-green)' }} />
                                 : <TrendingDown size={13} style={{ color: 'var(--accent-red)' }} />}
                             </div>
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <p className="t-xs-medium" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tx.description || catLabel(tx.category)}</p>
-                              <p className="t-2xs text-tertiary">{formatDate(tx.date)} · {catLabel(tx.category)}</p>
+                            <div className="dense-row__body">
+                              <div className="dense-row__title">
+                                <span className="t-xs-medium dense-row__name">{tx.description || catLabel(tx.category)}</span>
+                              </div>
+                              <div className="dense-row__meta">
+                                <span className="t-2xs text-tertiary">{formatDate(tx.date)}</span>
+                                <span className="t-2xs text-tertiary">{catLabel(tx.category)}</span>
+                              </div>
                             </div>
-                            <span style={{ fontFamily: 'var(--font-display)', fontSize: 15, fontWeight: 700, color: tx.type === 'income' ? 'var(--accent-green)' : 'var(--accent-red)', flexShrink: 0 }}>
-                              {tx.type === 'income' ? '+' : '−'}{formatINR(Number(tx.amount))}
-                            </span>
-                            <button onClick={() => deleteTx(tx.id)}
-                              style={{ display: 'flex', padding: '4px', borderRadius: 'var(--radius-sm)', border: 'none', background: 'transparent', color: 'var(--text-tertiary)', cursor: 'pointer', transition: 'color 150ms', flexShrink: 0 }}
-                              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--accent-red)'; }}
-                              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)'; }}>
-                              <Trash2 size={13} />
-                            </button>
+                            <div className="dense-row__actions">
+                              <span className="chip-opt-out" style={{ fontFamily: 'var(--font-display)', fontSize: 15, fontWeight: 700, color: tx.type === 'income' ? 'var(--accent-green)' : 'var(--accent-red)' }}>
+                                {tx.type === 'income' ? '+' : '−'}{formatINR(Number(tx.amount))}
+                              </span>
+                              <button onClick={() => deleteTx(tx.id)}
+                                aria-label="Delete transaction"
+                                className="hide-on-mobile-row"
+                                style={{ display: 'flex', padding: '4px', borderRadius: 'var(--radius-sm)', border: 'none', background: 'transparent', color: 'var(--text-tertiary)', cursor: 'pointer', transition: 'color 150ms' }}
+                                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--accent-red)'; }}
+                                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)'; }}>
+                                <Trash2 size={13} />
+                              </button>
+                              <OverflowMenu
+                                items={[
+                                  { label: 'Delete transaction', icon: <Trash2 size={14} />, onClick: () => deleteTx(tx.id), destructive: true },
+                                ]}
+                              />
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -767,6 +805,10 @@ export default function PersonalFinancePage() {
                   );
                 })}
               </div>
+            )}
+            {filteredTx.length > 0 && (
+              <LoadMore hasMore={txPage.hasMore} onLoadMore={txPage.loadMore}
+                shown={txPage.shown} total={txPage.total} />
             )}
           </div>
         )}
@@ -798,7 +840,7 @@ export default function PersonalFinancePage() {
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                {subscriptions.map(sub => {
+                {subPage.paginated.map(sub => {
                   const soon   = isDueSoon(sub.next_renewal_at, 7);
                   const zombie = sub.last_reviewed_at
                     ? Math.floor((Date.now() - new Date(sub.last_reviewed_at).getTime()) / 86400000) > 90
@@ -807,30 +849,32 @@ export default function PersonalFinancePage() {
                   const statusColor = isActive ? 'var(--accent-green)' : sub.status === 'paused' ? 'var(--accent-amber)' : 'var(--text-tertiary)';
 
                   return (
-                    <div key={sub.id} className="card" style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12, transition: 'background 150ms', opacity: isActive ? 1 : 0.65 }}
+                    <div key={sub.id} className="card dense-row" style={{ padding: '12px 16px', opacity: isActive ? 1 : 0.65 }}
                       onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
                       onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = ''; }}>
                       {/* Icon */}
-                      <div style={{ width: 32, height: 32, borderRadius: 'var(--radius-sm)', background: isActive ? 'var(--accent-green-dim)' : 'var(--bg-hover)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <div className="dense-row__lead" style={{ width: 32, height: 32, borderRadius: 'var(--radius-sm)', background: isActive ? 'var(--accent-green-dim)' : 'var(--bg-hover)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         <RotateCw size={14} style={{ color: isActive ? 'var(--accent-green)' : 'var(--text-tertiary)' }} />
                       </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 3, flexWrap: 'wrap' }}>
-                          <p className="t-xs-medium">{sub.name}</p>
+                      <div className="dense-row__body">
+                        <div className="dense-row__title">
+                          <span className="t-xs-medium dense-row__name">{sub.name}</span>
                           <StatusPill status={sub.status} color={statusColor} />
-                          {soon && isActive && <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--accent-amber)', background: 'var(--accent-amber-dim)', padding: '2px 7px', borderRadius: 100 }}>Renews soon</span>}
+                          {soon && isActive && <span className="chip-opt-out" style={{ fontSize: 10, fontWeight: 600, color: 'var(--accent-amber)', background: 'var(--accent-amber-dim)', padding: '2px 7px', borderRadius: 100, flexShrink: 0 }}>Renews soon</span>}
                           {zombie && (
-                            <button onClick={() => markSubReviewed(sub)} style={{ fontSize: 10, fontWeight: 600, color: 'var(--accent-amber)', background: 'var(--accent-amber-dim)', padding: '2px 8px', borderRadius: 100, border: 'none', cursor: 'pointer', fontFamily: 'var(--font-body)', transition: 'opacity 150ms' }} title="Click to mark as reviewed">
-                              ⚠ Not reviewed in 90d — click to dismiss
+                            <button onClick={() => markSubReviewed(sub)} className="chip-opt-out" style={{ fontSize: 10, fontWeight: 600, color: 'var(--accent-amber)', background: 'var(--accent-amber-dim)', padding: '2px 8px', borderRadius: 100, border: 'none', cursor: 'pointer', fontFamily: 'var(--font-body)', transition: 'opacity 150ms', flexShrink: 0 }} title="Click to mark as reviewed">
+                              ⚠ Not reviewed in 90d
                             </button>
                           )}
                         </div>
-                        <p className="t-2xs text-tertiary">
-                          {formatCycleLabel(sub.billing_cycle)} · {catLabel(sub.category)} · Renews {formatDate(sub.next_renewal_at)}
-                        </p>
+                        <div className="dense-row__meta">
+                          <span className="t-2xs text-tertiary">{formatCycleLabel(sub.billing_cycle)}</span>
+                          <span className="t-2xs text-tertiary">{catLabel(sub.category)}</span>
+                          <span className="t-2xs text-tertiary">Renews {formatDate(sub.next_renewal_at)}</span>
+                        </div>
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                        <div style={{ textAlign: 'right' }}>
+                      <div className="dense-row__actions">
+                        <div className="chip-opt-out" style={{ textAlign: 'right' }}>
                           <span style={{ fontFamily: 'var(--font-display)', fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>
                             {formatINR(Number(sub.cost))}
                           </span>
@@ -839,29 +883,42 @@ export default function PersonalFinancePage() {
                             <p className="t-2xs text-tertiary">{formatINR(Math.round(monthlyEquivalent(Number(sub.cost), sub.billing_cycle)))}/mo</p>
                           )}
                         </div>
-                        <button onClick={() => setEditingSub(sub)} title="Edit"
-                          style={{ display: 'flex', padding: '5px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-default)', background: 'transparent', color: 'var(--text-tertiary)', cursor: 'pointer', transition: 'all 150ms' }}
+                        <button onClick={() => setEditingSub(sub)} title="Edit" aria-label="Edit"
+                          style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 8px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-default)', background: 'transparent', color: 'var(--text-tertiary)', cursor: 'pointer', transition: 'all 150ms', fontSize: 11, fontFamily: 'var(--font-body)' }}
                           onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--accent-blue)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--accent-blue)'; }}
                           onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--border-default)'; }}>
-                          <Pencil size={12} />
+                          <Pencil size={12} /><span className="row-btn-label">Edit</span>
                         </button>
-                        <button onClick={() => toggleSubStatus(sub)} title={isActive ? 'Pause' : 'Resume'}
+                        <button onClick={() => toggleSubStatus(sub)} title={isActive ? 'Pause' : 'Resume'} aria-label={isActive ? 'Pause' : 'Resume'}
+                          className="hide-on-mobile-row"
                           style={{ display: 'flex', padding: '5px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-default)', background: 'transparent', color: 'var(--text-tertiary)', cursor: 'pointer', transition: 'all 150ms' }}
                           onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = isActive ? 'var(--accent-amber)' : 'var(--accent-green)'; }}
                           onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)'; }}>
                           {isActive ? <Pause size={12} /> : <Play size={12} />}
                         </button>
                         <button onClick={() => deleteSub(sub.id)}
+                          aria-label="Delete subscription"
+                          className="hide-on-mobile-row"
                           style={{ display: 'flex', padding: '5px', borderRadius: 'var(--radius-sm)', border: 'none', background: 'transparent', color: 'var(--text-tertiary)', cursor: 'pointer', transition: 'color 150ms' }}
                           onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--accent-red)'; }}
                           onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)'; }}>
                           <Trash2 size={12} />
                         </button>
+                        <OverflowMenu
+                          items={[
+                            { label: isActive ? 'Pause subscription' : 'Resume subscription', icon: isActive ? <Pause size={14} /> : <Play size={14} />, onClick: () => toggleSubStatus(sub) },
+                            { label: 'Delete subscription', icon: <Trash2 size={14} />, onClick: () => deleteSub(sub.id), destructive: true },
+                          ]}
+                        />
                       </div>
                     </div>
                   );
                 })}
               </div>
+            )}
+            {subscriptions.length > 0 && (
+              <LoadMore hasMore={subPage.hasMore} onLoadMore={subPage.loadMore}
+                shown={subPage.shown} total={subPage.total} />
             )}
           </div>
         )}

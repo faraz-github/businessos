@@ -405,6 +405,9 @@ export const socialPostSchema = z.object({
   title: z.string().nullable().optional(),
   content: z.string().nullable().optional(),
   planned_date: z.string().nullable().optional(),
+  /** ISO timestamp recording when the post actually went live.
+   *  Distinct from planned_date — only meaningful for status='published'. */
+  posted_at: z.string().nullable().optional(),
   status: z.enum(['idea', 'draft', 'scheduled', 'published']).default('idea'),
   engagement_notes: z.string().nullable().optional(),
 });

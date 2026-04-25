@@ -67,8 +67,9 @@ export function QuickLogModal({ open, onClose, onLogged }: QuickLogModalProps) {
           />
 
           {/* Modal */}
-          <div className="fixed inset-0 z-[101] flex items-center justify-center p-5">
+          <div className="ds-modal-wrap fixed inset-0 z-[101] flex items-center justify-center p-5">
             <motion.div
+              className="ds-modal"
               style={{
                 width: '100%', maxWidth: 380,
                 background: 'var(--bg-elevated)',

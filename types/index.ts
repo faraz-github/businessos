@@ -233,6 +233,7 @@ export interface SocialPost {
   title: string | null;
   content: string | null;
   planned_date: string | null;
+  posted_at: string | null;
   status: SocialPostStatus;
   engagement_notes: string | null;
   created_at: string;

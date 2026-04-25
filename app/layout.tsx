@@ -1,10 +1,21 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { ThemeProvider } from '@/lib/theme';
 
 export const metadata: Metadata = {
   title: 'Business OS',
   description: 'Personal & Agency Business Operating System',
+};
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 5,
+  viewportFit: 'cover',
+  themeColor: [
+    { media: '(prefers-color-scheme: dark)',  color: '#0D1117' },
+    { media: '(prefers-color-scheme: light)', color: '#EDEEF3' },
+  ],
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

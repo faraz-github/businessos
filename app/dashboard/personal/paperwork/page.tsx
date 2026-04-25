@@ -5,7 +5,7 @@ import { useBrand } from '@/lib/brand';
 import { useCurrentUser } from '@/lib/auth/use-auth';
 import { createClient } from '@/lib/supabase/client';
 import { PageTransition } from '@/components/dashboard/PageTransition';
-import { Button, Input, Modal, Select, Textarea, SignaturePad } from '@/components/ui';
+import { Button, Input, Modal, Select, Textarea, SignaturePad, OverflowMenu } from '@/components/ui';
 import type { SignaturePadHandle } from '@/components/ui';
 import { toast } from '@/components/ui/Toast';
 import { formatDate } from '@/lib/utils';
@@ -190,7 +190,7 @@ export default function PersonalPaperworkPage() {
         </div>
 
         {/* Type filter */}
-        <div style={{ display: 'flex', borderBottom: '1px solid var(--border-subtle)', gap: 0 }}>
+        <div className="tabs-scroll" style={{ display: 'flex', borderBottom: '1px solid var(--border-subtle)', gap: 0 }}>
           {[{ value: 'all', label: 'All' }, ...DOC_TYPES].map(tab => (
             <button key={tab.value} onClick={() => setActiveType(tab.value as any)}
               style={{ padding: '8px 16px', border: 'none', background: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'var(--font-body)', color: activeType === tab.value ? 'var(--text-primary)' : 'var(--text-tertiary)', borderBottom: `2px solid ${activeType === tab.value ? 'var(--accent-blue)' : 'transparent'}`, marginBottom: -1, transition: 'color 150ms, border-color 150ms' }}>
@@ -247,34 +247,37 @@ export default function PersonalPaperworkPage() {
                 {paginated.map(doc => {
               const isProposalAccepted = doc.type === 'proposal' && (doc.status === 'signed' || doc.status === 'viewed');
               return (
-                <div key={doc.id} className="card"
-                  style={{ padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 14, transition: 'background 150ms' }}
+                <div key={doc.id} className="card dense-row"
+                  style={{ padding: '14px 18px' }}
                   onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
                   onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = ''; }}>
 
                   {/* Icon */}
-                  <div style={{ width: 36, height: 36, borderRadius: 'var(--radius-md)', background: 'var(--accent-blue-dim)', color: 'var(--accent-blue)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <div className="dense-row__lead" style={{ width: 36, height: 36, borderRadius: 'var(--radius-md)', background: 'var(--accent-blue-dim)', color: 'var(--accent-blue)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <FileText size={16} />
                   </div>
 
                   {/* Info */}
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
-                      <span className="t-sm-semibold" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <div className="dense-row__body">
+                    <div className="dense-row__title">
+                      <span className="t-sm-semibold dense-row__name">
                         {doc.title || 'Untitled'}
                       </span>
                       <DocTypePill type={doc.type} />
                       <StatusPill status={doc.status} docType={doc.type} />
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                      <p className="t-2xs text-tertiary">
-                        {doc.clients?.name && `${doc.clients.name} · `}
-                        Updated {formatDate(doc.updated_at)}
-                        {doc.signed_at && ` · ${doc.type === 'proposal' ? 'Accepted' : 'Signed'} by ${doc.signer_name}`}
-                      </p>
+                    <div className="dense-row__meta">
+                      {doc.clients?.name && <span className="t-2xs text-tertiary">{doc.clients.name}</span>}
+                      <span className="t-2xs text-tertiary">Updated {formatDate(doc.updated_at)}</span>
+                      {doc.signed_at && (
+                        <span className="t-2xs text-tertiary">
+                          {doc.type === 'proposal' ? 'Accepted' : 'Signed'} by {doc.signer_name}
+                        </span>
+                      )}
                       {/* "Create Contract" shortcut on accepted proposals */}
                       {isProposalAccepted && (
                         <button onClick={() => handleDuplicateAsContract(doc)}
+                          className="chip-opt-out"
                           style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', borderRadius: 100, fontSize: 10, fontWeight: 600, border: '1px solid var(--accent-violet)', background: 'var(--accent-violet-dim)', color: 'var(--accent-violet)', cursor: 'pointer', fontFamily: 'var(--font-body)', transition: 'all 150ms' }}
                           onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--accent-violet)'; (e.currentTarget as HTMLElement).style.color = '#fff'; }}
                           onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'var(--accent-violet-dim)'; (e.currentTarget as HTMLElement).style.color = 'var(--accent-violet)'; }}>
@@ -285,16 +288,17 @@ export default function PersonalPaperworkPage() {
                   </div>
 
                   {/* Actions */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
-                    <button onClick={() => setEditingDoc(doc)} title="Edit"
+                  <div className="dense-row__actions">
+                    <button onClick={() => setEditingDoc(doc)} title="Edit" aria-label="Edit"
                       style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 10px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-default)', background: 'transparent', color: 'var(--text-secondary)', fontSize: 11, fontFamily: 'var(--font-body)', cursor: 'pointer', transition: 'all 150ms' }}
                       onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--accent-blue)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--accent-blue)'; }}
                       onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-secondary)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--border-default)'; }}>
-                      <Pencil size={12} /> Edit
+                      <Pencil size={12} /> <span className="row-btn-label">Edit</span>
                     </button>
 
                     {doc.share_token && (
-                      <button onClick={() => window.open(`/doc/${doc.share_token}`, '_blank')} title="Preview"
+                      <button onClick={() => window.open(`/doc/${doc.share_token}`, '_blank')} title="Preview" aria-label="Preview"
+                        className="hide-on-mobile-row"
                         style={{ display: 'flex', padding: '5px 8px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-default)', background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer', transition: 'all 150ms' }}
                         onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-primary)'; }}
                         onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-secondary)'; }}>
@@ -303,15 +307,16 @@ export default function PersonalPaperworkPage() {
                     )}
 
                     <button onClick={() => setSendingDoc(doc)}
+                      className="row-btn-primary"
                       style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 10px', borderRadius: 'var(--radius-sm)', fontSize: 11, fontFamily: 'var(--font-body)', cursor: 'pointer', transition: 'all 150ms', border: doc.share_token ? '1px solid var(--border-default)' : '1px solid var(--accent-blue)', background: doc.share_token ? 'transparent' : 'var(--accent-blue-dim)', color: doc.share_token ? 'var(--text-secondary)' : 'var(--accent-blue)' }}
                       onMouseEnter={e => { const el = e.currentTarget as HTMLElement; if (doc.share_token) { el.style.color = 'var(--text-primary)'; } else { el.style.background = 'var(--accent-blue)'; el.style.color = '#fff'; } }}
                       onMouseLeave={e => { const el = e.currentTarget as HTMLElement; if (doc.share_token) { el.style.color = 'var(--text-secondary)'; } else { el.style.background = 'var(--accent-blue-dim)'; el.style.color = 'var(--accent-blue)'; } }}>
-                      {doc.share_token ? <><Link2 size={11} /> Manage</> : <><Send size={11} /> Send</>}
+                      {doc.share_token ? <><Link2 size={11} /> <span className="row-btn-label">Manage</span></> : <><Send size={11} /> <span className="row-btn-label">Send</span></>}
                     </button>
 
                     {/* Delete with confirmation */}
                     {confirmDelete === doc.id ? (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <div className="hide-on-mobile-row" style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                         <span className="t-2xs text-secondary">Delete?</span>
                         <button onClick={() => handleDelete(doc.id)}
                           style={{ padding: '4px 9px', borderRadius: 'var(--radius-sm)', border: 'none', background: 'var(--accent-red)', color: '#fff', fontSize: 11, fontWeight: 600, fontFamily: 'var(--font-body)', cursor: 'pointer' }}>
@@ -323,13 +328,22 @@ export default function PersonalPaperworkPage() {
                         </button>
                       </div>
                     ) : (
-                      <button onClick={() => setConfirmDelete(doc.id)} title="Delete"
+                      <button onClick={() => setConfirmDelete(doc.id)} title="Delete" aria-label="Delete"
+                        className="hide-on-mobile-row"
                         style={{ display: 'flex', padding: '5px 7px', borderRadius: 'var(--radius-sm)', border: 'none', background: 'transparent', color: 'var(--text-tertiary)', cursor: 'pointer', transition: 'color 150ms' }}
                         onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--accent-red)'; }}
                         onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)'; }}>
                         <Trash2 size={13} />
                       </button>
                     )}
+
+                    {/* Mobile overflow — preview + delete live here on small screens */}
+                    <OverflowMenu
+                      items={[
+                        ...(doc.share_token ? [{ label: 'Preview link', icon: <ExternalLink size={14} />, onClick: () => window.open(`/doc/${doc.share_token}`, '_blank') }] : []),
+                        { label: 'Delete document', icon: <Trash2 size={14} />, onClick: () => handleDelete(doc.id), destructive: true },
+                      ]}
+                    />
                   </div>
                 </div>
               );
@@ -411,7 +425,7 @@ function CreateDocumentModal({ open, onClose, mode, clients, currentUser, onCrea
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div>
           <label className="t-label" style={{ display: 'block', marginBottom: 8 }}>Document Type</label>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+          <div className="rgrid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
             {DOC_TYPES.map(dt => (
               <button key={dt.value} type="button" onClick={() => setDocType(dt.value)}
                 style={{ padding: '10px 12px', borderRadius: 'var(--radius-md)', border: `1px solid ${docType === dt.value ? 'var(--accent-blue)' : 'var(--border-default)'}`, background: docType === dt.value ? 'var(--accent-blue-dim)' : 'transparent', cursor: 'pointer', textAlign: 'left' as const, transition: 'all 150ms' }}>
@@ -541,7 +555,7 @@ function DocumentEditorModal({ doc, clients, onClose, onSend, onDuplicateAsContr
       <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
         {/* Meta row */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+        <div className="rgrid-3" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
           <Input label="Title" value={title}
             onChange={e => { setTitle(e.target.value); scheduleAutoSave(); }} />
           <Select label="Client"
@@ -934,7 +948,7 @@ function ProposalEditor({ fields, setField }: { fields: any; setField: (k: strin
                   <X size={14} />
                 </button>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
+              <div className="rgrid-3" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
                 {availableToAdd.map(s => (
                   <button key={s.type} onClick={() => addSection(s.type)}
                     style={{ padding: '9px 10px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-default)', background: 'var(--bg-surface)', cursor: 'pointer', textAlign: 'left' as const, transition: 'all 150ms' }}
@@ -1001,7 +1015,7 @@ function ProposalSection({ type, fields, setField, onRemove }: {
           )}
           {type === 'investment' && (
             <>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div className="rgrid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <Input label="Investment (₹)" type="number" value={fields.investment_amount || ''} onChange={e => setField('investment_amount', Number(e.target.value))} placeholder="0" />
                 <Input label="Valid Until" type="date" value={fields.validity_date || ''} onChange={e => setField('validity_date', e.target.value)} />
               </div>
@@ -1114,7 +1128,7 @@ function ContractEditor({ fields, setField, docId }: { fields: any; setField: (k
                   <X size={14} />
                 </button>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
+              <div className="rgrid-3" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
                 {availableToAdd.map(s => (
                   <button key={s.type} onClick={() => addSection(s.type)}
                     style={{ padding: '9px 10px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-default)', background: 'var(--bg-surface)', cursor: 'pointer', textAlign: 'left' as const, transition: 'all 150ms' }}
@@ -1182,7 +1196,7 @@ function ContractSection({ type, fields, setField, docId, onRemove }: {
       {!collapsed && (
         <div style={{ padding: '14px', display: 'flex', flexDirection: 'column', gap: 12 }}>
           {type === 'parties' && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div className="rgrid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <Input label="Client Name" value={fields.parties?.client || ''} onChange={e => setField('parties', { ...fields.parties, client: e.target.value })} placeholder="Client full name" />
               <Input label="Service Provider" value={fields.parties?.freelancer || ''} onChange={e => setField('parties', { ...fields.parties, freelancer: e.target.value })} placeholder="Your full name" />
             </div>
@@ -1190,7 +1204,7 @@ function ContractSection({ type, fields, setField, docId, onRemove }: {
           {type === 'project' && (
             <>
               <Textarea label="Project Description" value={fields.project_description || ''} onChange={e => setField('project_description', e.target.value)} placeholder="Brief description of the work being contracted..." style={{ minHeight: 80 }} />
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div className="rgrid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <Input label="Project Start Date" type="date" value={fields.start_date || ''} onChange={e => setField('start_date', e.target.value)} />
                 <Input label="Expected Delivery" type="date" value={fields.delivery_date || ''} onChange={e => setField('delivery_date', e.target.value)} />
               </div>
@@ -1208,7 +1222,7 @@ function ContractSection({ type, fields, setField, docId, onRemove }: {
                   </button>
                 </div>
               ))}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 8 }}>
+              <div className="rgrid-form-row" style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 8 }}>
                 {/* addPayment coerces amount: string → number at the
                     write boundary, matching how invoice line-items
                     handle quantity/rate. Keeps fields.payment_schedule
@@ -1254,7 +1268,7 @@ function ContractSection({ type, fields, setField, docId, onRemove }: {
             <Input label="Governing Law & Jurisdiction" value={fields.governing_law || ''} onChange={e => setField('governing_law', e.target.value)} placeholder="e.g., India — disputes subject to jurisdiction of courts in Mumbai" />
           )}
           {type === 'signatures' && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+            <div className="rgrid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
               <SenderSignatureField value={fields.creator_signature || null} onChange={v => setField('creator_signature', v)} docId={docId} />
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <label className="t-label">Client Signature</label>
@@ -1342,7 +1356,7 @@ function SOWEditor({ fields, setField }: { fields: any; setField: (k: string, v:
                   <X size={14} />
                 </button>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
+              <div className="rgrid-3" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
                 {availableToAdd.map(s => (
                   <button key={s.type} onClick={() => addSection(s.type)}
                     style={{ padding: '9px 10px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-default)', background: 'var(--bg-surface)', cursor: 'pointer', textAlign: 'left' as const, transition: 'all 150ms' }}
@@ -1445,7 +1459,7 @@ function SOWSection({ type, fields, setField, onRemove }: {
                   </button>
                 </div>
               ))}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 8 }}>
+              <div className="rgrid-form-row" style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 8 }}>
                 <input value={newMilestone.title} onChange={e => setNewMilestone(m => ({ ...m, title: e.target.value }))}
                   placeholder="Milestone name (e.g., Design approval)" className="input" style={{ fontSize: 12 }} />
                 <input value={newMilestone.date} onChange={e => setNewMilestone(m => ({ ...m, date: e.target.value }))}
@@ -1545,7 +1559,7 @@ function RequirementsEditor({ fields, setField }: { fields: any; setField: (k: s
                   <X size={14} />
                 </button>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
+              <div className="rgrid-3" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
                 {availableToAdd.map(s => (
                   <button key={s.type} onClick={() => addSection(s.type)}
                     style={{ padding: '9px 10px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-default)', background: 'var(--bg-surface)', cursor: 'pointer', textAlign: 'left' as const, transition: 'all 150ms' }}
@@ -1713,7 +1727,7 @@ function InvoiceEditor({ fields, setField }: { fields: any; setField: (k: string
 
       {/* Invoice Details */}
       <EditorSection title="Invoice Details">
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <div className="rgrid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <div>
             <Input label="Invoice Number" value={fields.invoice_number || ''} onChange={e => setField('invoice_number', e.target.value)}
               placeholder="INV-2026-001 or INV/2026-27/001" />
@@ -1724,7 +1738,7 @@ function InvoiceEditor({ fields, setField }: { fields: any; setField: (k: string
           <Input label="Client Name" value={fields.client_name || ''} onChange={e => setField('client_name', e.target.value)}
             placeholder="Full name or company name" />
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <div className="rgrid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <Input label="Invoice Date" type="date" value={fields.invoice_date || new Date().toISOString().split('T')[0]}
             onChange={e => setField('invoice_date', e.target.value)} />
           <Input label="Due Date" type="date" value={fields.due_date || ''} onChange={e => setField('due_date', e.target.value)} />
@@ -1737,6 +1751,11 @@ function InvoiceEditor({ fields, setField }: { fields: any; setField: (k: string
 
       {/* Line Items */}
       <EditorSection title="Line Items">
+        {/* Horizontal scroll wrapper — line-item grids use fixed column widths
+            that can't sensibly collapse on mobile. minWidth keeps columns
+            aligned; the user scrolls horizontally within this card. */}
+        <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', margin: '0 -4px', padding: '0 4px' }}>
+          <div style={{ minWidth: 520, display: 'flex', flexDirection: 'column', gap: 6 }}>
 
         {/* Column headers */}
         {lineItems.length > 0 && (
@@ -1776,6 +1795,9 @@ function InvoiceEditor({ fields, setField }: { fields: any; setField: (k: string
             style={{ padding: '7px 14px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--accent-blue)', background: 'var(--accent-blue-dim)', fontSize: 12, color: 'var(--accent-blue)', cursor: 'pointer', fontFamily: 'var(--font-body)', whiteSpace: 'nowrap' as const, fontWeight: 500 }}>
             + Add
           </button>
+        </div>
+
+          </div>
         </div>
 
         {/* Totals — derived fresh, not from stored fields */}
@@ -1899,7 +1921,7 @@ function DeliveryEditor({ fields, setField, docId }: { fields: any; setField: (k
                   <X size={14} />
                 </button>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
+              <div className="rgrid-3" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
                 {availableToAdd.map(s => (
                   <button key={s.type} onClick={() => addSection(s.type)}
                     style={{ padding: '9px 10px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-default)', background: 'var(--bg-surface)', cursor: 'pointer', textAlign: 'left' as const, transition: 'all 150ms' }}
@@ -2058,7 +2080,7 @@ function DeliverySection({ type, fields, setField, docId, onRemove }: {
 
           {type === 'support' && (
             <>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div className="rgrid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <Input label="Support Ends On" type="date" value={fields.support_end_date || ''}
                   onChange={e => setField('support_end_date', e.target.value)} />
                 <Input label="Support Contact" value={fields.support_contact || ''}
@@ -2072,7 +2094,7 @@ function DeliverySection({ type, fields, setField, docId, onRemove }: {
           )}
 
           {type === 'signatures' && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+            <div className="rgrid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
               <SenderSignatureField value={fields.creator_signature || null} onChange={v => setField('creator_signature', v)} docId={docId} />
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <label className="t-label">Client Acceptance</label>

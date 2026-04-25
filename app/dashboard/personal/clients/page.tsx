@@ -1,11 +1,11 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useBrand } from '@/lib/brand';
 import { useCurrentUser } from '@/lib/auth/use-auth';
 import { createClient } from '@/lib/supabase/client';
 import { PageTransition } from '@/components/dashboard/PageTransition';
-import { Button, Input, Modal, Textarea, Select } from '@/components/ui';
+import { Button, Input, Modal, Textarea, Select, OverflowMenu, LoadMore, useLoadMore } from '@/components/ui';
 import { toast } from '@/components/ui/Toast';
 import { formatDate, formatRelative, stageLabel, buildMailtoLink, buildWhatsAppLink } from '@/lib/utils';
 import {
@@ -115,13 +115,18 @@ export default function PersonalClientsPage() {
 
   useEffect(() => { fetchClients(); }, [fetchClients]);
 
-  const filtered = clients.filter(c =>
+  const filtered = useMemo(() => clients.filter(c =>
     c.name.toLowerCase().includes(search.toLowerCase()) ||
     c.company?.toLowerCase().includes(search.toLowerCase()) ||
     c.contact_name?.toLowerCase().includes(search.toLowerCase())
-  );
-  const active = filtered.filter(c => c.current_stage !== 'completed');
-  const past   = filtered.filter(c => c.current_stage === 'completed');
+  ), [clients, search]);
+  const active = useMemo(() => filtered.filter(c => c.current_stage !== 'completed'), [filtered]);
+  const past   = useMemo(() => filtered.filter(c => c.current_stage === 'completed'), [filtered]);
+
+  // Pagination — active list grows fast as a working list,
+  // past clients are typically referenced less often.
+  const activePage = useLoadMore(active, { pageSize: 20 });
+  const pastPage   = useLoadMore(past,   { pageSize: 10 });
 
   async function handleStageChange(clientId: string, newStage: ClientStage) {
     const client = clients.find(c => c.id === clientId);
@@ -227,38 +232,43 @@ export default function PersonalClientsPage() {
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {active.map(client => (
-              <div key={client.id} className="card"
-                style={{ padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 14, cursor: 'pointer', transition: 'background 150ms' }}
+            {activePage.paginated.map(client => (
+              <div key={client.id} className="card dense-row"
+                style={{ padding: '14px 18px', cursor: 'pointer' }}
                 onClick={() => setSelectedClient(client)}
                 onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
                 onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = ''; }}>
                 {/* Avatar */}
-                <div style={{ width: 36, height: 36, borderRadius: '50%', background: clientInitialColor(client.name), color: '#fff', fontSize: 13, fontWeight: 700, fontFamily: 'var(--font-display)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <div className="dense-row__lead" style={{ width: 36, height: 36, borderRadius: '50%', background: clientInitialColor(client.name), color: '#fff', fontSize: 13, fontWeight: 700, fontFamily: 'var(--font-display)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   {client.name[0].toUpperCase()}
                 </div>
                 {/* Info */}
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
-                    <span className="t-sm-semibold">{client.name}</span>
-                    {client.company && <span className="t-2xs text-tertiary">· {client.company}</span>}
+                <div className="dense-row__body">
+                  <div className="dense-row__title">
+                    <span className="t-sm-semibold dense-row__name">{client.name}</span>
                     {client.service_type && (
-                      <span style={{ fontSize: 10, padding: '1px 7px', borderRadius: 100, background: 'var(--accent-violet-dim)', color: 'var(--accent-violet)', fontWeight: 500 }}>
+                      <span className="chip-opt-out" style={{ fontSize: 10, padding: '1px 7px', borderRadius: 100, background: 'var(--accent-violet-dim)', color: 'var(--accent-violet)', fontWeight: 500, flexShrink: 0 }}>
                         {SERVICE_TYPES.find(s => s.value === client.service_type)?.label}
                       </span>
                     )}
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <div className="dense-row__meta">
+                    {client.company && <span className="t-2xs text-tertiary">{client.company}</span>}
                     <span className="t-2xs text-tertiary">{phaseOf(client.current_stage)}</span>
-                    <span className="t-2xs text-tertiary">·</span>
                     <span className="t-2xs text-tertiary">{formatRelative(client.updated_at)}</span>
                   </div>
                 </div>
                 {/* Stage + chevron */}
-                <StagePill stage={client.current_stage} />
-                <ChevronRight size={14} style={{ color: 'var(--text-tertiary)', flexShrink: 0 }} />
+                <div className="dense-row__actions">
+                  <StagePill stage={client.current_stage} />
+                  <ChevronRight size={14} style={{ color: 'var(--text-tertiary)', flexShrink: 0 }} />
+                </div>
               </div>
             ))}
+            {active.length > 0 && (
+              <LoadMore hasMore={activePage.hasMore} onLoadMore={activePage.loadMore}
+                shown={activePage.shown} total={activePage.total} />
+            )}
 
             {/* Completed clients — collapsed */}
             {past.length > 0 && (
@@ -270,18 +280,30 @@ export default function PersonalClientsPage() {
                 </button>
                 {showPast && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 6, opacity: 0.6 }}>
-                    {past.map(client => (
-                      <div key={client.id} className="card"
-                        style={{ padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}
+                    {pastPage.paginated.map(client => (
+                      <div key={client.id} className="card dense-row"
+                        style={{ padding: '10px 16px', cursor: 'pointer' }}
                         onClick={() => setSelectedClient(client)}>
-                        <div style={{ width: 30, height: 30, borderRadius: '50%', background: 'var(--bg-hover)', color: 'var(--text-tertiary)', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <div className="dense-row__lead" style={{ width: 30, height: 30, borderRadius: '50%', background: 'var(--bg-hover)', color: 'var(--text-tertiary)', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                           {client.name[0].toUpperCase()}
                         </div>
-                        <span className="t-xs" style={{ flex: 1 }}>{client.name}</span>
-                        {client.company && <span className="t-2xs text-tertiary">{client.company}</span>}
-                        <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 100, background: 'var(--accent-green-dim)', color: 'var(--accent-green)', fontWeight: 500 }}>Completed</span>
+                        <div className="dense-row__body">
+                          <div className="dense-row__title">
+                            <span className="t-xs dense-row__name">{client.name}</span>
+                          </div>
+                          {client.company && (
+                            <div className="dense-row__meta">
+                              <span className="t-2xs text-tertiary">{client.company}</span>
+                            </div>
+                          )}
+                        </div>
+                        <div className="dense-row__actions">
+                          <span className="chip-opt-out" style={{ fontSize: 10, padding: '2px 8px', borderRadius: 100, background: 'var(--accent-green-dim)', color: 'var(--accent-green)', fontWeight: 500 }}>Completed</span>
+                        </div>
                       </div>
                     ))}
+                    <LoadMore hasMore={pastPage.hasMore} onLoadMore={pastPage.loadMore}
+                      shown={pastPage.shown} total={pastPage.total} showFooter={false} />
                   </div>
                 )}
               </div>
@@ -399,7 +421,7 @@ function ClientDetailModal({ client, onClose, onStageChange, onUpdate, onDelete 
 
         {/* Contact info + quick actions */}
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px 20px', flex: 1 }}>
+          <div className="rgrid-3" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px 20px', flex: 1 }}>
             {client.contact_name  && <div><p className="t-label sub-label-gap">Contact</p><p className="t-xs">{client.contact_name}</p></div>}
             {client.contact_email && <div><p className="t-label sub-label-gap">Email</p><p className="t-xs" style={{ color: 'var(--accent-blue)' }}>{client.contact_email}</p></div>}
             {client.contact_phone && <div><p className="t-label sub-label-gap">Phone</p><p className="t-xs">{client.contact_phone}</p></div>}
@@ -433,7 +455,7 @@ function ClientDetailModal({ client, onClose, onStageChange, onUpdate, onDelete 
         </div>
 
         {/* Section tabs */}
-        <div style={{ display: 'flex', borderBottom: '1px solid var(--border-subtle)', gap: 0 }}>
+        <div className="tabs-scroll" style={{ display: 'flex', borderBottom: '1px solid var(--border-subtle)', gap: 0 }}>
           {(['overview', 'documents', 'credentials', 'history'] as const).map(s => (
             <button key={s} onClick={() => setActiveSection(s)} style={{
               padding: '7px 16px', fontSize: 12, fontWeight: 500, fontFamily: 'var(--font-body)',
@@ -649,7 +671,7 @@ function CredentialAdder({ clientId, existing, onSaved }: {
   return (
     <div style={{ padding: 14, background: 'var(--bg-hover)', borderRadius: 'var(--radius-md)', display: 'flex', flexDirection: 'column', gap: 10 }}>
       <p className="t-label">Add Credential</p>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+      <div className="rgrid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
         <Input label="Service" value={service} onChange={e => setService(e.target.value)} placeholder="Hostinger, cPanel, GoDaddy…" />
         <Input label="Login / Details" value={detail} onChange={e => setDetail(e.target.value)} placeholder="user: foo / pass: bar" />
       </div>
@@ -696,16 +718,16 @@ function EditClientModal({ client, onClose, onSaved }: {
   return (
     <Modal open={true} onClose={onClose} title="Edit Client" size="md">
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <div className="rgrid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <Input label="Name / Project *" value={name} onChange={e => setName(e.target.value)} autoFocus />
           <Select label="Service Type" options={SERVICE_TYPES} value={serviceType} onChange={e => setServiceType(e.target.value)} />
         </div>
         <Input label="Company" value={company} onChange={e => setCompany(e.target.value)} placeholder="Optional" />
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <div className="rgrid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <Input label="Contact Name" value={contactName} onChange={e => setContactName(e.target.value)} />
           <Input label="Email" type="email" value={email} onChange={e => setEmail(e.target.value)} />
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <div className="rgrid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <Input label="Phone / WhatsApp" value={phone} onChange={e => setPhone(e.target.value)} />
           <Select label="Preferred Channel" options={[
             { value: 'whatsapp', label: 'WhatsApp' },
@@ -769,16 +791,16 @@ function CreateClientModal({ open, onClose, mode, currentUser, onCreated }: {
   return (
     <Modal open={open} onClose={onClose} title="Add Client" size="md">
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <div className="rgrid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <Input label="Name / Project *" value={name} onChange={e => setName(e.target.value)} placeholder="Acme Corp" autoFocus />
           <Select label="Service Type" options={SERVICE_TYPES} value={serviceType} onChange={e => setServiceType(e.target.value)} />
         </div>
         <Input label="Company" value={company} onChange={e => setCompany(e.target.value)} placeholder="Optional" />
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <div className="rgrid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <Input label="Contact Name" value={contactName} onChange={e => setContactName(e.target.value)} />
           <Input label="Email" type="email" value={email} onChange={e => setEmail(e.target.value)} />
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <div className="rgrid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <Input label="Phone / WhatsApp" value={phone} onChange={e => setPhone(e.target.value)} />
           <Select label="Preferred Channel" options={[
             { value: 'whatsapp', label: 'WhatsApp' },

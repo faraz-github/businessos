@@ -355,7 +355,7 @@ export default function PersonalComposePage() {
           </div>
         )}
 
-        <div style={{ display: 'grid', gridTemplateColumns: '240px 1fr', gap: 20, alignItems: 'start' }}>
+        <div className="rgrid-aside-main" style={{ display: 'grid', gridTemplateColumns: '240px 1fr', gap: 20, alignItems: 'start' }}>
 
           {/* ── LEFT PANEL ── */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 0, background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)' }}>
@@ -463,7 +463,7 @@ export default function PersonalComposePage() {
                 final_invoice: 'Paste the invoice link...',
               };
               return (
-                <div style={{ display: 'grid', gridTemplateColumns: showLink ? '1fr 1fr' : '1fr', gap: 10 }}>
+                <div className={showLink ? 'rgrid-2' : ''} style={{ display: 'grid', gridTemplateColumns: showLink ? '1fr 1fr' : '1fr', gap: 10 }}>
                   <Input
                     label="Project Name"
                     value={projectName}

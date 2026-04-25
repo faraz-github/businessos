@@ -76,6 +76,7 @@ const socialPostUpdateSchema = socialPostSchema.pick({
   title: true,
   content: true,
   planned_date: true,
+  posted_at: true,
   status: true,
   platform: true,
   engagement_notes: true,
@@ -129,9 +130,28 @@ export async function updateSocialPostStatus(
   const ownerId  = getOwnerId(session);
   const supabase = await createClient();
 
+  // When a post becomes "published" via the quick action, auto-stamp
+  // posted_at with the current time. Users can still adjust it later
+  // via the edit modal. We only set it if it's currently null —
+  // re-promoting a post (e.g. accidentally moving back and forth)
+  // shouldn't clobber a manually-edited timestamp.
+  const update: { status: SocialPostStatus; posted_at?: string } = { status };
+  if (status === 'published') {
+    // Read current posted_at first to avoid overwriting an existing value.
+    const existing = await supabase
+      .from('social_posts')
+      .select('posted_at')
+      .eq('id', id)
+      .eq('user_id', ownerId)
+      .maybeSingle();
+    if (!existing.data?.posted_at) {
+      update.posted_at = new Date().toISOString();
+    }
+  }
+
   const { data, error } = await supabase
     .from('social_posts')
-    .update({ status })
+    .update(update)
     .eq('id', id)
     .eq('user_id', ownerId)
     .select()

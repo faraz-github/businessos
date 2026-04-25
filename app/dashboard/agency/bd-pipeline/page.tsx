@@ -1,11 +1,11 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useBrand } from '@/lib/brand';
 import { useCurrentUser } from '@/lib/auth/use-auth';
 import { createClient } from '@/lib/supabase/client';
 import { PageTransition } from '@/components/dashboard/PageTransition';
-import { Button, Modal, Input, Select, Textarea } from '@/components/ui';
+import { Button, Modal, Input, Select, Textarea, LoadMore, useLoadMore } from '@/components/ui';
 import { toast } from '@/components/ui/Toast';
 import { formatRelative, formatDate, formatINR } from '@/lib/utils';
 import {
@@ -201,10 +201,11 @@ export default function AgencyBDPipelinePage() {
   }
 
   // Derived
-  const contactLeads = leads.filter(l => CONTACT_STAGES.some(s => s.value === l.stage));
-  const dealLeads    = leads.filter(l => DEAL_STAGES.some(s => s.value === l.stage));
-  const closedLeads  = leads.filter(l => l.stage === 'closed_won' || l.stage === 'closed_lost');
-  const wonLeads     = closedLeads.filter(l => l.stage === 'closed_won');
+  const contactLeads = useMemo(() => leads.filter(l => CONTACT_STAGES.some(s => s.value === l.stage)), [leads]);
+  const dealLeads    = useMemo(() => leads.filter(l => DEAL_STAGES.some(s => s.value === l.stage)), [leads]);
+  const closedLeads  = useMemo(() => leads.filter(l => l.stage === 'closed_won' || l.stage === 'closed_lost'), [leads]);
+  const wonLeads     = useMemo(() => closedLeads.filter(l => l.stage === 'closed_won'), [closedLeads]);
+  const lostLeads    = useMemo(() => closedLeads.filter(l => l.stage === 'closed_lost'), [closedLeads]);
 
   // Stats
   const totalActive = contactLeads.length + dealLeads.length;
@@ -232,8 +233,18 @@ export default function AgencyBDPipelinePage() {
       });
   }
 
-  const filteredContacts = applyFilter(contactLeads);
-  const filteredDeals    = applyFilter(dealLeads);
+  const filteredContacts = useMemo(() => applyFilter(contactLeads),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [contactLeads, search, stageFilter, sortKey, sortDir]);
+  const filteredDeals    = useMemo(() => applyFilter(dealLeads),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [dealLeads, search, stageFilter, sortKey, sortDir]);
+
+  // Pagination
+  const contactsPage = useLoadMore(filteredContacts, { pageSize: 20 });
+  const dealsPage    = useLoadMore(filteredDeals,    { pageSize: 20 });
+  const wonPage      = useLoadMore(wonLeads,         { pageSize: 10 });
+  const lostPage     = useLoadMore(lostLeads,        { pageSize: 10 });
 
   const TABS: { value: ActiveTab; label: string; count: number }[] = [
     { value: 'contacts', label: 'Contacts',  count: contactLeads.length },
@@ -264,7 +275,7 @@ export default function AgencyBDPipelinePage() {
         </div>
 
         {/* Summary stats */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+        <div className="rgrid-3" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
           {([
             { label: 'Active',         value: totalActive,                                color: 'var(--accent-blue)',   sub: `${contactLeads.length} contacts · ${dealLeads.length} deals` },
             { label: 'Pipeline Value', value: pipelineVal > 0 ? formatINR(pipelineVal) : '₹0', color: 'var(--accent-violet)', sub: 'from active deals' },
@@ -279,7 +290,7 @@ export default function AgencyBDPipelinePage() {
         </div>
 
         {/* Tabs — underline style */}
-        <div style={{ display: 'flex', borderBottom: '1px solid var(--border-subtle)', gap: 0 }}>
+        <div className="tabs-scroll" style={{ display: 'flex', borderBottom: '1px solid var(--border-subtle)', gap: 0 }}>
           {TABS.map(tab => (
             <button key={tab.value} onClick={() => handleTabChange(tab.value)}
               style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', border: 'none', background: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'var(--font-body)', color: activeTab === tab.value ? 'var(--text-primary)' : 'var(--text-tertiary)', borderBottom: `2px solid ${activeTab === tab.value ? 'var(--accent-blue)' : 'transparent'}`, marginBottom: -1, transition: 'color 150ms, border-color 150ms' }}>
@@ -314,20 +325,28 @@ export default function AgencyBDPipelinePage() {
                   setStageFilter={setStageFilter} stages={CONTACT_STAGES}
                   resultCount={filteredContacts.length} />
                 <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-                  <ContactTableHeader sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
-                  {filteredContacts.length === 0 ? (
-                    <EmptyTableState search={search} stageFilter={stageFilter}
-                      onAdd={() => setShowCreate(true)} noun="contacts" />
-                  ) : filteredContacts.map((lead, i) => (
-                    <ContactRow key={lead.id} lead={lead} isLast={i === filteredContacts.length - 1}
-                      onClick={() => setSelectedLead(lead)}
-                      onAdvance={() => {
-                        const ni = CONTACT_STAGES.findIndex(s => s.value === lead.stage) + 1;
-                        if (ni < CONTACT_STAGES.length) moveStage(lead.id, CONTACT_STAGES[ni].value);
-                        else moveStage(lead.id, 'proposal_sent'); // graduate to deals
-                      }}
-                      canAdvance={true} />
-                  ))}
+                  <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+                    <div style={{ minWidth: 720 }}>
+                      <ContactTableHeader sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                      {filteredContacts.length === 0 ? (
+                        <EmptyTableState search={search} stageFilter={stageFilter}
+                          onAdd={() => setShowCreate(true)} noun="contacts" />
+                      ) : contactsPage.paginated.map((lead, i) => (
+                        <ContactRow key={lead.id} lead={lead} isLast={i === contactsPage.paginated.length - 1}
+                          onClick={() => setSelectedLead(lead)}
+                          onAdvance={() => {
+                            const ni = CONTACT_STAGES.findIndex(s => s.value === lead.stage) + 1;
+                            if (ni < CONTACT_STAGES.length) moveStage(lead.id, CONTACT_STAGES[ni].value);
+                            else moveStage(lead.id, 'proposal_sent'); // graduate to deals
+                          }}
+                          canAdvance={true} />
+                      ))}
+                    </div>
+                    {filteredContacts.length > 0 && (
+                      <LoadMore hasMore={contactsPage.hasMore} onLoadMore={contactsPage.loadMore}
+                        shown={contactsPage.shown} total={contactsPage.total} />
+                    )}
+                  </div>
                 </div>
               </>
             )}
@@ -352,19 +371,27 @@ export default function AgencyBDPipelinePage() {
                   setStageFilter={setStageFilter} stages={DEAL_STAGES}
                   resultCount={filteredDeals.length} />
                 <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-                  <DealTableHeader sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
-                  {filteredDeals.length === 0 ? (
-                    <EmptyTableState search={search} stageFilter={stageFilter}
-                      onAdd={() => setShowCreate(true)} noun="deals" />
-                  ) : filteredDeals.map((lead, i) => (
-                    <DealRow key={lead.id} lead={lead} isLast={i === filteredDeals.length - 1}
-                      onClick={() => setSelectedLead(lead)}
-                      onAdvance={() => {
-                        const ni = DEAL_STAGES.findIndex(s => s.value === lead.stage) + 1;
-                        if (ni < DEAL_STAGES.length) moveStage(lead.id, DEAL_STAGES[ni].value);
-                      }}
-                      canAdvance={DEAL_STAGES.findIndex(s => s.value === lead.stage) < DEAL_STAGES.length - 1} />
-                  ))}
+                  <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+                    <div style={{ minWidth: 720 }}>
+                      <DealTableHeader sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                      {filteredDeals.length === 0 ? (
+                        <EmptyTableState search={search} stageFilter={stageFilter}
+                          onAdd={() => setShowCreate(true)} noun="deals" />
+                      ) : dealsPage.paginated.map((lead, i) => (
+                        <DealRow key={lead.id} lead={lead} isLast={i === dealsPage.paginated.length - 1}
+                          onClick={() => setSelectedLead(lead)}
+                          onAdvance={() => {
+                            const ni = DEAL_STAGES.findIndex(s => s.value === lead.stage) + 1;
+                            if (ni < DEAL_STAGES.length) moveStage(lead.id, DEAL_STAGES[ni].value);
+                          }}
+                          canAdvance={DEAL_STAGES.findIndex(s => s.value === lead.stage) < DEAL_STAGES.length - 1} />
+                      ))}
+                    </div>
+                    {filteredDeals.length > 0 && (
+                      <LoadMore hasMore={dealsPage.hasMore} onLoadMore={dealsPage.loadMore}
+                        shown={dealsPage.shown} total={dealsPage.total} />
+                    )}
+                  </div>
                 </div>
               </>
             )}
@@ -394,25 +421,29 @@ export default function AgencyBDPipelinePage() {
                   <div style={{ marginBottom: 16 }}>
                     <p className="t-label" style={{ marginBottom: 8, color: 'var(--accent-green)' }}>Won ({wonLeads.length})</p>
                     <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-                      {wonLeads.map((lead, i) => (
-                        <ClosedRow key={lead.id} lead={lead} isLast={i === wonLeads.length - 1}
+                      {wonPage.paginated.map((lead, i) => (
+                        <ClosedRow key={lead.id} lead={lead} isLast={i === wonPage.paginated.length - 1}
                           onClick={() => setSelectedLead(lead)} />
                       ))}
                     </div>
+                    <LoadMore hasMore={wonPage.hasMore} onLoadMore={wonPage.loadMore}
+                      shown={wonPage.shown} total={wonPage.total} showFooter={false} />
                   </div>
                 )}
                 {/* Lost */}
-                {closedLeads.filter(l => l.stage === 'closed_lost').length > 0 && (
+                {lostLeads.length > 0 && (
                   <div>
                     <p className="t-label" style={{ marginBottom: 8, color: 'var(--accent-red)' }}>
-                      Lost ({closedLeads.filter(l => l.stage === 'closed_lost').length})
+                      Lost ({lostLeads.length})
                     </p>
                     <div className="card" style={{ padding: 0, overflow: 'hidden', opacity: 0.8 }}>
-                      {closedLeads.filter(l => l.stage === 'closed_lost').map((lead, i, arr) => (
-                        <ClosedRow key={lead.id} lead={lead} isLast={i === arr.length - 1}
+                      {lostPage.paginated.map((lead, i) => (
+                        <ClosedRow key={lead.id} lead={lead} isLast={i === lostPage.paginated.length - 1}
                           onClick={() => setSelectedLead(lead)} />
                       ))}
                     </div>
+                    <LoadMore hasMore={lostPage.hasMore} onLoadMore={lostPage.loadMore}
+                      shown={lostPage.shown} total={lostPage.total} showFooter={false} />
                   </div>
                 )}
               </>
@@ -443,7 +474,7 @@ function Toolbar({ search, setSearch, stageFilter, setStageFilter, stages, resul
   stages: typeof CONTACT_STAGES; resultCount: number;
 }) {
   return (
-    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+    <div className="filter-bar" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
       <div style={{ position: 'relative', flex: 1, maxWidth: 280 }}>
         <Search size={12} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-tertiary)', pointerEvents: 'none' }} />
         <input value={search} onChange={e => setSearch(e.target.value)}

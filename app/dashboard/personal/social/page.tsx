@@ -1,13 +1,13 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useBrand } from '@/lib/brand';
 import { useCurrentUser } from '@/lib/auth/use-auth';
 import { createClient } from '@/lib/supabase/client';
 import { PageTransition } from '@/components/dashboard/PageTransition';
-import { Button, Input, Textarea, Select, Modal } from '@/components/ui';
+import { Button, Input, Textarea, Select, Modal, OverflowMenu, LoadMore, useLoadMore } from '@/components/ui';
 import { toast } from '@/components/ui/Toast';
-import { formatDate, formatRelative } from '@/lib/utils';
+import { formatDate, formatDateTime, formatRelative } from '@/lib/utils';
 import {
   Plus, Linkedin, Calendar, Lightbulb, ExternalLink,
   ChevronRight, Check, Pencil, Trash2, ArrowRight,
@@ -130,7 +130,7 @@ export default function OutreachPage() {
     setLeads(p => p.map(l => l.id === lead.id ? res.data as unknown as OutreachLead : l));
   }
 
-  async function deleteLead(id: string, e: React.MouseEvent) {
+  async function deleteLead(id: string, e: Pick<React.MouseEvent, 'stopPropagation'>) {
     e.stopPropagation();
     const prev = leads;
     setLeads(p => p.filter(l => l.id !== id));
@@ -174,6 +174,17 @@ export default function OutreachPage() {
     return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
   }).length;
 
+  // Memoized derived lists for pagination — keep array references
+  // stable across renders so useLoadMore doesn't reset on every render.
+  const scheduledPosts = useMemo(() => posts.filter(p => p.status !== 'idea'), [posts]);
+  const ideaPosts      = useMemo(() => posts.filter(p => p.status === 'idea'), [posts]);
+  const convertedLeads = useMemo(() => leads.filter(l => l.status === 'converted'), [leads]);
+
+  // Pagination
+  const scheduledPage = useLoadMore(scheduledPosts, { pageSize: 20 });
+  const ideaPage      = useLoadMore(ideaPosts,      { pageSize: 10 });
+  const convertedPage = useLoadMore(convertedLeads, { pageSize: 10 });
+
   return (
     <PageTransition>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
@@ -191,7 +202,7 @@ export default function OutreachPage() {
         </div>
 
         {/* Stats */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+        <div className="rgrid-4" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
           <StatCard label="Active in pipeline"    value={active}    color="var(--accent-blue)"   icon={<Linkedin size={14} />} />
           <StatCard label="Replied / In convo"    value={replied}   color="var(--accent-amber)"  icon={<MessageSquare size={14} />} />
           <StatCard label="Converted to clients"  value={converted} color="var(--accent-green)"  icon={<UserCheck size={14} />} />
@@ -199,7 +210,7 @@ export default function OutreachPage() {
         </div>
 
         {/* Tab bar — underline style */}
-        <div style={{ display: 'flex', borderBottom: '1px solid var(--border-subtle)', gap: 0 }}>
+        <div className="tabs-scroll" style={{ display: 'flex', borderBottom: '1px solid var(--border-subtle)', gap: 0 }}>
           {(['pipeline', 'content'] as const).map(tab => (
             <button key={tab} onClick={() => setActiveTab(tab)} style={{
               padding: '9px 18px', border: 'none', background: 'none', cursor: 'pointer',
@@ -238,67 +249,14 @@ export default function OutreachPage() {
                   const stageLeads = leads.filter(l => l.status === stage.value);
                   if (stageLeads.length === 0) return null;
                   return (
-                    <div key={stage.value}>
-                      {/* Stage header */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                        <div style={{ width: 8, height: 8, borderRadius: '50%', background: stage.color, flexShrink: 0 }} />
-                        <span className="t-label">{stage.label}</span>
-                        <span className="t-mono-sm">{stageLeads.length}</span>
-                      </div>
-                      {/* Lead cards */}
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                        {stageLeads.map(lead => (
-                          <div key={lead.id} className="card"
-                            style={{ padding: '14px 18px', cursor: 'pointer', transition: 'background 150ms' }}
-                            onClick={() => setSelectedLead(lead)}
-                            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
-                            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = ''; }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                              {/* Avatar */}
-                              <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'var(--accent-blue-dim)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 13, fontWeight: 700, fontFamily: 'var(--font-display)', color: 'var(--accent-blue)' }}>
-                                {lead.name[0].toUpperCase()}
-                              </div>
-                              {/* Info */}
-                              <div style={{ flex: 1, minWidth: 0 }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                                  <span className="t-sm-semibold">{lead.name}</span>
-                                  {lead.company && <span className="t-2xs text-tertiary">· {lead.company}</span>}
-                                </div>
-                                {lead.requirement && (
-                                  <p className="t-xs text-secondary" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                    {lead.requirement}
-                                  </p>
-                                )}
-                              </div>
-                              {/* Actions */}
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                                <span className="t-mono-sm">{formatRelative(lead.updated_at)}</span>
-                                {NEXT_STATUS[lead.status] && (
-                                  <button
-                                    onClick={e => advanceStatus(lead, e)}
-                                    title={`Move to ${STATUS_MAP[NEXT_STATUS[lead.status]!]?.label}`}
-                                    style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-default)', background: 'transparent', color: 'var(--text-secondary)', fontSize: 11, fontFamily: 'var(--font-body)', cursor: 'pointer', transition: 'all 150ms' }}
-                                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--accent-blue)'; (e.currentTarget as HTMLElement).style.color = 'var(--accent-blue)'; }}
-                                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--border-default)'; (e.currentTarget as HTMLElement).style.color = 'var(--text-secondary)'; }}
-                                  >
-                                    <ArrowRight size={11} />
-                                    {STATUS_MAP[NEXT_STATUS[lead.status]!]?.label}
-                                  </button>
-                                )}
-                                <button
-                                  onClick={e => deleteLead(lead.id, e)}
-                                  style={{ display: 'flex', padding: 4, borderRadius: 'var(--radius-sm)', border: 'none', background: 'transparent', color: 'var(--text-tertiary)', cursor: 'pointer', transition: 'color 150ms' }}
-                                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--accent-red)'; }}
-                                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)'; }}
-                                >
-                                  <Trash2 size={13} />
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
+                    <StageColumn
+                      key={stage.value}
+                      stage={stage}
+                      leads={stageLeads}
+                      onSelect={setSelectedLead}
+                      onAdvance={advanceStatus}
+                      onDelete={deleteLead}
+                    />
                   );
                 })}
 
@@ -311,7 +269,7 @@ export default function OutreachPage() {
                       <span className="t-mono-sm">{converted}</span>
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                      {leads.filter(l => l.status === 'converted').map(lead => (
+                      {convertedPage.paginated.map(lead => (
                         <div key={lead.id} className="card" style={{ padding: '10px 18px', opacity: 0.65, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                             <Check size={13} style={{ color: 'var(--accent-green)' }} />
@@ -322,6 +280,8 @@ export default function OutreachPage() {
                         </div>
                       ))}
                     </div>
+                    <LoadMore hasMore={convertedPage.hasMore} onLoadMore={convertedPage.loadMore}
+                      shown={convertedPage.shown} total={convertedPage.total} />
                   </div>
                 )}
               </div>
@@ -331,7 +291,7 @@ export default function OutreachPage() {
 
         {/* ── CONTENT TAB ── */}
         {activeTab === 'content' && (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: 24, alignItems: 'start' }}>
+          <div className="rgrid-main-aside" style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: 24, alignItems: 'start' }}>
 
             {/* Content Calendar — left */}
             <div>
@@ -349,54 +309,74 @@ export default function OutreachPage() {
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {posts.filter(p => p.status !== 'idea').map(post => {
+                  {scheduledPage.paginated.map(post => {
                     const statusColor = post.status === 'published' ? 'var(--accent-green)'
                       : post.status === 'scheduled' ? 'var(--accent-blue)'
                       : 'var(--accent-amber)';
                     return (
-                      <div key={post.id} className="card"
-                        style={{ padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <div key={post.id} className="card dense-row"
+                        style={{ padding: '14px 18px' }}>
                         {/* Status stripe */}
-                        <div style={{ width: 3, alignSelf: 'stretch', borderRadius: 2, background: statusColor, flexShrink: 0 }} />
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <p className="t-sm-medium" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {post.title || 'Untitled'}
-                          </p>
-                          <p className="t-2xs text-tertiary" style={{ marginTop: 2 }}>
-                            {post.planned_date ? formatDate(post.planned_date) : 'No date set'}
-                          </p>
+                        <div className="dense-row__lead" style={{ width: 3, alignSelf: 'stretch', borderRadius: 2, background: statusColor }} />
+                        <div className="dense-row__body">
+                          <div className="dense-row__title">
+                            <span className="t-sm-medium dense-row__name">
+                              {post.title || 'Untitled'}
+                            </span>
+                            <span className="chip-opt-out" style={{ padding: '3px 9px', borderRadius: 100, fontSize: 11, fontWeight: 500, background: `${statusColor}1A`, color: statusColor, flexShrink: 0 }}>
+                              {post.status}
+                            </span>
+                          </div>
+                          <div className="dense-row__meta">
+                            <span className="t-2xs text-tertiary">
+                              {post.status === 'published' && post.posted_at
+                                ? `Posted ${formatDateTime(post.posted_at)}`
+                                : post.planned_date ? `Planned ${formatDate(post.planned_date)}` : 'No date set'}
+                            </span>
+                          </div>
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                          <span style={{ padding: '3px 9px', borderRadius: 100, fontSize: 11, fontWeight: 500, background: `${statusColor}1A`, color: statusColor }}>
-                            {post.status}
-                          </span>
-                          {/* Quick actions */}
+                        <div className="dense-row__actions">
                           {post.status !== 'published' && (
                             <button onClick={() => updatePostStatus(post.id, 'published')}
                               title="Mark published"
-                              style={{ display: 'flex', padding: 4, borderRadius: 'var(--radius-sm)', border: 'none', background: 'transparent', color: 'var(--text-tertiary)', cursor: 'pointer', transition: 'color 150ms' }}
+                              aria-label="Mark published"
+                              style={{ display: 'flex', alignItems: 'center', gap: 4, padding: 4, borderRadius: 'var(--radius-sm)', border: 'none', background: 'transparent', color: 'var(--text-tertiary)', cursor: 'pointer', transition: 'color 150ms' }}
                               onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--accent-green)'; }}
                               onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)'; }}>
                               <Check size={13} />
+                              <span className="row-btn-label">Publish</span>
                             </button>
                           )}
                           <button onClick={() => setEditingPost(post)}
-                            style={{ display: 'flex', padding: 4, borderRadius: 'var(--radius-sm)', border: 'none', background: 'transparent', color: 'var(--text-tertiary)', cursor: 'pointer', transition: 'color 150ms' }}
+                            aria-label="Edit post"
+                            style={{ display: 'flex', alignItems: 'center', gap: 4, padding: 4, borderRadius: 'var(--radius-sm)', border: 'none', background: 'transparent', color: 'var(--text-tertiary)', cursor: 'pointer', transition: 'color 150ms' }}
                             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--accent-blue)'; }}
                             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)'; }}>
                             <Pencil size={13} />
+                            <span className="row-btn-label">Edit</span>
                           </button>
                           <button onClick={() => deletePost(post.id)}
+                            aria-label="Delete post"
+                            className="hide-on-mobile-row"
                             style={{ display: 'flex', padding: 4, borderRadius: 'var(--radius-sm)', border: 'none', background: 'transparent', color: 'var(--text-tertiary)', cursor: 'pointer', transition: 'color 150ms' }}
                             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--accent-red)'; }}
                             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)'; }}>
                             <Trash2 size={13} />
                           </button>
+                          <OverflowMenu
+                            items={[
+                              { label: 'Delete post', icon: <Trash2 size={14} />, onClick: () => deletePost(post.id), destructive: true },
+                            ]}
+                          />
                         </div>
                       </div>
                     );
                   })}
                 </div>
+              )}
+              {scheduledPosts.length > 0 && (
+                <LoadMore hasMore={scheduledPage.hasMore} onLoadMore={scheduledPage.loadMore}
+                  shown={scheduledPage.shown} total={scheduledPage.total} />
               )}
             </div>
 
@@ -404,10 +384,10 @@ export default function OutreachPage() {
             <div>
               <p className="t-label section-gap">Ideas Parking Lot</p>
               <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-                {posts.filter(p => p.status === 'idea').length === 0 ? (
+                {ideaPosts.length === 0 ? (
                   <p className="t-xs text-tertiary" style={{ fontStyle: 'italic' }}>Jot down post ideas here.</p>
                 ) : (
-                  posts.filter(p => p.status === 'idea').map((idea, i, arr) => (
+                  ideaPage.paginated.map((idea, i, arr) => (
                     <div key={idea.id} style={{
                       display: 'flex', alignItems: 'flex-start', gap: 10,
                       padding: '10px 0',
@@ -433,6 +413,10 @@ export default function OutreachPage() {
                       </div>
                     </div>
                   ))
+                )}
+                {ideaPosts.length > 0 && (
+                  <LoadMore hasMore={ideaPage.hasMore} onLoadMore={ideaPage.loadMore}
+                    shown={ideaPage.shown} total={ideaPage.total} />
                 )}
                 {/* Add idea inline */}
                 <AddIdeaInline onAdd={async (title) => {
@@ -553,7 +537,7 @@ function AddLeadForm({ currentUser, mode, onClose, onCreated }: {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+      <div className="rgrid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <Input label="Name *" value={name} onChange={e => setName(e.target.value)} placeholder="John Smith" autoFocus />
         <Input label="Company / Role" value={company} onChange={e => setCompany(e.target.value)} placeholder="Acme Corp" />
       </div>
@@ -639,6 +623,103 @@ function LeadDetailView({ lead, onClose, onUpdate, onDelete }: {
   );
 }
 
+// ─── STAGE COLUMN ───
+// One column in the LinkedIn pipeline (e.g. Found, Intro Sent, Replied).
+// Owns its own Load More state so paging through one stage doesn't
+// expand others.
+function StageColumn({ stage, leads, onSelect, onAdvance, onDelete }: {
+  // Match the shape produced by STATUSES (defined at the top of this
+  // file): adds `badge` alongside the value/label/color we actually use.
+  stage: { value: OutreachLeadStatus; label: string; color: string; badge: string };
+  leads: OutreachLead[];
+  onSelect: (lead: OutreachLead) => void;
+  onAdvance: (lead: OutreachLead, e: React.MouseEvent) => void;
+  // Accepts either a real MouseEvent (when called from the inline
+  // delete button) or a minimal shape with just stopPropagation
+  // (when called from the OverflowMenu, which has no event to forward).
+  // The handler itself only uses stopPropagation, so the wider type
+  // is sound — and necessary to satisfy TS when passing the parent's
+  // deleteLead(id, e: React.MouseEvent) into both callsites.
+  onDelete: (id: string, e: Pick<React.MouseEvent, 'stopPropagation'>) => void;
+}) {
+  const { paginated, hasMore, loadMore, shown, total } = useLoadMore(leads, { pageSize: 20 });
+  return (
+    <div>
+      {/* Stage header */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+        <div style={{ width: 8, height: 8, borderRadius: '50%', background: stage.color, flexShrink: 0 }} />
+        <span className="t-label">{stage.label}</span>
+        <span className="t-mono-sm">{leads.length}</span>
+      </div>
+      {/* Lead cards */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {paginated.map(lead => (
+          <div key={lead.id} className="card dense-row"
+            style={{ padding: '14px 18px', cursor: 'pointer' }}
+            onClick={() => onSelect(lead)}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = ''; }}>
+            <div className="dense-row__lead-body" style={{ display: 'contents' }}>
+              <div className="dense-row__lead" style={{ width: 34, height: 34, borderRadius: '50%', background: 'var(--accent-blue-dim)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, fontFamily: 'var(--font-display)', color: 'var(--accent-blue)' }}>
+                {lead.name[0].toUpperCase()}
+              </div>
+              <div className="dense-row__body">
+                <div className="dense-row__title">
+                  <span className="t-sm-semibold dense-row__name">{lead.name}</span>
+                </div>
+                <div className="dense-row__meta">
+                  {lead.company && <span className="t-2xs text-tertiary">{lead.company}</span>}
+                  {lead.company && <span className="dense-row__meta-sep t-2xs">·</span>}
+                  <span className="t-2xs text-tertiary">{formatRelative(lead.updated_at)}</span>
+                  {lead.requirement && (
+                    <>
+                      <span className="dense-row__meta-sep t-2xs">·</span>
+                      <span className="t-2xs text-tertiary hide-mobile" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 220 }}>{lead.requirement}</span>
+                      <span className="t-2xs text-tertiary show-mobile" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{lead.requirement.length > 40 ? lead.requirement.slice(0, 40) + '…' : lead.requirement}</span>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+            <div className="dense-row__actions" onClick={e => e.stopPropagation()}>
+              {NEXT_STATUS[lead.status] && (
+                <button
+                  onClick={e => onAdvance(lead, e)}
+                  title={`Move to ${STATUS_MAP[NEXT_STATUS[lead.status]!]?.label}`}
+                  className="row-btn-primary"
+                  style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-default)', background: 'transparent', color: 'var(--text-secondary)', fontSize: 11, fontFamily: 'var(--font-body)', cursor: 'pointer', transition: 'all 150ms' }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--accent-blue)'; (e.currentTarget as HTMLElement).style.color = 'var(--accent-blue)'; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--border-default)'; (e.currentTarget as HTMLElement).style.color = 'var(--text-secondary)'; }}
+                >
+                  <ArrowRight size={11} />
+                  <span className="row-btn-label">{STATUS_MAP[NEXT_STATUS[lead.status]!]?.label}</span>
+                </button>
+              )}
+              <button
+                onClick={e => onDelete(lead.id, e)}
+                aria-label="Delete lead"
+                className="hide-on-mobile-row"
+                style={{ display: 'flex', padding: 4, borderRadius: 'var(--radius-sm)', border: 'none', background: 'transparent', color: 'var(--text-tertiary)', cursor: 'pointer', transition: 'color 150ms' }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--accent-red)'; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)'; }}
+              >
+                <Trash2 size={13} />
+              </button>
+              <OverflowMenu
+                stopPropagation
+                items={[
+                  { label: 'Delete lead', icon: <Trash2 size={14} />, onClick: () => onDelete(lead.id, { stopPropagation: () => {} }), destructive: true },
+                ]}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+      <LoadMore hasMore={hasMore} onLoadMore={loadMore} shown={shown} total={total} showFooter={false} />
+    </div>
+  );
+}
+
 // ─── ADD/EDIT POST FORM ───
 function AddPostForm({ currentUser, mode, existing, onClose, onCreated }: {
   currentUser: { id: string; ownerId: string } | null; mode: 'personal' | 'agency'; existing?: SocialPost;
@@ -649,16 +730,43 @@ function AddPostForm({ currentUser, mode, existing, onClose, onCreated }: {
   const [content, setContent] = useState(existing?.content || '');
   const [date, setDate] = useState(existing?.planned_date || '');
   const [status, setStatus] = useState<SocialPostStatus>(existing?.status || 'idea');
+  // datetime-local needs `YYYY-MM-DDTHH:mm` (local time, no Z).
+  // Convert any incoming ISO timestamp to that shape; emit ISO on save.
+  const [postedAt, setPostedAt] = useState<string>(() => {
+    if (!existing?.posted_at) return '';
+    const d = new Date(existing.posted_at);
+    if (isNaN(d.getTime())) return '';
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  });
   const [saving, setSaving] = useState(false);
+
+  // Auto-fill posted_at the first time the user picks "published" so
+  // they aren't forced to type the timestamp manually. They can still
+  // edit the resulting value before saving.
+  function handleStatusChange(next: SocialPostStatus) {
+    if (next === 'published' && !postedAt) {
+      const d = new Date();
+      const pad = (n: number) => String(n).padStart(2, '0');
+      setPostedAt(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`);
+    }
+    setStatus(next);
+  }
 
   async function handleSave() {
     if (!currentUser) return;
     setSaving(true);
+    // Convert datetime-local back to ISO. If the user cleared the
+    // field or the post is no longer published, send null.
+    const postedAtIso = (status === 'published' && postedAt)
+      ? new Date(postedAt).toISOString()
+      : null;
     const res = existing
       ? await updateSocialPost(existing.id, {
           title,
           content,
           planned_date: date || null,
+          posted_at: postedAtIso,
           status,
         })
       : await createSocialPost({
@@ -667,6 +775,7 @@ function AddPostForm({ currentUser, mode, existing, onClose, onCreated }: {
           title,
           content,
           planned_date: date || null,
+          posted_at: postedAtIso,
           status,
         });
     setSaving(false);
@@ -683,14 +792,21 @@ function AddPostForm({ currentUser, mode, existing, onClose, onCreated }: {
         placeholder="What's the post about?" autoFocus />
       <Textarea label="Content" value={content} onChange={e => setContent(e.target.value)}
         placeholder="Write the post or notes..." style={{ minHeight: 120 }} />
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+      <div className="rgrid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <Input label="Planned Date" type="date" value={date} onChange={e => setDate(e.target.value)} />
-        <Select label="Status" value={status} onChange={e => setStatus(e.target.value as SocialPostStatus)}
+        <Select label="Status" value={status} onChange={e => handleStatusChange(e.target.value as SocialPostStatus)}
           options={[
             { value: 'idea', label: 'Idea' }, { value: 'draft', label: 'Draft' },
             { value: 'scheduled', label: 'Scheduled' }, { value: 'published', label: 'Published' },
           ]} />
       </div>
+      {/* Posted At — only meaningful for published posts. Auto-fills
+          on first transition to "Published" so users don't have to
+          type a timestamp; they can adjust before saving. */}
+      {status === 'published' && (
+        <Input label="Posted Date and Time" type="datetime-local"
+          value={postedAt} onChange={e => setPostedAt(e.target.value)} />
+      )}
       <div style={{ display: 'flex', gap: 10, paddingTop: 16 }}>
         <Button variant="secondary" onClick={onClose} style={{ flex: 1 }}>Cancel</Button>
         <Button onClick={handleSave} loading={saving} style={{ flex: 1 }}>{existing ? 'Save Changes' : 'Save'}</Button>

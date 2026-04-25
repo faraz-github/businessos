@@ -1,11 +1,11 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useBrand } from '@/lib/brand';
 import { useCurrentUser } from '@/lib/auth/use-auth';
 import { createClient } from '@/lib/supabase/client';
 import { PageTransition } from '@/components/dashboard/PageTransition';
-import { Button, Modal, Input, Select, Textarea } from '@/components/ui';
+import { Button, Modal, Input, Select, Textarea, OverflowMenu, LoadMore, useLoadMore } from '@/components/ui';
 import { toast } from '@/components/ui/Toast';
 import { formatDate, daysUntil, buildMailtoLink, buildWhatsAppLink } from '@/lib/utils';
 import {
@@ -86,8 +86,12 @@ export default function PersonalSupportPage() {
     }
   }
 
-  const active = periods.filter(p => new Date(p.end_date) >= new Date());
-  const ended  = periods.filter(p => new Date(p.end_date) < new Date());
+  const active = useMemo(() => periods.filter(p => new Date(p.end_date) >= new Date()), [periods]);
+  const ended  = useMemo(() => periods.filter(p => new Date(p.end_date) <  new Date()), [periods]);
+
+  // Pagination
+  const activePage = useLoadMore(active, { pageSize: 20 });
+  const endedPage  = useLoadMore(ended,  { pageSize: 10 });
 
   return (
     <PageTransition>
@@ -118,7 +122,7 @@ export default function PersonalSupportPage() {
         {active.length > 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <p className="t-label">Active</p>
-            {active.map(sp => {
+            {activePage.paginated.map(sp => {
               const days   = daysUntil(sp.end_date);
               const status = periodStatus(sp.end_date);
               const meta   = STATUS_META[status];
@@ -126,76 +130,84 @@ export default function PersonalSupportPage() {
               const total  = totalDays(sp.start_date, sp.end_date);
 
               return (
-                <div key={sp.id} className="card" style={{ padding: '16px 20px' }}
+                <div key={sp.id} className="card dense-row" style={{ padding: '16px 20px', alignItems: 'flex-start' }}
                   onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
                   onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = ''; }}>
 
-                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
-                    {/* Icon */}
-                    <div style={{ width: 38, height: 38, borderRadius: '50%', background: meta.bg, color: meta.color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <Shield size={17} />
+                  {/* Icon */}
+                  <div className="dense-row__lead" style={{ width: 38, height: 38, borderRadius: '50%', background: meta.bg, color: meta.color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Shield size={17} />
+                  </div>
+
+                  {/* Main info */}
+                  <div className="dense-row__body">
+                    <div className="dense-row__title">
+                      <span className="t-sm-semibold dense-row__name">{sp.clients?.name}</span>
+                      <span className="chip-opt-out" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', borderRadius: 100, fontSize: 11, fontWeight: 500, background: meta.bg, color: meta.color, flexShrink: 0 }}>
+                        <span style={{ width: 5, height: 5, borderRadius: '50%', background: 'currentColor', flexShrink: 0 }} />
+                        {status === 'ending' ? `${days} day${days !== 1 ? 's' : ''} left` : meta.label}
+                      </span>
                     </div>
 
-                    {/* Main info */}
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                        <p className="t-sm-semibold">{sp.clients?.name}</p>
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', borderRadius: 100, fontSize: 11, fontWeight: 500, background: meta.bg, color: meta.color }}>
-                          <span style={{ width: 5, height: 5, borderRadius: '50%', background: 'currentColor', flexShrink: 0 }} />
-                          {status === 'ending' ? `${days} day${days !== 1 ? 's' : ''} left` : meta.label}
-                        </span>
-                      </div>
-
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
-                        <Calendar size={11} style={{ color: 'var(--text-tertiary)' }} />
-                        <p className="t-2xs text-tertiary">
-                          {formatDate(sp.start_date)} — {formatDate(sp.end_date)}
-                          <span style={{ marginLeft: 8 }}>· {total} day period</span>
-                        </p>
-                      </div>
-
-                      {/* Progress bar */}
-                      <div style={{ height: 4, background: 'var(--bg-hover)', borderRadius: 100, overflow: 'hidden', marginBottom: sp.notes ? 10 : 0 }}>
-                        <div style={{ height: '100%', width: `${pct}%`, background: meta.color, borderRadius: 100, transition: 'width 0.6s ease-out' }} />
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 3 }}>
-                        <span className="t-2xs text-tertiary">{pct}% elapsed</span>
-                        <span className="t-2xs" style={{ color: meta.color, fontWeight: 500 }}>{days} day{days !== 1 ? 's' : ''} remaining</span>
-                      </div>
-
-                      {/* Notes */}
-                      {sp.notes && (
-                        <p className="t-xs text-secondary" style={{ marginTop: 10, padding: '8px 12px', background: 'var(--bg-hover)', borderRadius: 'var(--radius-sm)', borderLeft: `3px solid ${meta.color}` }}>
-                          {sp.notes}
-                        </p>
-                      )}
+                    <div className="dense-row__meta" style={{ marginBottom: 10 }}>
+                      <span className="t-2xs text-tertiary">
+                        {formatDate(sp.start_date)} — {formatDate(sp.end_date)}
+                      </span>
+                      <span className="t-2xs text-tertiary">{total} day period</span>
                     </div>
 
-                    {/* Actions */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                      <button onClick={() => setComposingFor(sp)}
-                        style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 'var(--radius-sm)', border: `1px solid ${meta.color}`, background: meta.bg, color: meta.color, fontSize: 11, fontFamily: 'var(--font-body)', fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 150ms' }}
-                        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.opacity = '0.8'; }}
-                        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.opacity = '1'; }}>
-                        <Mail size={11} /> Closing Message
-                      </button>
-                      <button onClick={() => setEditingPeriod(sp)}
-                        style={{ display: 'flex', padding: '6px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-default)', background: 'transparent', color: 'var(--text-tertiary)', cursor: 'pointer', transition: 'all 150ms' }}
-                        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--accent-blue)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--accent-blue)'; }}
-                        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--border-default)'; }}>
-                        <Pencil size={13} />
-                      </button>
-                      <button onClick={() => handleDelete(sp.id)}
-                        style={{ display: 'flex', padding: '6px', borderRadius: 'var(--radius-sm)', border: 'none', background: 'transparent', color: 'var(--text-tertiary)', cursor: 'pointer', transition: 'color 150ms' }}
-                        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--accent-red)'; }}
-                        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)'; }}>
-                        <Trash2 size={13} />
-                      </button>
+                    {/* Progress bar — always full-width under the title */}
+                    <div className="chip-opt-out" style={{ height: 4, background: 'var(--bg-hover)', borderRadius: 100, overflow: 'hidden', marginBottom: sp.notes ? 10 : 0 }}>
+                      <div style={{ height: '100%', width: `${pct}%`, background: meta.color, borderRadius: 100, transition: 'width 0.6s ease-out' }} />
                     </div>
+                    <div className="chip-opt-out" style={{ display: 'flex', justifyContent: 'space-between', marginTop: 3 }}>
+                      <span className="t-2xs text-tertiary">{pct}% elapsed</span>
+                      <span className="t-2xs" style={{ color: meta.color, fontWeight: 500 }}>{days} day{days !== 1 ? 's' : ''} remaining</span>
+                    </div>
+
+                    {/* Notes */}
+                    {sp.notes && (
+                      <p className="t-xs text-secondary chip-opt-out" style={{ marginTop: 10, padding: '8px 12px', background: 'var(--bg-hover)', borderRadius: 'var(--radius-sm)', borderLeft: `3px solid ${meta.color}` }}>
+                        {sp.notes}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Actions */}
+                  <div className="dense-row__actions">
+                    <button onClick={() => setComposingFor(sp)}
+                      className="row-btn-primary"
+                      style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 'var(--radius-sm)', border: `1px solid ${meta.color}`, background: meta.bg, color: meta.color, fontSize: 11, fontFamily: 'var(--font-body)', fontWeight: 600, cursor: 'pointer', transition: 'all 150ms' }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.opacity = '0.8'; }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.opacity = '1'; }}>
+                      <Mail size={11} /> <span className="row-btn-label">Closing Message</span>
+                    </button>
+                    <button onClick={() => setEditingPeriod(sp)} aria-label="Edit"
+                      style={{ display: 'flex', padding: '6px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-default)', background: 'transparent', color: 'var(--text-tertiary)', cursor: 'pointer', transition: 'all 150ms' }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--accent-blue)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--accent-blue)'; }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--border-default)'; }}>
+                      <Pencil size={13} />
+                    </button>
+                    <button onClick={() => handleDelete(sp.id)} aria-label="Delete"
+                      className="hide-on-mobile-row"
+                      style={{ display: 'flex', padding: '6px', borderRadius: 'var(--radius-sm)', border: 'none', background: 'transparent', color: 'var(--text-tertiary)', cursor: 'pointer', transition: 'color 150ms' }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--accent-red)'; }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)'; }}>
+                      <Trash2 size={13} />
+                    </button>
+                    <OverflowMenu
+                      items={[
+                        { label: 'Delete period', icon: <Trash2 size={14} />, onClick: () => handleDelete(sp.id), destructive: true },
+                      ]}
+                    />
                   </div>
                 </div>
               );
             })}
+            {active.length > 0 && (
+              <LoadMore hasMore={activePage.hasMore} onLoadMore={activePage.loadMore}
+                shown={activePage.shown} total={activePage.total} />
+            )}
           </div>
         )}
 
@@ -203,40 +215,53 @@ export default function PersonalSupportPage() {
         {ended.length > 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             <p className="t-label">Ended</p>
-            {ended.map(sp => {
+            {endedPage.paginated.map(sp => {
               const daysAgo = Math.abs(daysUntil(sp.end_date));
               return (
-                <div key={sp.id} className="card" style={{ padding: '12px 18px', display: 'flex', alignItems: 'center', gap: 14, opacity: 0.7, transition: 'opacity 150ms, background 150ms' }}
+                <div key={sp.id} className="card dense-row" style={{ padding: '12px 18px', opacity: 0.7 }}
                   onMouseEnter={e => { (e.currentTarget as HTMLElement).style.opacity = '1'; (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
                   onMouseLeave={e => { (e.currentTarget as HTMLElement).style.opacity = '0.7'; (e.currentTarget as HTMLElement).style.background = ''; }}>
-                  <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--bg-hover)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <div className="dense-row__lead" style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--bg-hover)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <Shield size={14} style={{ color: 'var(--text-tertiary)' }} />
                   </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <p className="t-xs-medium">{sp.clients?.name}</p>
-                    <p className="t-2xs text-tertiary">
-                      {formatDate(sp.start_date)} — {formatDate(sp.end_date)}
-                      <span style={{ marginLeft: 8 }}>· Ended {daysAgo} day{daysAgo !== 1 ? 's' : ''} ago</span>
-                    </p>
-                    {sp.notes && <p className="t-2xs text-tertiary" style={{ marginTop: 2, fontStyle: 'italic' }}>{sp.notes}</p>}
+                  <div className="dense-row__body">
+                    <div className="dense-row__title">
+                      <span className="t-xs-medium dense-row__name">{sp.clients?.name}</span>
+                    </div>
+                    <div className="dense-row__meta">
+                      <span className="t-2xs text-tertiary">
+                        {formatDate(sp.start_date)} — {formatDate(sp.end_date)}
+                      </span>
+                      <span className="t-2xs text-tertiary">Ended {daysAgo} day{daysAgo !== 1 ? 's' : ''} ago</span>
+                    </div>
+                    {sp.notes && <p className="t-2xs text-tertiary chip-opt-out" style={{ marginTop: 2, fontStyle: 'italic' }}>{sp.notes}</p>}
                   </div>
-                  <div style={{ display: 'flex', gap: 6 }}>
+                  <div className="dense-row__actions">
                     <button onClick={() => setComposingFor(sp)}
-                      style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-default)', background: 'transparent', color: 'var(--text-secondary)', fontSize: 11, fontFamily: 'var(--font-body)', cursor: 'pointer', transition: 'all 150ms', whiteSpace: 'nowrap' }}
+                      className="row-btn-primary"
+                      style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-default)', background: 'transparent', color: 'var(--text-secondary)', fontSize: 11, fontFamily: 'var(--font-body)', cursor: 'pointer', transition: 'all 150ms' }}
                       onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-primary)'; }}
                       onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-secondary)'; }}>
-                      <Mail size={11} /> Closing Message
+                      <Mail size={11} /> <span className="row-btn-label">Closing Message</span>
                     </button>
-                    <button onClick={() => handleDelete(sp.id)}
+                    <button onClick={() => handleDelete(sp.id)} aria-label="Delete"
+                      className="hide-on-mobile-row"
                       style={{ display: 'flex', padding: '5px', borderRadius: 'var(--radius-sm)', border: 'none', background: 'transparent', color: 'var(--text-tertiary)', cursor: 'pointer', transition: 'color 150ms' }}
                       onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--accent-red)'; }}
                       onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)'; }}>
                       <Trash2 size={13} />
                     </button>
+                    <OverflowMenu
+                      items={[
+                        { label: 'Delete period', icon: <Trash2 size={14} />, onClick: () => handleDelete(sp.id), destructive: true },
+                      ]}
+                    />
                   </div>
                 </div>
               );
             })}
+            <LoadMore hasMore={endedPage.hasMore} onLoadMore={endedPage.loadMore}
+              shown={endedPage.shown} total={endedPage.total} showFooter={false} />
           </div>
         )}
 
@@ -323,7 +348,7 @@ function AddEditModal({ mode, clients, currentUser, existing, onClose, onSaved }
         <Select label="Client" placeholder="Select client..."
           options={clients.map(c => ({ value: c.id, label: c.name }))}
           value={clientId} onChange={e => setClientId(e.target.value)} />
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <div className="rgrid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <Input label="Start Date" type="date" value={startDate} onChange={e => handleStartChange(e.target.value)} />
           <Input label="End Date" type="date" value={endDate} onChange={e => setEndDate(e.target.value)} />
         </div>
