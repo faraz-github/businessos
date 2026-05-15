@@ -335,3 +335,82 @@ export async function createPaidInvoiceAction(
 
   return { ok: true, data: { id: doc.id, paid_date: parsed.data.paid_date } };
 }
+
+// ─── INVOICE: UNDO MARK PAID ────────────────────────────────────
+// Reverses markInvoicePaidAction:
+//   1. Reverts document status from 'paid' back to 'overdue' (the
+//      invoice was overdue before it was paid — if it was only 'sent'
+//      or 'viewed' before, caller passes previous_status).
+//   2. Deletes the income transaction that was auto-created by
+//      markInvoicePaidAction, identified by invoice_id linkage.
+//      Only deletes the transaction whose invoice_id matches — any
+//      manually logged transactions for this invoice are left intact.
+//
+// This is intentionally NOT a generic "unpay any invoice" tool —
+// it's scoped to the accidental-mark-paid undo flow.
+
+const undoMarkPaidInputSchema = z.object({
+  id:              z.string().uuid(),
+  mode:            z.enum(['personal', 'agency']),
+  // The status the invoice should revert to. Defaults to 'overdue'
+  // since that's the most common case (500+ day invoices), but the
+  // caller passes the real previous status when it knows it.
+  previous_status: z.enum(['sent', 'viewed', 'overdue']).default('overdue'),
+  fields:          z.record(z.unknown()),
+});
+
+type UndoMarkPaidInput = z.infer<typeof undoMarkPaidInputSchema>;
+
+export async function undoMarkInvoicePaidAction(
+  input: UndoMarkPaidInput,
+): Promise<ActionResult<{ id: string }>> {
+  const parsed = undoMarkPaidInputSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues.map(i => i.message).join('; ') };
+  }
+
+  const session  = await requireSession();
+  const ownerId  = getOwnerId(session);
+  const supabase = await createClient();
+
+  // Strip paid_at and paid_date from fields so the invoice no longer
+  // shows a payment date in the UI.
+  const { paid_at: _pa, paid_date: _pd, ...revertedFields } = parsed.data.fields as Record<string, unknown>;
+
+  // 1. Revert the document status + fields
+  const { error: docErr } = await supabase
+    .from('documents')
+    .update({
+      status: parsed.data.previous_status,
+      fields: revertedFields as unknown as Json,
+    })
+    .eq('id', parsed.data.id)
+    .eq('user_id', ownerId)
+    .eq('type', 'invoice');
+
+  if (docErr) {
+    return { ok: false, error: `Failed to revert invoice: ${docErr.message}` };
+  }
+
+  // 2. Delete the auto-created income transaction linked to this invoice.
+  //    Ownership-scoped. If no matching transaction exists (e.g. it was
+  //    already manually deleted), this is a no-op — not an error.
+  const { error: txErr } = await supabase
+    .from('transactions')
+    .delete()
+    .eq('invoice_id', parsed.data.id)
+    .eq('user_id', ownerId)
+    .eq('type', 'income');
+
+  if (txErr) {
+    // The invoice is already reverted at this point. Flag the partial
+    // failure but don't return an error that blocks the UI — the user
+    // can clean up the orphaned transaction manually.
+    console.error('[undoMarkPaid] transaction delete failed:', txErr.message);
+  }
+
+  revalidatePath('/dashboard/personal/finance');
+  revalidatePath('/dashboard/agency/finance');
+
+  return { ok: true, data: { id: parsed.data.id } };
+}

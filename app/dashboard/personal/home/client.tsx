@@ -18,7 +18,7 @@ import { formatINR, formatCompactINR, formatTime, formatRelative } from '@/lib/u
 import {
   AlertCircle, CheckCircle2, Info, Plus, X,
   IndianRupee, Users, Linkedin, Briefcase, Clock,
-  Trash2,
+  Trash2, EyeOff,
 } from 'lucide-react';
 import type { AttentionItem, Priority, TimeBlock, TimeBlockType } from '@/types';
 import {
@@ -28,6 +28,7 @@ import {
   createTimeBlock,
   deleteTimeBlock,
 } from '@/app/dashboard/actions/focus';
+import { dismissAlertPermanently } from '@/app/dashboard/actions/home';
 
 interface HomeStats {
   money: { revenueThisMonth: number; outstandingTotal: number; overdueTotal: number; sparklineData: { value: number }[] };
@@ -50,32 +51,80 @@ function stagger(index: number) {
 }
 
 // ── Attention card ─────────────────────────────────────────────
-function AttentionCard({ item, index }: { item: AttentionItem; index: number }) {
+function AttentionCard({
+  item,
+  index,
+  onTempDismiss,
+  onPermDismiss,
+}: {
+  item: AttentionItem;
+  index: number;
+  onTempDismiss: (id: string) => void;
+  onPermDismiss: (item: AttentionItem) => void;
+}) {
   const cfgs = {
     critical:  { color: 'var(--accent-red)',   bg: 'var(--accent-red-dim)',   icon: <AlertCircle size={14} /> },
     important: { color: 'var(--accent-amber)', bg: 'var(--accent-amber-dim)', icon: <Clock size={14} /> },
     info:      { color: 'var(--accent-blue)',  bg: 'var(--accent-blue-dim)',  icon: <Info size={14} /> },
   };
   const cfg = cfgs[item.severity];
+  const [menuOpen, setMenuOpen] = useState(false);
+
   return (
-    <motion.div {...stagger(index)}>
-      <Link href={item.link} style={{ textDecoration: 'none', display: 'block' }}>
-        <div className="card"
-          style={{ padding: '12px 16px', display: 'flex', alignItems: 'flex-start', gap: 12, transition: 'background 150ms', cursor: 'pointer' }}
-          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
-          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = ''; }}>
-          <div style={{ width: 30, height: 30, borderRadius: '50%', background: cfg.bg, color: cfg.color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>
-            {cfg.icon}
-          </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
-              <span className="t-sm-semibold">{item.title}</span>
-              <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 7px', borderRadius: 100, background: cfg.bg, color: cfg.color, textTransform: 'capitalize' }}>{item.severity}</span>
-            </div>
-            <p className="t-xs text-secondary" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.description}</p>
-          </div>
+    <motion.div {...stagger(index)} style={{ position: 'relative' }}>
+      <div className="card"
+        style={{ padding: '12px 16px', display: 'flex', alignItems: 'flex-start', gap: 12, transition: 'background 150ms' }}
+        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
+        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = ''; }}>
+        {/* Severity icon */}
+        <div style={{ width: 30, height: 30, borderRadius: '50%', background: cfg.bg, color: cfg.color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>
+          {cfg.icon}
         </div>
-      </Link>
+        {/* Content — clicking navigates */}
+        <Link href={item.link} style={{ textDecoration: 'none', flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+            <span className="t-sm-semibold">{item.title}</span>
+            <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 7px', borderRadius: 100, background: cfg.bg, color: cfg.color, textTransform: 'capitalize' }}>{item.severity}</span>
+          </div>
+          <p className="t-xs text-secondary" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.description}</p>
+        </Link>
+        {/* Dismiss button — stops propagation so the link isn't followed */}
+        <div style={{ position: 'relative', flexShrink: 0 }}>
+          <button
+            onClick={e => { e.preventDefault(); setMenuOpen(v => !v); }}
+            title="Dismiss"
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 26, height: 26, borderRadius: 'var(--radius-sm)', border: 'none', background: 'transparent', color: 'var(--text-tertiary)', cursor: 'pointer', transition: 'background 150ms, color 150ms' }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; (e.currentTarget as HTMLElement).style.color = 'var(--text-primary)'; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)'; }}>
+            <X size={13} />
+          </button>
+          {menuOpen && (
+            <>
+              {/* Backdrop to close menu on outside click */}
+              <div onClick={() => setMenuOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 40 }} />
+              <div style={{ position: 'absolute', right: 0, top: 30, zIndex: 50, background: 'var(--bg-elevated)', border: '1px solid var(--border-default)', borderRadius: 'var(--radius-md)', boxShadow: 'var(--shadow-elevated)', minWidth: 170, overflow: 'hidden' }}>
+                <button
+                  onClick={e => { e.preventDefault(); setMenuOpen(false); onTempDismiss(item.id); }}
+                  style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', border: 'none', background: 'transparent', color: 'var(--text-secondary)', fontSize: 12, fontFamily: 'var(--font-body)', cursor: 'pointer', textAlign: 'left', transition: 'background 150ms' }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}>
+                  <X size={12} />
+                  Dismiss for now
+                </button>
+                <div style={{ height: 1, background: 'var(--border-subtle)', margin: '0 8px' }} />
+                <button
+                  onClick={e => { e.preventDefault(); setMenuOpen(false); onPermDismiss(item); }}
+                  style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', border: 'none', background: 'transparent', color: 'var(--accent-red)', fontSize: 12, fontFamily: 'var(--font-body)', cursor: 'pointer', textAlign: 'left', transition: 'background 150ms' }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--accent-red-dim)'; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}>
+                  <EyeOff size={12} />
+                  Hide permanently
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
     </motion.div>
   );
 }
@@ -128,12 +177,41 @@ export function PersonalHomeClient({ attentionItems, stats, priorities: initialP
   const [showAddBlock, setShowAddBlock]     = useState(false);
   const [currentTime, setCurrentTime]       = useState(new Date());
 
+  // Dismiss state — tempDismissed is session-only (Set of item ids),
+  // permDismissing tracks in-flight server calls to disable the button.
+  const [tempDismissed, setTempDismissed] = useState<Set<string>>(new Set());
+  const [permDismissing, setPermDismissing] = useState<Set<string>>(new Set());
+
+  const visibleAttentionItems = attentionItems.filter(item => !tempDismissed.has(item.id));
+
+  function handleTempDismiss(id: string) {
+    setTempDismissed(prev => new Set([...prev, id]));
+  }
+
+  async function handlePermDismiss(item: AttentionItem) {
+    setPermDismissing(prev => new Set([...prev, item.id]));
+    // Optimistic: temp-dismiss immediately so it vanishes at once
+    setTempDismissed(prev => new Set([...prev, item.id]));
+    const res = await dismissAlertPermanently({
+      item_id:       item.id,
+      item_type:     item.type,
+      related_id:    item.related_id,
+      related_table: item.related_table,
+    });
+    if (!res.ok) {
+      // Rollback optimistic temp-dismiss on failure
+      setTempDismissed(prev => { const s = new Set(prev); s.delete(item.id); return s; });
+      toast.error('Could not hide permanently. Try again.');
+    }
+    setPermDismissing(prev => { const s = new Set(prev); s.delete(item.id); return s; });
+  }
+
   // Pagination — both lists generate quickly; cap initial render
   // so users with lots of overdue invoices / quick-logs aren't
   // forced to scroll through everything to reach the rest of the
   // dashboard.
-  const attention = useLoadMore(attentionItems, { pageSize: 20 });
-  const logs      = useLoadMore(recentLogs,     { pageSize: 20 });
+  const attention = useLoadMore(visibleAttentionItems, { pageSize: 20 });
+  const logs      = useLoadMore(recentLogs,            { pageSize: 20 });
 
   // Update current time every minute for accurate block highlighting
   useEffect(() => {
@@ -262,7 +340,7 @@ export function PersonalHomeClient({ attentionItems, stats, priorities: initialP
             {/* Attention Feed */}
             <div>
               <p className="t-label" style={{ marginBottom: 12 }}>Needs Attention</p>
-              {attentionItems.length === 0 ? (
+              {visibleAttentionItems.length === 0 ? (
                 <div className="card" style={{ padding: '28px 24px', textAlign: 'center' }}>
                   <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'var(--accent-green-dim)', color: 'var(--accent-green)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px' }}>
                     <CheckCircle2 size={20} />
@@ -272,10 +350,18 @@ export function PersonalHomeClient({ attentionItems, stats, priorities: initialP
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {attention.paginated.map((item, i) => <AttentionCard key={item.id} item={item} index={i} />)}
+                  {attention.paginated.map((item, i) => (
+                    <AttentionCard
+                      key={item.id}
+                      item={item}
+                      index={i}
+                      onTempDismiss={handleTempDismiss}
+                      onPermDismiss={handlePermDismiss}
+                    />
+                  ))}
                 </div>
               )}
-              {attentionItems.length > 0 && (
+              {visibleAttentionItems.length > 0 && (
                 <LoadMore hasMore={attention.hasMore} onLoadMore={attention.loadMore}
                   shown={attention.shown} total={attention.total} />
               )}

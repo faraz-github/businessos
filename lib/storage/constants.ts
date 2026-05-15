@@ -31,6 +31,8 @@ export const BUCKETS = {
   BRAND_ASSETS:   'brand-assets',
   /** Authenticated bucket for images embedded inside paperwork docs. */
   DOCUMENT_MEDIA: 'document-media',
+  /** Public-read CDN bucket for images attached to social posts. */
+  POST_MEDIA:     'post-media',
   /** Service-role-only bucket for full-data backup JSON files. */
   BACKUPS:        'bos-backups',
 } as const;
@@ -47,6 +49,7 @@ export type BucketName = typeof BUCKETS[keyof typeof BUCKETS];
 export const MAX_UPLOAD_BYTES: Record<BucketName, number> = {
   [BUCKETS.BRAND_ASSETS]:   2 * 1024 * 1024,   // 2 MB
   [BUCKETS.DOCUMENT_MEDIA]: 5 * 1024 * 1024,   // 5 MB
+  [BUCKETS.POST_MEDIA]:     3 * 1024 * 1024,   // 3 MB
   [BUCKETS.BACKUPS]:        50 * 1024 * 1024,  // 50 MB
 };
 
@@ -73,6 +76,29 @@ export const COMPRESSION_PROFILES = {
     maxWidth:    2048,
     preferType:  'image/webp' as const,
   },
+  /**
+   * Social post images — quality-first.
+   *
+   * Goal: crisp images the user can copy to LinkedIn without any
+   * visible degradation from the original file.
+   *
+   * Strategy:
+   *   - NO dimension cap (maxWidth set to 20000 — effectively infinity).
+   *     The user's original resolution is preserved exactly.
+   *   - initialQuality: 0.95 — visually lossless for photography.
+   *   - Large maxSizeKB (8 MB) so the size target never forces
+   *     re-encoding at a lower quality to hit a smaller target.
+   *   - WebP for format efficiency: ~30% smaller than JPEG at the
+   *     same perceptual quality, with no visible difference.
+   *
+   * The only change from the original is format (PNG/JPEG → WebP)
+   * and a slight quality pass at 0.95. No resize, no crop, no blur.
+   */
+  'post-image': {
+    maxSizeKB:   8192,   // 8 MB ceiling — only hit for very large RAW-style files
+    maxWidth:    20000,  // effectively no resize — original dimensions preserved
+    preferType:  'image/webp' as const,
+  },
 } as const;
 
 export type CompressionProfile = keyof typeof COMPRESSION_PROFILES;
@@ -90,6 +116,11 @@ export const ALLOWED_MIME_TYPES: Record<BucketName, readonly string[]> = {
     'image/svg+xml',
   ],
   [BUCKETS.DOCUMENT_MEDIA]: [
+    'image/png',
+    'image/jpeg',
+    'image/webp',
+  ],
+  [BUCKETS.POST_MEDIA]: [
     'image/png',
     'image/jpeg',
     'image/webp',

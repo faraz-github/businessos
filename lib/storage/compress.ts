@@ -55,9 +55,9 @@ export async function compressImage(
     maxWidthOrHeight:     profile.maxWidth,
     fileType:             outputType,
     useWebWorker:         true,
-    // Library default is too aggressive on re-encoding quality; 0.8
-    // keeps logos readable at small sizes without visible artefacts.
-    initialQuality:       0.8,
+    // post-image: 0.95 — visually lossless, original dimensions preserved.
+    // logo / in-doc-image: 0.8 — smaller output acceptable for UI assets.
+    initialQuality:       profileName === 'post-image' ? 0.95 : 0.8,
   });
 
   // `browser-image-compression` returns Blob on some paths — normalize

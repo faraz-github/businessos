@@ -236,6 +236,8 @@ export interface SocialPost {
   posted_at: string | null;
   status: SocialPostStatus;
   engagement_notes: string | null;
+  /** Storage paths in the post-media bucket. Empty array = no images. */
+  image_paths: string[];
   created_at: string;
   updated_at: string;
 }
@@ -359,6 +361,7 @@ export interface AttentionItem {
   description: string;
   link: string;
   related_id: string;
+  related_table: 'documents' | 'subscriptions' | 'support_periods' | 'clients' | 'social_posts';
   created_at: string;
 }
 

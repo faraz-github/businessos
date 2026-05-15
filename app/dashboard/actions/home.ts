@@ -110,6 +110,10 @@ export async function getAttentionFeed(mode: Mode): Promise<AttentionItem[]> {
 
   const items: AttentionItem[] = [];
 
+  // Fetch permanent dismissals in parallel with all signal queries.
+  // We pass this into the assembly step to filter/resurface items.
+  const dismissedAlertsPromise = getDismissedAlerts(ownerId);
+
   const [
     { data: unsignedContracts },
     { data: invoiceDocs },
@@ -156,8 +160,9 @@ export async function getAttentionFeed(mode: Mode): Promise<AttentionItem[]> {
         title:       'Contract awaiting signature',
         description: `${doc.title || 'Contract'} sent ${daysSent} day${daysSent !== 1 ? 's' : ''} ago — no signature yet.`,
         link:        link('paperwork'),
-        related_id:  doc.id,
-        created_at:  doc.created_at,
+        related_id:    doc.id,
+        related_table: 'documents',
+        created_at:    doc.created_at,
       });
     }
   });
@@ -179,8 +184,9 @@ export async function getAttentionFeed(mode: Mode): Promise<AttentionItem[]> {
       title:       'Invoice overdue',
       description: `${(f?.invoice_number as string) || doc.title || 'Invoice'} — ₹${Number(f?.total || 0).toLocaleString('en-IN')} overdue by ${daysOverdue} day${daysOverdue !== 1 ? 's' : ''}.`,
       link:        link('finance'),
-      related_id:  doc.id,
-      created_at:  dueDate,
+      related_id:    doc.id,
+      related_table: 'documents',
+      created_at:    dueDate,
     });
   });
 
@@ -195,8 +201,9 @@ export async function getAttentionFeed(mode: Mode): Promise<AttentionItem[]> {
         title:       `Update ${client.name}`,
         description: `No progress update in ${daysSince} day${daysSince !== 1 ? 's' : ''}.`,
         link:        link('clients'),
-        related_id:  client.id,
-        created_at:  client.updated_at,
+        related_id:    client.id,
+        related_table: 'clients',
+        created_at:    client.updated_at,
       });
     }
   });
@@ -212,8 +219,9 @@ export async function getAttentionFeed(mode: Mode): Promise<AttentionItem[]> {
       title:       isOverdue ? 'Post overdue' : 'Post due today',
       description: post.title || 'Untitled post',
       link:        link('social'),
-      related_id:  post.id,
-      created_at:  post.planned_date,
+      related_id:    post.id,
+      related_table: 'social_posts',
+      created_at:    post.planned_date,
     });
   });
 
@@ -230,8 +238,9 @@ export async function getAttentionFeed(mode: Mode): Promise<AttentionItem[]> {
         title:       'Proposal expired',
         description: `${doc.title || 'Proposal'} validity expired on ${validityDate}.`,
         link:        link('paperwork'),
-        related_id:  doc.id,
-        created_at:  doc.created_at,
+        related_id:    doc.id,
+        related_table: 'documents',
+        created_at:    doc.created_at,
       });
     } else if (daysSent >= 5) {
       items.push({
@@ -241,8 +250,9 @@ export async function getAttentionFeed(mode: Mode): Promise<AttentionItem[]> {
         title:       'Proposal needs follow-up',
         description: `${doc.title || 'Proposal'} sent ${daysSent} day${daysSent !== 1 ? 's' : ''} ago.`,
         link:        link('paperwork'),
-        related_id:  doc.id,
-        created_at:  doc.created_at,
+        related_id:    doc.id,
+        related_table: 'documents',
+        created_at:    doc.created_at,
       });
     }
   });
@@ -256,8 +266,9 @@ export async function getAttentionFeed(mode: Mode): Promise<AttentionItem[]> {
       title:       `${sub.name} renewing soon`,
       description: `₹${Number(sub.cost).toLocaleString('en-IN')} on ${sub.next_renewal_at}.`,
       link:        link('finance'),
-      related_id:  sub.id,
-      created_at:  sub.next_renewal_at,
+      related_id:    sub.id,
+      related_table: 'subscriptions',
+      created_at:    sub.next_renewal_at,
     });
   });
 
@@ -275,8 +286,9 @@ export async function getAttentionFeed(mode: Mode): Promise<AttentionItem[]> {
       title:       `Support ending for ${sp.clients?.name ?? 'client'}`,
       description: `Support period ends on ${sp.end_date}.`,
       link:        link('support'),
-      related_id:  sp.id,
-      created_at:  sp.end_date,
+      related_id:    sp.id,
+      related_table: 'support_periods',
+      created_at:    sp.end_date,
     });
   });
 
@@ -285,7 +297,18 @@ export async function getAttentionFeed(mode: Mode): Promise<AttentionItem[]> {
   };
   items.sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity]);
 
-  return items;
+  // Filter out permanently dismissed items.
+  // Auto-resurface: the item's created_at reflects the underlying record's
+  // updated_at — so if the source record changed after the user dismissed
+  // this alert, item.created_at > dismissed_at and it reappears.
+  const dismissed = await dismissedAlertsPromise;
+
+  return items.filter(item => {
+    const d = dismissed.get(item.id);
+    if (!d) return true;                      // not dismissed — always show
+    if (item.created_at > d.dismissed_at) return true; // resurface: record changed
+    return false;                             // permanently hidden
+  });
 }
 
 // ─── TODAY'S PRIORITIES / TIME BLOCKS / RECENT LOGS ───────────
@@ -352,4 +375,87 @@ export async function getRecentLogs(mode: Mode) {
     return [];
   }
   return data ?? [];
+}
+
+// ─── DISMISS ALERTS ─────────────────────────────────────────────
+// Two paths: permanent (writes to dismissed_alerts table) and a
+// helper to fetch existing dismissals so getAttentionFeed can
+// filter them out.
+//
+// Temporary dismiss is purely client-state — no server action needed.
+
+import { z } from 'zod';
+import type { ActionResult } from './subscriptions';
+
+const DismissSchema = z.object({
+  item_id:       z.string().min(1),
+  item_type:     z.string().min(1),
+  related_id:    z.string().uuid(),
+  related_table: z.enum(['documents', 'subscriptions', 'support_periods', 'clients', 'social_posts']),
+});
+
+export async function dismissAlertPermanently(
+  input: z.infer<typeof DismissSchema>,
+): Promise<ActionResult<{ item_id: string }>> {
+  const parsed = DismissSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues.map(i => i.message).join('; ') };
+  }
+
+  const session  = await requireSession();
+  const ownerId  = getOwnerId(session);
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from('dismissed_alerts')
+    .upsert(
+      {
+        user_id:       ownerId,
+        item_id:       parsed.data.item_id,
+        item_type:     parsed.data.item_type,
+        related_id:    parsed.data.related_id,
+        related_table: parsed.data.related_table,
+        dismissed_at:  new Date().toISOString(),
+      },
+      { onConflict: 'user_id,item_id' },
+    );
+
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, data: { item_id: parsed.data.item_id } };
+}
+
+export async function undismissAlert(
+  item_id: string,
+): Promise<ActionResult<{ item_id: string }>> {
+  if (!item_id) return { ok: false, error: 'item_id required' };
+
+  const session  = await requireSession();
+  const ownerId  = getOwnerId(session);
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from('dismissed_alerts')
+    .delete()
+    .eq('user_id', ownerId)
+    .eq('item_id', item_id);
+
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, data: { item_id } };
+}
+
+// Called inside getAttentionFeed to get dismissed item ids for the owner.
+// Returns a Map of item_id → dismissed_at for fast O(1) lookup and
+// auto-resurface comparison.
+async function getDismissedAlerts(
+  ownerId: string,
+): Promise<Map<string, { dismissed_at: string; related_id: string; related_table: string }>> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from('dismissed_alerts')
+    .select('item_id, dismissed_at, related_id, related_table')
+    .eq('user_id', ownerId);
+
+  const map = new Map<string, { dismissed_at: string; related_id: string; related_table: string }>();
+  data?.forEach(r => map.set(r.item_id, { dismissed_at: r.dismissed_at, related_id: r.related_id, related_table: r.related_table }));
+  return map;
 }

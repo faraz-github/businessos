@@ -410,6 +410,7 @@ export const socialPostSchema = z.object({
   posted_at: z.string().nullable().optional(),
   status: z.enum(['idea', 'draft', 'scheduled', 'published']).default('idea'),
   engagement_notes: z.string().nullable().optional(),
+  image_paths: z.array(z.string()).optional(),
 });
 export type SocialPostFormData = z.infer<typeof socialPostSchema>;
 

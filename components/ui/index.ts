@@ -20,3 +20,5 @@ export type { SignaturePadHandle, SignaturePadProps } from './SignaturePad';
 export { OverflowMenu } from './OverflowMenu';
 export type { OverflowMenuItem } from './OverflowMenu';
 export { LoadMore, useLoadMore } from './LoadMore';
+export { TimeFilter, useTimeRange } from './TimeFilter';
+export type { TimeFilterProps } from './TimeFilter';

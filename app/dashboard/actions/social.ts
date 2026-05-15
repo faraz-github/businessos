@@ -21,6 +21,8 @@ import { revalidatePath } from 'next/cache';
 import type { SocialPost } from '@/types';
 import type { DbOutreachChannel } from '@/types/database';
 import type { ActionResult } from './subscriptions';
+import { uploadFile, deletePrefix, postMediaPath } from '@/lib/storage/upload';
+import { BUCKETS } from '@/lib/storage/constants';
 
 function revalidateSocial(): void {
   revalidatePath('/dashboard/personal/social');
@@ -60,7 +62,8 @@ export async function createSocialPost(
     .from('social_posts')
     .insert({
       ...parsed.data,
-      user_id: ownerId,
+      user_id:     ownerId,
+      image_paths: (parsed.data as { image_paths?: string[] }).image_paths ?? [],
     })
     .select()
     .single();
@@ -80,6 +83,8 @@ const socialPostUpdateSchema = socialPostSchema.pick({
   status: true,
   platform: true,
   engagement_notes: true,
+}).extend({
+  image_paths: z.array(z.string()).optional(),
 }).partial();
 export type SocialPostUpdateInput = z.infer<typeof socialPostUpdateSchema>;
 
@@ -98,6 +103,27 @@ export async function updateSocialPost(
   const session  = await requireSession();
   const ownerId  = getOwnerId(session);
   const supabase = await createClient();
+
+  // If image_paths is being updated, delete any paths that were removed
+  // from storage so we don't accumulate orphaned files in the bucket.
+  if (parsed.data.image_paths !== undefined) {
+    const { data: existing } = await supabase
+      .from('social_posts')
+      .select('image_paths')
+      .eq('id', id)
+      .eq('user_id', ownerId)
+      .single();
+
+    if (existing) {
+      const oldPaths = (existing.image_paths ?? []) as string[];
+      const newPaths = parsed.data.image_paths ?? [];
+      const orphaned = oldPaths.filter((p: string) => !newPaths.includes(p));
+      if (orphaned.length > 0) {
+        // Non-fatal — DB update proceeds even if storage delete fails
+        await supabase.storage.from(BUCKETS.POST_MEDIA).remove(orphaned);
+      }
+    }
+  }
 
   const { data, error } = await supabase
     .from('social_posts')
@@ -172,6 +198,10 @@ export async function deleteSocialPost(
   const session  = await requireSession();
   const ownerId  = getOwnerId(session);
   const supabase = await createClient();
+
+  // Clean up storage images before deleting the row so we don't
+  // leave orphaned files. Non-fatal — DB delete proceeds regardless.
+  await deletePrefix(BUCKETS.POST_MEDIA, `${ownerId}/${id}`);
 
   const { error } = await supabase
     .from('social_posts')
@@ -304,4 +334,98 @@ export async function deleteOutreachLead(
   if (error) return { ok: false, error: error.message };
   revalidateSocial();
   return { ok: true, data: { id } };
+}
+
+// ════════════════════════════════════════════════════════════════
+// POST IMAGE UPLOAD / DELETE
+// ════════════════════════════════════════════════════════════════
+
+// ─── UPLOAD ─────────────────────────────────────────────────────
+// Called client-side after browser-image-compression runs.
+// Accepts a single file per call so progress can be tracked
+// per-image. The client calls this N times for N images, collects
+// the paths, then saves them all with updateSocialPost.
+//
+// Note: the file arrives via FormData — server actions can receive
+// FormData natively when called from a client component.
+
+export async function uploadPostImage(
+  formData: FormData,
+  postId: string,
+): Promise<ActionResult<{ path: string; url: string }>> {
+  const file = formData.get('file');
+  if (!(file instanceof File)) return { ok: false, error: 'No file in FormData' };
+  if (!postId) return { ok: false, error: 'postId required' };
+
+  const session = await requireSession();
+  const ownerId = getOwnerId(session);
+
+  const path = postMediaPath(ownerId, postId, file.type);
+
+  const res = await uploadFile({
+    bucket:      BUCKETS.POST_MEDIA,
+    path,
+    file,
+    contentType: file.type,
+    upsert:      false,
+  });
+
+  if (!res.ok) return res;
+  return { ok: true, data: { path: res.data.path, url: res.data.url } };
+}
+
+// ─── DELETE SINGLE IMAGE ─────────────────────────────────────────
+// Removes one image from storage and patches image_paths on the
+// post row atomically.
+
+export async function deletePostImage(
+  postId: string,
+  imagePath: string,
+): Promise<ActionResult<{ image_paths: string[] }>> {
+  if (!postId || !imagePath) return { ok: false, error: 'postId and imagePath required' };
+
+  const session  = await requireSession();
+  const ownerId  = getOwnerId(session);
+  const supabase = await createClient();
+
+  // Ownership check — read the post first
+  const { data: post, error: fetchErr } = await supabase
+    .from('social_posts')
+    .select('image_paths')
+    .eq('id', postId)
+    .eq('user_id', ownerId)
+    .single();
+
+  if (fetchErr || !post) return { ok: false, error: 'Post not found or access denied' };
+
+  // Remove from storage (non-fatal — DB update still proceeds)
+  const supabaseStorage = await createClient();
+  await supabaseStorage.storage.from(BUCKETS.POST_MEDIA).remove([imagePath]);
+
+  // Remove path from the array
+  const updatedPaths = (post.image_paths ?? []).filter((p: string) => p !== imagePath);
+
+  const { error: updateErr } = await supabase
+    .from('social_posts')
+    .update({ image_paths: updatedPaths })
+    .eq('id', postId)
+    .eq('user_id', ownerId);
+
+  if (updateErr) return { ok: false, error: updateErr.message };
+
+  revalidateSocial();
+  return { ok: true, data: { image_paths: updatedPaths } };
+}
+
+// ─── DELETE ALL IMAGES FOR A POST ────────────────────────────────
+// Called when a post itself is deleted (wired into deleteSocialPost
+// above — see the updated deleteSocialPost below).
+// Also exported so callers can clean up without deleting the post.
+
+export async function deleteAllPostImages(
+  postId: string,
+  ownerId: string,
+): Promise<void> {
+  const prefix = `${ownerId}/${postId}`;
+  await deletePrefix(BUCKETS.POST_MEDIA, prefix);
 }

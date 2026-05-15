@@ -249,6 +249,21 @@ export function documentMediaPrefix(ownerId: string, documentId: string): string
 }
 
 /**
+ * post-media path for an image attached to a social post.
+ *   {ownerId}/{postId}/{nanoid}.{ext}
+ *
+ * The postId prefix groups each post's images so deletePrefix()
+ * can clean them all in one call when the post is deleted.
+ * Output is always WebP after browser compression, but we derive
+ * the extension from the compressed file's MIME to be safe.
+ */
+export function postMediaPath(ownerId: string, postId: string, mimeType: string): string {
+  const ext = extensionFor(mimeType);
+  const id  = nanoid(10);
+  return `${ownerId}/${postId}/${id}.${ext}`;
+}
+
+/**
  * document-media path for a signature captured on the public
  * /doc/[token] page: {ownerId}/{documentId}/signatures/{role}-{nanoid}.{ext}
  *
@@ -301,7 +316,7 @@ async function resolveUrlFor(
 ): Promise<StorageResult<string>> {
   const supabase = await createClient();
 
-  if (bucket === BUCKETS.BRAND_ASSETS) {
+  if (bucket === BUCKETS.BRAND_ASSETS || bucket === BUCKETS.POST_MEDIA) {
     const { data } = supabase.storage.from(bucket).getPublicUrl(path);
     if (!data?.publicUrl) return { ok: false, error: 'Could not resolve public URL' };
     return { ok: true, data: data.publicUrl };

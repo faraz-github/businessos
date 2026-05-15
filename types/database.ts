@@ -518,6 +518,7 @@ export interface Database {
           posted_at: string | null;
           status: DbSocialPostStatus;
           engagement_notes: string | null;
+          image_paths: string[];
           created_at: string;
           updated_at: string;
         };
@@ -532,6 +533,7 @@ export interface Database {
           posted_at?: string | null;
           status?: DbSocialPostStatus;
           engagement_notes?: string | null;
+          image_paths?: string[];
           created_at?: string;
           updated_at?: string;
         };
@@ -546,6 +548,7 @@ export interface Database {
           posted_at?: string | null;
           status?: DbSocialPostStatus;
           engagement_notes?: string | null;
+          image_paths?: string[];
           created_at?: string;
           updated_at?: string;
         };
@@ -1028,6 +1031,41 @@ export interface Database {
           notes?: string | null;
           created_at?: string | null;
           updated_at?: string | null;
+        };
+        Relationships: [];
+      };
+
+      // ─── dismissed_alerts (migration 020) ───
+      dismissed_alerts: {
+        Row: {
+          id:            string;
+          user_id:       string;
+          item_id:       string;
+          item_type:     string;
+          related_id:    string;
+          related_table: string;
+          dismissed_at:  string;
+          created_at:    string;
+        };
+        Insert: {
+          id?:           string;
+          user_id:       string;
+          item_id:       string;
+          item_type:     string;
+          related_id:    string;
+          related_table: string;
+          dismissed_at?: string;
+          created_at?:   string;
+        };
+        Update: {
+          id?:            string;
+          user_id?:       string;
+          item_id?:       string;
+          item_type?:     string;
+          related_id?:    string;
+          related_table?: string;
+          dismissed_at?:  string;
+          created_at?:    string;
         };
         Relationships: [];
       };

@@ -5,12 +5,13 @@ import { useBrand } from '@/lib/brand';
 import { useCurrentUser } from '@/lib/auth/use-auth';
 import { createClient } from '@/lib/supabase/client';
 import { PageTransition } from '@/components/dashboard/PageTransition';
-import { Button, Modal, Input, Select, OverflowMenu, LoadMore, useLoadMore } from '@/components/ui';
+import { Button, Modal, Input, Select, OverflowMenu, LoadMore, useLoadMore, TimeFilter, useTimeRange } from '@/components/ui';
 import { toast } from '@/components/ui/Toast';
 import { RevenueChart } from '@/components/charts/RevenueChart';
 import { formatINR, formatDate, isDueSoon, monthlyEquivalent } from '@/lib/utils';
+import { inTimeRange } from '@/lib/utils/time-range';
 import {
-  Plus, IndianRupee, TrendingUp, TrendingDown, RotateCw,
+  Plus, IndianRupee, TrendingUp, TrendingDown, RotateCw, RotateCcw,
   CheckCircle2, Trash2, Pause, Play, Receipt, CreditCard,
   Search, ExternalLink, Pencil, AlertTriangle,
 } from 'lucide-react';
@@ -28,6 +29,7 @@ import {
   deleteInvoiceDocument,
   markInvoicePaidAction,
   createPaidInvoiceAction,
+  undoMarkInvoicePaidAction,
 } from '@/app/dashboard/actions/transactions';
 
 /* ── constants ─────────────────────────────────────────────── */
@@ -329,6 +331,26 @@ export default function PersonalFinancePage() {
     loadData();
   }
 
+  async function handleUndoMarkPaid(inv: InvoiceListRow) {
+    const prev = invoices;
+    setInvoices(p => p.map(i =>
+      i.id === inv.id ? { ...i, status: 'overdue', paid_at: null, paid_date: null } : i,
+    ));
+    const res = await undoMarkInvoicePaidAction({
+      id:              inv.id,
+      mode,
+      previous_status: 'overdue',
+      fields:          inv.fields as Record<string, unknown>,
+    });
+    if (!res.ok) {
+      setInvoices(prev);
+      toast.error(res.error || 'Could not undo — try again');
+      return;
+    }
+    toast.success('Payment undone. Invoice is overdue again.');
+    loadData();
+  }
+
   async function deleteInvoice(id: string) {
     const prev = invoices;
     setInvoices(p => p.filter(i => i.id !== id));
@@ -387,24 +409,37 @@ export default function PersonalFinancePage() {
   }
 
   /* ── filtered data ── */
+  // Time ranges from URL params.
+  // Invoices: time filter only applies to paid rows — overdue/unpaid
+  // always show regardless of date so nothing critical is ever hidden.
+  const txTimeRange  = useTimeRange('monthly', 'tx');
+  const invTimeRange = useTimeRange('monthly', 'inv');
+
   const filteredTx = useMemo(() => transactions.filter(t => {
     if (txFilter !== 'all' && t.type !== txFilter) return false;
+    if (!inTimeRange(t.date, txTimeRange)) return false;
     if (txSearch) {
       const q = txSearch.toLowerCase();
       return (t.description || '').toLowerCase().includes(q) || t.category.toLowerCase().includes(q);
     }
     return true;
-  }), [transactions, txFilter, txSearch]);
+  }), [transactions, txFilter, txSearch, txTimeRange]);
 
   const filteredInvoices = useMemo(() => invoices.filter(i => {
-    // "Unpaid" now includes overdue — an overdue invoice is still
-    // unpaid from the owner's perspective. The separate "Overdue"
-    // filter stays for when the user wants to drill into overdue-only.
-    if (invFilter === 'unpaid')  return ['draft','sent','viewed','overdue'].includes(i.status);
-    if (invFilter === 'overdue') return i.status === 'overdue';
-    if (invFilter === 'paid')    return i.status === 'paid';
+    // Status filter
+    if (invFilter === 'unpaid')       { if (!['draft','sent','viewed','overdue'].includes(i.status)) return false; }
+    else if (invFilter === 'overdue') { if (i.status !== 'overdue') return false; }
+    else if (invFilter === 'paid')    { if (i.status !== 'paid') return false; }
+
+    // Time filter only on paid rows — never hide unpaid/overdue by date
+    const isPaid = i.status === 'paid';
+    if (isPaid) {
+      const dateToFilter = i.paid_date ?? i.due_date;
+      if (!inTimeRange(dateToFilter, invTimeRange)) return false;
+    }
+
     return true;
-  }), [invoices, invFilter]);
+  }), [invoices, invFilter, invTimeRange]);
 
   // Pagination — apply to the flat filtered lists so Load More
   // advances through the data in order without per-group buttons.
@@ -609,26 +644,31 @@ export default function PersonalFinancePage() {
         {activeTab === 'invoices' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {/* Filter bar */}
-            <div className="filter-bar" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <div style={{ display: 'flex', background: 'var(--bg-hover)', padding: 3, borderRadius: 'var(--radius-md)', gap: 2 }}>
-                {(['all', 'unpaid', 'overdue', 'paid'] as const).map(f => (
-                  <button key={f} onClick={() => setInvFilter(f)}
-                    style={{ padding: '5px 12px', borderRadius: 'calc(var(--radius-md) - 3px)', border: 'none', background: invFilter === f ? 'var(--bg-surface)' : 'transparent', color: invFilter === f ? 'var(--text-primary)' : 'var(--text-tertiary)', fontSize: 11, fontFamily: 'var(--font-body)', fontWeight: invFilter === f ? 500 : 400, cursor: 'pointer', boxShadow: invFilter === f ? 'var(--shadow-card)' : 'none', transition: 'all 150ms', textTransform: 'capitalize' }}>
-                    {f}
-                    {f === 'overdue' && overdueCount > 0 && <span style={{ marginLeft: 5, fontSize: 9, padding: '1px 4px', borderRadius: 100, background: 'var(--accent-red)', color: '#fff' }}>{overdueCount}</span>}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {/* Row 1: status pills + right-side actions */}
+              <div className="filter-bar" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div className="tabs-scroll" style={{ display: 'flex', background: 'var(--bg-hover)', padding: 3, borderRadius: 'var(--radius-md)', gap: 2 }}>
+                  {(['all', 'unpaid', 'overdue', 'paid'] as const).map(f => (
+                    <button key={f} onClick={() => setInvFilter(f)}
+                      style={{ padding: '5px 12px', borderRadius: 'calc(var(--radius-md) - 3px)', border: 'none', background: invFilter === f ? 'var(--bg-surface)' : 'transparent', color: invFilter === f ? 'var(--text-primary)' : 'var(--text-tertiary)', fontSize: 11, fontFamily: 'var(--font-body)', fontWeight: invFilter === f ? 500 : 400, cursor: 'pointer', boxShadow: invFilter === f ? 'var(--shadow-card)' : 'none', transition: 'all 150ms', textTransform: 'capitalize', whiteSpace: 'nowrap' }}>
+                      {f}
+                      {f === 'overdue' && overdueCount > 0 && <span style={{ marginLeft: 5, fontSize: 9, padding: '1px 4px', borderRadius: 100, background: 'var(--accent-red)', color: '#fff' }}>{overdueCount}</span>}
+                    </button>
+                  ))}
+                </div>
+                <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <button onClick={() => setShowLogPaid(true)}
+                    style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-default)', background: 'transparent', color: 'var(--text-secondary)', fontSize: 11, fontFamily: 'var(--font-body)', fontWeight: 500, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                    title="Record an invoice that's already been paid, without going through the full paperwork flow">
+                    <CheckCircle2 size={11} /> Log paid invoice
                   </button>
-                ))}
+                  <a href={`/dashboard/${mode}/paperwork`} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'var(--text-secondary)', fontFamily: 'var(--font-body)', textDecoration: 'none' }}>
+                    <ExternalLink size={11} /> Create in Paperwork
+                  </a>
+                </div>
               </div>
-              <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
-                <button onClick={() => setShowLogPaid(true)}
-                  style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-default)', background: 'transparent', color: 'var(--text-secondary)', fontSize: 11, fontFamily: 'var(--font-body)', fontWeight: 500, cursor: 'pointer', whiteSpace: 'nowrap' }}
-                  title="Record an invoice that's already been paid, without going through the full paperwork flow">
-                  <CheckCircle2 size={11} /> Log paid invoice
-                </button>
-                <a href={`/dashboard/${mode}/paperwork`} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'var(--text-secondary)', fontFamily: 'var(--font-body)', textDecoration: 'none' }}>
-                  <ExternalLink size={11} /> Create in Paperwork
-                </a>
-              </div>
+              {/* Row 2: time filter (scoped to paid rows in filteredInvoices — unpaid/overdue always show) */}
+              <TimeFilter paramPrefix="inv" defaultGranularity="monthly" allowFuture={false} />
             </div>
 
             {loading ? (
@@ -678,6 +718,16 @@ export default function PersonalFinancePage() {
                         <CheckCircle2 size={11} /> <span className="row-btn-label">Mark Paid</span>
                       </button>
                     )}
+                    {inv.status === 'paid' && (
+                      <button onClick={() => handleUndoMarkPaid(inv)}
+                        className="row-btn hide-on-mobile-row"
+                        title="Undo — revert to overdue and remove the income transaction"
+                        style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-default)', background: 'transparent', color: 'var(--text-tertiary)', fontSize: 11, fontFamily: 'var(--font-body)', fontWeight: 500, cursor: 'pointer', transition: 'all 150ms' }}
+                        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--accent-amber)'; (e.currentTarget as HTMLElement).style.color = 'var(--accent-amber)'; }}
+                        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--border-default)'; (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)'; }}>
+                        <RotateCcw size={11} /> <span className="row-btn-label">Undo Paid</span>
+                      </button>
+                    )}
                     {inv.share_token && (
                       <button onClick={() => window.open(`/doc/${inv.share_token}`, '_blank')}
                         aria-label="Preview"
@@ -717,26 +767,31 @@ export default function PersonalFinancePage() {
         {activeTab === 'transactions' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {/* Filter bar */}
-            <div className="filter-bar" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <div style={{ position: 'relative', flex: 1, maxWidth: 300 }}>
-                <Search size={12} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-tertiary)', pointerEvents: 'none' }} />
-                <input value={txSearch} onChange={e => setTxSearch(e.target.value)} placeholder="Search..."
-                  style={{ width: '100%', background: 'var(--bg-input)', border: '1px solid var(--border-default)', borderRadius: 'var(--radius-md)', padding: '7px 10px 7px 30px', fontSize: 12, fontFamily: 'var(--font-body)', color: 'var(--text-primary)', outline: 'none', boxSizing: 'border-box', transition: 'border-color 150ms' }}
-                  onFocus={e => { e.target.style.borderColor = 'var(--accent-blue)'; }}
-                  onBlur={e => { e.target.style.borderColor = 'var(--border-default)'; }} />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {/* Row 1: search + type pills + add */}
+              <div className="filter-bar" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ position: 'relative', flex: 1, maxWidth: 300 }}>
+                  <Search size={12} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-tertiary)', pointerEvents: 'none' }} />
+                  <input value={txSearch} onChange={e => setTxSearch(e.target.value)} placeholder="Search..."
+                    style={{ width: '100%', background: 'var(--bg-input)', border: '1px solid var(--border-default)', borderRadius: 'var(--radius-md)', padding: '7px 10px 7px 30px', fontSize: 12, fontFamily: 'var(--font-body)', color: 'var(--text-primary)', outline: 'none', boxSizing: 'border-box', transition: 'border-color 150ms' }}
+                    onFocus={e => { e.target.style.borderColor = 'var(--accent-blue)'; }}
+                    onBlur={e => { e.target.style.borderColor = 'var(--border-default)'; }} />
+                </div>
+                <div style={{ display: 'flex', background: 'var(--bg-hover)', padding: 3, borderRadius: 'var(--radius-md)', gap: 2 }}>
+                  {(['all', 'income', 'expense'] as const).map(f => (
+                    <button key={f} onClick={() => setTxFilter(f)}
+                      style={{ padding: '5px 12px', borderRadius: 'calc(var(--radius-md) - 3px)', border: 'none', background: txFilter === f ? 'var(--bg-surface)' : 'transparent', color: txFilter === f ? 'var(--text-primary)' : 'var(--text-tertiary)', fontSize: 11, fontFamily: 'var(--font-body)', fontWeight: txFilter === f ? 500 : 400, cursor: 'pointer', boxShadow: txFilter === f ? 'var(--shadow-card)' : 'none', transition: 'all 150ms', textTransform: 'capitalize' }}>
+                      {f}
+                    </button>
+                  ))}
+                </div>
+                <button onClick={() => setShowAddTx(true)}
+                  style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 5, padding: '6px 14px', borderRadius: 'var(--radius-md)', border: 'none', background: 'var(--accent-blue)', color: '#fff', fontSize: 12, fontFamily: 'var(--font-body)', fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                  <Plus size={13} /> Add
+                </button>
               </div>
-              <div style={{ display: 'flex', background: 'var(--bg-hover)', padding: 3, borderRadius: 'var(--radius-md)', gap: 2 }}>
-                {(['all', 'income', 'expense'] as const).map(f => (
-                  <button key={f} onClick={() => setTxFilter(f)}
-                    style={{ padding: '5px 12px', borderRadius: 'calc(var(--radius-md) - 3px)', border: 'none', background: txFilter === f ? 'var(--bg-surface)' : 'transparent', color: txFilter === f ? 'var(--text-primary)' : 'var(--text-tertiary)', fontSize: 11, fontFamily: 'var(--font-body)', fontWeight: txFilter === f ? 500 : 400, cursor: 'pointer', boxShadow: txFilter === f ? 'var(--shadow-card)' : 'none', transition: 'all 150ms', textTransform: 'capitalize' }}>
-                    {f}
-                  </button>
-                ))}
-              </div>
-              <button onClick={() => setShowAddTx(true)}
-                style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 5, padding: '6px 14px', borderRadius: 'var(--radius-md)', border: 'none', background: 'var(--accent-blue)', color: '#fff', fontSize: 12, fontFamily: 'var(--font-body)', fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                <Plus size={13} /> Add
-              </button>
+              {/* Row 2: time filter */}
+              <TimeFilter paramPrefix="tx" defaultGranularity="monthly" allowFuture={false} />
             </div>
 
             {/* Month-grouped list */}

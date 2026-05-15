@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo, forwardRef, useImperativeHandle } from 'react';
 import { useBrand } from '@/lib/brand';
 import { useCurrentUser } from '@/lib/auth/use-auth';
 import { createClient } from '@/lib/supabase/client';
@@ -12,6 +12,7 @@ import {
   Plus, Linkedin, Calendar, Lightbulb, ExternalLink,
   ChevronRight, Check, Pencil, Trash2, ArrowRight,
   MessageSquare, Phone, UserCheck, Eye,
+  ImagePlus, X, Loader2, Images, Download,
 } from 'lucide-react';
 import type { SocialPost, SocialPostStatus } from '@/types';
 import {
@@ -22,8 +23,13 @@ import {
   createOutreachLead,
   updateOutreachLead,
   deleteOutreachLead,
+  uploadPostImage,
+  deletePostImage,
   type OutreachLeadStatus,
 } from '@/app/dashboard/actions/social';
+import { compressImage } from '@/lib/storage/compress';
+import { TimeFilter, useTimeRange } from '@/components/ui';
+import { inTimeRange } from '@/lib/utils/time-range';
 
 interface OutreachLead {
   id: string; name: string; profile_url: string | null;
@@ -176,8 +182,15 @@ export default function OutreachPage() {
 
   // Memoized derived lists for pagination — keep array references
   // stable across renders so useLoadMore doesn't reset on every render.
-  const scheduledPosts = useMemo(() => posts.filter(p => p.status !== 'idea'), [posts]);
-  const ideaPosts      = useMemo(() => posts.filter(p => p.status === 'idea'), [posts]);
+  // Time range for content calendar — allow future (planning ahead is the point)
+  const contentTimeRange = useTimeRange('monthly', 'content');
+
+  const scheduledPosts = useMemo(() => posts.filter(p => {
+    if (p.status === 'idea') return false;
+    const dateToFilter = p.status === 'published' ? (p.posted_at ?? p.planned_date) : p.planned_date;
+    return inTimeRange(dateToFilter, contentTimeRange);
+  }), [posts, contentTimeRange]);
+  const ideaPosts = useMemo(() => posts.filter(p => p.status === 'idea'), [posts]);
   const convertedLeads = useMemo(() => leads.filter(l => l.status === 'converted'), [leads]);
 
   // Pagination
@@ -295,7 +308,10 @@ export default function OutreachPage() {
 
             {/* Content Calendar — left */}
             <div>
-              <p className="t-label section-gap">Scheduled &amp; Published</p>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+                <p className="t-label" style={{ margin: 0 }}>Scheduled &amp; Published</p>
+                <TimeFilter paramPrefix="content" defaultGranularity="monthly" allowFuture={true} />
+              </div>
               {loading ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {[1,2].map(i => <div key={i} className="card" style={{ height: 60, background: 'var(--bg-hover)', animation: 'ds-pulse 1.5s ease-in-out infinite' }} />)}
@@ -326,6 +342,12 @@ export default function OutreachPage() {
                             <span className="chip-opt-out" style={{ padding: '3px 9px', borderRadius: 100, fontSize: 11, fontWeight: 500, background: `${statusColor}1A`, color: statusColor, flexShrink: 0 }}>
                               {post.status}
                             </span>
+                            {post.image_paths?.length > 0 && (
+                              <span className="chip-opt-out hide-on-mobile-row" style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 8px', borderRadius: 100, fontSize: 11, fontWeight: 500, background: 'var(--bg-hover)', color: 'var(--text-tertiary)', flexShrink: 0 }}>
+                                <Images size={10} />
+                                {post.image_paths.length}
+                              </span>
+                            )}
                           </div>
                           <div className="dense-row__meta">
                             <span className="t-2xs text-tertiary">
@@ -336,6 +358,23 @@ export default function OutreachPage() {
                           </div>
                         </div>
                         <div className="dense-row__actions">
+                          {/* Quick-download buttons — one per image, shown when the post has images */}
+                          {post.image_paths?.length > 0 && post.image_paths.map((path, idx) => {
+                            const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
+                            const url = `${supabaseUrl}/storage/v1/object/public/post-media/${path}`;
+                            const filename = path.split('/').pop() ?? `image-${idx + 1}.webp`;
+                            return (
+                              <a key={path} href={url} download={filename} target="_blank" rel="noopener noreferrer"
+                                title={`Download image ${idx + 1}`}
+                                className="hide-on-mobile-row"
+                                style={{ display: 'flex', alignItems: 'center', gap: 4, padding: 4, borderRadius: 'var(--radius-sm)', color: 'var(--text-tertiary)', textDecoration: 'none', transition: 'color 150ms' }}
+                                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--accent-blue)'; }}
+                                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)'; }}>
+                                <Download size={13} />
+                                {post.image_paths.length > 1 && <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)' }}>{idx + 1}</span>}
+                              </a>
+                            );
+                          })}
                           {post.status !== 'published' && (
                             <button onClick={() => updatePostStatus(post.id, 'published')}
                               title="Mark published"
@@ -721,17 +760,250 @@ function StageColumn({ stage, leads, onSelect, onAdvance, onDelete }: {
 }
 
 // ─── ADD/EDIT POST FORM ───
+// ── PostImageUploader ──────────────────────────────────────────
+//
+// Two categories of images:
+//
+//   uploaded  — already in Supabase storage, have a path string.
+//               Shown with a public CDN URL. Can be deleted individually.
+//
+//   pending   — selected by the user but not yet uploaded (post not
+//               saved yet, or in-progress). Shown with a local object
+//               URL. Uploaded in bulk when the parent calls flush().
+//
+// The parent (AddPostForm) calls flush() on save. flush() compresses
+// each pending file, uploads it, and returns all paths so the parent
+// can include them in the create/update call in one shot.
+// This eliminates the save-first requirement entirely.
+
+interface PendingImage {
+  id:         string;   // local key only
+  file:       File;
+  previewUrl: string;
+}
+
+interface PostImageUploaderHandle {
+  /** Upload all pending files. Returns paths of newly uploaded images. */
+  flush: (postId: string) => Promise<string[]>;
+  /** True while any pending files are awaiting flush. */
+  hasPending: boolean;
+}
+
+const PostImageUploader = forwardRef<PostImageUploaderHandle, {
+  postId:   string | null;
+  uploaded: string[];           // already-saved paths
+  onUploadedChange: (paths: string[]) => void;
+  disabled?: boolean;
+}>(function PostImageUploader({ postId, uploaded, onUploadedChange, disabled }, ref) {
+  const [pending,   setPending]   = useState<PendingImage[]>([]);
+  const [flushing,  setFlushing]  = useState(false);
+  const [lightbox,  setLightbox]  = useState<string | null>(null); // URL for full-size preview
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Expose flush() and hasPending to the parent via ref
+  useImperativeHandle(ref, () => ({
+    hasPending: pending.length > 0,
+    async flush(pid: string): Promise<string[]> {
+      if (pending.length === 0) return [];
+      setFlushing(true);
+      const newPaths: string[] = [];
+      for (const p of pending) {
+        try {
+          const compressed = await compressImage(p.file, 'post-image');
+          const fd = new FormData();
+          fd.append('file', compressed);
+          const res = await uploadPostImage(fd, pid);
+          if (!res.ok) {
+            toast.error(`${p.file.name}: ${res.error}`);
+          } else {
+            newPaths.push(res.data.path);
+          }
+        } catch (err) {
+          // Surface the real error — generic "upload failed" hides the root cause
+          const msg = err instanceof Error ? err.message : String(err);
+          toast.error(`${p.file.name}: ${msg}`);
+        }
+      }
+      // Clear pending previews and release object URLs
+      setPending(prev => { prev.forEach(p => URL.revokeObjectURL(p.previewUrl)); return []; });
+      setFlushing(false);
+      return newPaths;
+    },
+  }), [pending]);
+
+  function publicUrl(path: string): string {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
+    return `${supabaseUrl}/storage/v1/object/public/post-media/${path}`;
+  }
+
+  function addFiles(files: FileList | null) {
+    if (!files || files.length === 0) return;
+    const MAX = 10;
+    const remaining = MAX - uploaded.length - pending.length;
+    if (remaining <= 0) { toast.error(`Maximum ${MAX} images per post.`); return; }
+    const toAdd = Array.from(files).slice(0, remaining);
+    const newPending: PendingImage[] = toAdd.map(f => ({
+      id:         Math.random().toString(36).slice(2),
+      file:       f,
+      previewUrl: URL.createObjectURL(f),
+    }));
+    setPending(prev => [...prev, ...newPending]);
+  }
+
+  function removePending(id: string) {
+    setPending(prev => {
+      const item = prev.find(p => p.id === id);
+      if (item) URL.revokeObjectURL(item.previewUrl);
+      return prev.filter(p => p.id !== id);
+    });
+  }
+
+  async function removeUploaded(path: string) {
+    if (!postId) { onUploadedChange(uploaded.filter(p => p !== path)); return; }
+    const res = await deletePostImage(postId, path);
+    if (!res.ok) { toast.error(res.error || 'Could not remove image'); return; }
+    onUploadedChange(res.data.image_paths);
+  }
+
+  function downloadImage(url: string, filename: string) {
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  }
+
+  const total = uploaded.length + pending.length;
+
+  return (
+    <>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {/* Header row */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <label style={{ fontSize: 11, fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-tertiary)' }}>
+            Images <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>({total}/10)</span>
+          </label>
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={disabled || flushing || total >= 10}
+            style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-default)', background: 'transparent', color: 'var(--text-secondary)', fontSize: 11, fontFamily: 'var(--font-body)', fontWeight: 500, cursor: (disabled || total >= 10) ? 'default' : 'pointer', opacity: (disabled || total >= 10) ? 0.5 : 1, transition: 'all 150ms' }}
+            onMouseEnter={e => { if (!disabled && total < 10) (e.currentTarget as HTMLElement).style.borderColor = 'var(--accent-blue)'; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--border-default)'; }}
+          >
+            {flushing ? <Loader2 size={11} style={{ animation: 'spin 1s linear infinite' }} /> : <ImagePlus size={11} />}
+            {flushing ? 'Uploading…' : 'Add images'}
+          </button>
+          <input ref={fileInputRef} type="file" accept="image/png,image/jpeg,image/webp" multiple style={{ display: 'none' }}
+            onChange={e => addFiles(e.target.files)}
+            onClick={e => { (e.target as HTMLInputElement).value = ''; }} />
+        </div>
+
+        {/* Empty drop zone */}
+        {total === 0 && (
+          <div onClick={() => fileInputRef.current?.click()}
+            style={{ border: '1px dashed var(--border-default)', borderRadius: 'var(--radius-md)', padding: '20px 16px', textAlign: 'center', cursor: 'pointer', transition: 'border-color 150ms' }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--accent-blue)'; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--border-default)'; }}>
+            <Images size={20} style={{ color: 'var(--text-tertiary)', margin: '0 auto 8px' }} />
+            <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>
+              Click to add images · PNG, JPG, WebP · original quality preserved
+            </p>
+          </div>
+        )}
+
+        {/* Thumbnail grid */}
+        {total > 0 && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))', gap: 8 }}>
+            {/* Already-uploaded images */}
+            {uploaded.map(path => {
+              const url = publicUrl(path);
+              const filename = path.split('/').pop() ?? 'image.webp';
+              return (
+                <div key={path} style={{ position: 'relative', aspectRatio: '1', borderRadius: 'var(--radius-sm)', overflow: 'hidden', background: 'var(--bg-hover)', cursor: 'pointer' }}
+                  onClick={() => setLightbox(url)}>
+                  <img src={url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                  {/* Action overlay — download + remove */}
+                  <div className="img-thumb-actions" style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0)', display: 'flex', alignItems: 'flex-start', justifyContent: 'flex-end', gap: 4, padding: 4, opacity: 0, transition: 'opacity 150ms' }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.opacity = '1'; (e.currentTarget as HTMLElement).style.background = 'rgba(0,0,0,0.35)'; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.opacity = '0'; (e.currentTarget as HTMLElement).style.background = 'rgba(0,0,0,0)'; }}>
+                    <button type="button" title="Download"
+                      onClick={ev => { ev.stopPropagation(); downloadImage(url, filename); }}
+                      style={{ width: 22, height: 22, borderRadius: '50%', border: 'none', background: 'rgba(0,0,0,0.6)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--accent-blue)'; }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(0,0,0,0.6)'; }}>
+                      <Download size={10} />
+                    </button>
+                    <button type="button" title="Remove"
+                      onClick={ev => { ev.stopPropagation(); removeUploaded(path); }}
+                      style={{ width: 22, height: 22, borderRadius: '50%', border: 'none', background: 'rgba(0,0,0,0.6)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--accent-red)'; }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(0,0,0,0.6)'; }}>
+                      <X size={10} />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+            {/* Pending (not yet uploaded) images */}
+            {pending.map(p => (
+              <div key={p.id} style={{ position: 'relative', aspectRatio: '1', borderRadius: 'var(--radius-sm)', overflow: 'hidden', background: 'var(--bg-hover)' }}>
+                <img src={p.previewUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', opacity: flushing ? 0.5 : 1 }} />
+                {/* Pending badge */}
+                <div style={{ position: 'absolute', bottom: 4, left: 4, fontSize: 9, fontWeight: 600, padding: '2px 5px', borderRadius: 4, background: 'rgba(0,0,0,0.65)', color: 'var(--accent-amber)' }}>
+                  {flushing ? '↑' : 'pending'}
+                </div>
+                {!flushing && (
+                  <button type="button" onClick={() => removePending(p.id)}
+                    style={{ position: 'absolute', top: 4, right: 4, width: 22, height: 22, borderRadius: '50%', border: 'none', background: 'rgba(0,0,0,0.6)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--accent-red)'; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(0,0,0,0.6)'; }}>
+                    <X size={10} />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Lightbox — click thumbnail to see full size */}
+      {lightbox && (
+        <div onClick={() => setLightbox(null)}
+          style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, cursor: 'zoom-out' }}>
+          <img src={lightbox} alt="" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: 'var(--radius-md)', boxShadow: '0 8px 40px rgba(0,0,0,0.6)' }} />
+          <button onClick={ev => { ev.stopPropagation(); downloadImage(lightbox, lightbox.split('/').pop() ?? 'image.webp'); }}
+            style={{ position: 'absolute', top: 20, right: 64, display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 'var(--radius-md)', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(0,0,0,0.5)', color: '#fff', fontSize: 12, fontFamily: 'var(--font-body)', fontWeight: 500, cursor: 'pointer', transition: 'background 150ms' }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--accent-blue)'; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(0,0,0,0.5)'; }}>
+            <Download size={13} /> Download
+          </button>
+          <button onClick={() => setLightbox(null)}
+            style={{ position: 'absolute', top: 20, right: 20, width: 36, height: 36, borderRadius: '50%', border: 'none', background: 'rgba(255,255,255,0.15)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+            <X size={16} />
+          </button>
+        </div>
+      )}
+    </>
+  );
+});
+PostImageUploader.displayName = 'PostImageUploader';
+
 function AddPostForm({ currentUser, mode, existing, onClose, onCreated }: {
   currentUser: { id: string; ownerId: string } | null; mode: 'personal' | 'agency'; existing?: SocialPost;
   onClose: () => void; onCreated: (post: SocialPost) => void;
 }) {
-  const supabase = useRef(createClient()).current;
-  const [title, setTitle] = useState(existing?.title || '');
-  const [content, setContent] = useState(existing?.content || '');
-  const [date, setDate] = useState(existing?.planned_date || '');
-  const [status, setStatus] = useState<SocialPostStatus>(existing?.status || 'idea');
-  // datetime-local needs `YYYY-MM-DDTHH:mm` (local time, no Z).
-  // Convert any incoming ISO timestamp to that shape; emit ISO on save.
+  const [title,    setTitle]    = useState(existing?.title    || '');
+  const [content,  setContent]  = useState(existing?.content  || '');
+  const [date,     setDate]     = useState(existing?.planned_date || '');
+  const [status,   setStatus]   = useState<SocialPostStatus>(existing?.status || 'idea');
+  const [uploaded, setUploaded] = useState<string[]>(existing?.image_paths ?? []);
+  const [saving,   setSaving]   = useState(false);
+  const uploaderRef = useRef<PostImageUploaderHandle>(null);
+
   const [postedAt, setPostedAt] = useState<string>(() => {
     if (!existing?.posted_at) return '';
     const d = new Date(existing.posted_at);
@@ -739,11 +1011,7 @@ function AddPostForm({ currentUser, mode, existing, onClose, onCreated }: {
     const pad = (n: number) => String(n).padStart(2, '0');
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
   });
-  const [saving, setSaving] = useState(false);
 
-  // Auto-fill posted_at the first time the user picks "published" so
-  // they aren't forced to type the timestamp manually. They can still
-  // edit the resulting value before saving.
   function handleStatusChange(next: SocialPostStatus) {
     if (next === 'published' && !postedAt) {
       const d = new Date();
@@ -756,28 +1024,52 @@ function AddPostForm({ currentUser, mode, existing, onClose, onCreated }: {
   async function handleSave() {
     if (!currentUser) return;
     setSaving(true);
-    // Convert datetime-local back to ISO. If the user cleared the
-    // field or the post is no longer published, send null.
+
     const postedAtIso = (status === 'published' && postedAt)
       ? new Date(postedAt).toISOString()
       : null;
-    const res = existing
-      ? await updateSocialPost(existing.id, {
-          title,
-          content,
-          planned_date: date || null,
-          posted_at: postedAtIso,
-          status,
-        })
-      : await createSocialPost({
-          mode,
-          platform: 'linkedin',
-          title,
-          content,
-          planned_date: date || null,
-          posted_at: postedAtIso,
-          status,
-        });
+
+    let res;
+    if (existing) {
+      // Edit flow: post already exists — flush pending images now
+      const newPaths = await (uploaderRef.current?.flush(existing.id) ?? Promise.resolve([]));
+      const allPaths = [...uploaded, ...newPaths];
+      res = await updateSocialPost(existing.id, {
+        title, content,
+        planned_date: date || null,
+        posted_at:    postedAtIso,
+        status,
+        image_paths:  allPaths,
+      });
+    } else {
+      // Create flow: create post first (no images yet), then flush
+      const createRes = await createSocialPost({
+        mode, platform: 'linkedin',
+        title, content,
+        planned_date: date || null,
+        posted_at:    postedAtIso,
+        status,
+        image_paths:  [],
+      });
+      if (!createRes.ok) {
+        setSaving(false);
+        toast.error(createRes.error || 'Could not save post');
+        return;
+      }
+      // Upload pending images against the new post id
+      const newPaths = await (uploaderRef.current?.flush(createRes.data.id) ?? Promise.resolve([]));
+      if (newPaths.length > 0) {
+        // Patch image_paths onto the newly created post
+        res = await updateSocialPost(createRes.data.id, { image_paths: newPaths });
+        if (res.ok) {
+          // Merge so the returned post has all fields
+          res = { ok: true, data: { ...createRes.data, image_paths: newPaths } };
+        }
+      } else {
+        res = createRes;
+      }
+    }
+
     setSaving(false);
     if (!res.ok) {
       toast.error(res.error || 'Could not save post');
@@ -800,17 +1092,25 @@ function AddPostForm({ currentUser, mode, existing, onClose, onCreated }: {
             { value: 'scheduled', label: 'Scheduled' }, { value: 'published', label: 'Published' },
           ]} />
       </div>
-      {/* Posted At — only meaningful for published posts. Auto-fills
-          on first transition to "Published" so users don't have to
-          type a timestamp; they can adjust before saving. */}
       {status === 'published' && (
         <Input label="Posted Date and Time" type="datetime-local"
           value={postedAt} onChange={e => setPostedAt(e.target.value)} />
       )}
-      <div style={{ display: 'flex', gap: 10, paddingTop: 16 }}>
+      <PostImageUploader
+        ref={uploaderRef}
+        postId={existing?.id ?? null}
+        uploaded={uploaded}
+        onUploadedChange={setUploaded}
+        disabled={saving}
+      />
+      <div style={{ display: 'flex', gap: 10, paddingTop: 8 }}>
         <Button variant="secondary" onClick={onClose} style={{ flex: 1 }}>Cancel</Button>
-        <Button onClick={handleSave} loading={saving} style={{ flex: 1 }}>{existing ? 'Save Changes' : 'Save'}</Button>
+        <Button onClick={handleSave} loading={saving} style={{ flex: 1 }}>
+          {saving && uploaderRef.current?.hasPending ? 'Uploading…' : existing ? 'Save Changes' : 'Save'}
+        </Button>
       </div>
     </div>
   );
 }
+
+
