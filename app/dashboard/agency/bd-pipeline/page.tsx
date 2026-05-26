@@ -241,8 +241,8 @@ export default function AgencyBDPipelinePage() {
     [dealLeads, search, stageFilter, sortKey, sortDir]);
 
   // Pagination
-  const contactsPage = useLoadMore(filteredContacts, { pageSize: 20 });
-  const dealsPage    = useLoadMore(filteredDeals,    { pageSize: 20 });
+  const contactsPage = useLoadMore(filteredContacts, { pageSize: 20, resetOn: [search, stageFilter, sortKey, sortDir] });
+  const dealsPage    = useLoadMore(filteredDeals,    { pageSize: 20, resetOn: [search, stageFilter, sortKey, sortDir] });
   const wonPage      = useLoadMore(wonLeads,         { pageSize: 10 });
   const lostPage     = useLoadMore(lostLeads,        { pageSize: 10 });
 

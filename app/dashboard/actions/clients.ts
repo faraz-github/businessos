@@ -89,13 +89,23 @@ export async function createClientRecord(
 // to stage_history. A dedicated action keeps that invariant on the server
 // rather than trusting the client to maintain it correctly.
 
+// This list MUST stay in sync with:
+//   1. the clients.current_stage CHECK constraint in
+//      supabase/migrations-consolidated/001_schema.sql (the DB source of truth,
+//      reflecting incremental migration 006), and
+//   2. ALL_STAGES in app/dashboard/personal/clients/page.tsx (the UI).
+// The previous list here was the pre-migration-006 set (initial_payment,
+// requirements_gathering, lost) and was missing 6 valid stages — which made
+// the very first advance (lead -> contacted) fail with "Invalid stage".
 const STAGE_VALUES = [
-  'lead', 'qualified', 'proposal_sent', 'proposal_accepted',
-  'contract_sent', 'contract_signed', 'initial_payment',
-  'requirements_gathering', 'in_progress', 'milestone_review',
-  'revision', 'final_review', 'final_payment_sent', 'handover',
-  'deployed', 'support_active', 'feedback_sent', 'retention_sent',
-  'completed', 'lost',
+  'lead', 'contacted', 'qualified',
+  'proposal_sent', 'proposal_accepted',
+  'contract_sent', 'contract_signed',
+  'upfront_paid', 'requirements_sent', 'requirements_received', 'credentials_pending',
+  'in_progress', 'milestone_review', 'revision',
+  'final_review', 'final_payment_sent', 'final_payment_received',
+  'handover', 'deployed',
+  'support_active', 'feedback_sent', 'retention_sent', 'completed',
 ] as const;
 
 export async function changeClientStage(

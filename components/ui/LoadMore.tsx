@@ -31,21 +31,32 @@ export interface UseLoadMoreOptions {
 }
 
 export function useLoadMore<T>(items: T[], opts: UseLoadMoreOptions = {}) {
-  const { pageSize = 20, resetOn = [] } = opts;
+  const { pageSize = 20, resetOn } = opts;
   const [page, setPage] = useState(0);
 
-  // Reset to page 0 when:
-  //   a) the source array reference changes (filter narrows the data)
-  //   b) any item in `resetOn` changes (search string, type filter, etc.)
-  // Without this, applying a search would slice into a stale offset.
-  // We use a single concatenated dep list so consumers don't have to
-  // think about deps — pass everything that affects filtering.
+  // Reset to page 0 ONLY when an explicit filter signal changes (search
+  // string, selected filter, active tab — whatever the caller passes in
+  // `resetOn`). We deliberately do NOT reset on the `items` array
+  // reference, because a parent re-render can hand us a fresh array
+  // reference with identical contents — and resetting on that would snap
+  // the user back to the first page every render, making "Load more"
+  // appear to do nothing (it increments page, the render resets it to 0).
+  //
+  // We serialize resetOn to a primitive so the effect only fires on an
+  // actual value change, never on a new-array-each-render identity.
+  const resetKey = resetOn ? JSON.stringify(resetOn) : '';
   useEffect(() => {
     setPage(0);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [items, ...resetOn]);
+  }, [resetKey]);
 
-  const visible = (page + 1) * pageSize;
+  // If the underlying data shrinks below what we're currently showing
+  // (e.g. items were deleted), clamp the page so we don't show an empty
+  // tail — but never force it below 0. This is length-based, not
+  // reference-based, so it won't spuriously fire on re-renders.
+  const maxPage = Math.max(0, Math.ceil(items.length / pageSize) - 1);
+  const effectivePage = Math.min(page, maxPage);
+
+  const visible = (effectivePage + 1) * pageSize;
   const paginated = useMemo(() => items.slice(0, visible), [items, visible]);
   const hasMore   = items.length > paginated.length;
 

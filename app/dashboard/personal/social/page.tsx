@@ -194,7 +194,7 @@ export default function OutreachPage() {
   const convertedLeads = useMemo(() => leads.filter(l => l.status === 'converted'), [leads]);
 
   // Pagination
-  const scheduledPage = useLoadMore(scheduledPosts, { pageSize: 20 });
+  const scheduledPage = useLoadMore(scheduledPosts, { pageSize: 20, resetOn: [contentTimeRange] });
   const ideaPage      = useLoadMore(ideaPosts,      { pageSize: 10 });
   const convertedPage = useLoadMore(convertedLeads, { pageSize: 10 });
 

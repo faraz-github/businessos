@@ -90,7 +90,7 @@ export default function PersonalFeedbackPage() {
   }), [testimonials, filterMode]);
 
   // Pagination
-  const testimonialsPage = useLoadMore(filtered,        { pageSize: 20 });
+  const testimonialsPage = useLoadMore(filtered,        { pageSize: 20, resetOn: [filterMode] });
   const eligiblePage     = useLoadMore(eligibleClients, { pageSize: 10 });
 
   return (

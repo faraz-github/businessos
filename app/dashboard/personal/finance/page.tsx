@@ -445,8 +445,8 @@ export default function PersonalFinancePage() {
   // advances through the data in order without per-group buttons.
   // Filtered lists are memoized above, so changing a filter value
   // changes the array reference and the hook auto-resets to page 0.
-  const txPage  = useLoadMore(filteredTx,       { pageSize: 20 });
-  const invPage = useLoadMore(filteredInvoices, { pageSize: 20 });
+  const txPage  = useLoadMore(filteredTx,       { pageSize: 20, resetOn: [txFilter, txSearch] });
+  const invPage = useLoadMore(filteredInvoices, { pageSize: 20, resetOn: [invFilter] });
   const subPage = useLoadMore(subscriptions,    { pageSize: 20 });
 
   // Group paginated transactions by month for display
